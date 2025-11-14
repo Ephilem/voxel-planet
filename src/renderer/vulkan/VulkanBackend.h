@@ -3,9 +3,9 @@
 #include "GLFW/glfw3.h"
 #include <memory>
 
-#define MAX_FRAMES_IN_FLIGHT 2
+#include "VulkanRenderPass.h"
 
-class RenderPassManager;
+#define MAX_FRAMES_IN_FLIGHT 2
 
 struct VulkanBackend {
     vkb::Instance instance;
@@ -34,7 +34,7 @@ struct VulkanBackend {
     std::vector<VkFence> inFlightFences;
     std::vector<VkFence> imageInFlight;
 
-    std::unique_ptr<RenderPassManager> renderPassManager;
+    VulkanRenderPass renderPass;
 
     /**
      * @param surface Pointer to a VkSurfaceKHR created from a GLFW window
@@ -43,7 +43,7 @@ struct VulkanBackend {
     ~VulkanBackend();
 
     void begin_frame();
-
+    void use_default_renderpass(VkCommandBuffer commandBuffer);
     void end_frame();
 
 private:

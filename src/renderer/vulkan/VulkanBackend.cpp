@@ -1,7 +1,4 @@
 #include "VulkanBackend.h"
-#include "../RenderPassManager.h"
-#include "../passes/TerrainRenderPass.h"
-#include "../passes/WorldRenderPass.h"
 
 #include <VkBootstrap.h>
 #include "GLFW/glfw3.h"
@@ -50,18 +47,15 @@ VulkanBackend::VulkanBackend(GLFWwindow* window) {
     init_device();
     create_swapchain();
     init_command_pool();
+
+    renderPass = VulkanRenderPass(this);
 }
 
 VulkanBackend::~VulkanBackend() {
-    // Wait for device to be idle before cleanup
     if (device.device != VK_NULL_HANDLE) {
         dispatch_table.deviceWaitIdle();
     }
 
-    // Clean up render pass manager
-    renderPassManager.reset();
-
-    // Clean up sync objects
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         if (availableSemaphores.size() > i && availableSemaphores[i] != VK_NULL_HANDLE) {
             dispatch_table.destroySemaphore(availableSemaphores[i], nullptr);
@@ -74,7 +68,6 @@ VulkanBackend::~VulkanBackend() {
         }
     }
 
-    // Clean up command pool
     if (commanPool != VK_NULL_HANDLE) {
         dispatch_table.destroyCommandPool(commanPool, nullptr);
     }

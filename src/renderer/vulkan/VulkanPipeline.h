@@ -1,5 +1,13 @@
 #pragma once
+#include "VulkanBackend.h"
 
-struct VulkanPipeline {
+class VulkanPipeline {
+public:
+    VulkanPipeline();
+    ~VulkanPipeline();
 
+
+
+private:
+    VulkanBackend *_backend;
 };
