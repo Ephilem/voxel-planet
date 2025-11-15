@@ -1,11 +1,11 @@
 #pragma once
-#include "VulkanBackend.h"
-#include "VulkanPipeline.h"
+#include <vulkan/vulkan_core.h>
 
-struct VulkanRenderPass {
+class VulkanBackend;
+
+class VulkanRenderPass {
+public:
     VkRenderPass handle;
-    std::unique_ptr<VulkanPipeline> pipeline;
-
     bool hasPrevPass;
     bool hasNextPass;
 
@@ -17,6 +17,5 @@ struct VulkanRenderPass {
 
 private:
     VulkanBackend* _backend;
-
     void createRenderPass();
 };

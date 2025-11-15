@@ -1,17 +1,21 @@
 #pragma once
-#include "VkBootstrap.h"
-#include "GLFW/glfw3.h"
 #include <memory>
 
-#include "VulkanRenderPass.h"
+#include "VkBootstrap.h"
+#include "GLFW/glfw3.h"
+
+class VulkanPipeline;
+class VulkanRenderPass;
 
 #define MAX_FRAMES_IN_FLIGHT 2
 
-struct VulkanBackend {
+
+class VulkanBackend {
+public:
     vkb::Instance instance;
 
     vkb::Device device;
-    vkb::DispatchTable dispatch_table;
+    vkb::DispatchTable disp;
     VkSurfaceKHR surface;
 
     VkQueue graphicsQueue;
@@ -21,11 +25,16 @@ struct VulkanBackend {
 
     VkCommandPool commandPool;
 
-    uint8_t currentFrame = 0;
+    uint32_t currentFrame = 0;
 
     std::vector<VkImage> swapchainImages;
     std::vector<VkImageView> swapchainImageViews;
     std::vector<VkFramebuffer> framebuffers;
+    uint32_t swapchainImageIndex = 0;
+
+    std::vector<VkImage> depthImages;
+    std::vector<VkDeviceMemory> depthImageMemories;
+    std::vector<VkImageView> depthImageViews;
 
     std::vector<VkCommandBuffer> commandBuffers;
 
@@ -34,7 +43,8 @@ struct VulkanBackend {
     std::vector<VkFence> inFlightFences;
     std::vector<VkFence> imageInFlight;
 
-    VulkanRenderPass renderPass;
+    std::unique_ptr<VulkanRenderPass> renderPass;
+    std::unique_ptr<VulkanPipeline> pipeline;
 
     /**
      * @param surface Pointer to a VkSurfaceKHR created from a GLFW window
@@ -42,13 +52,16 @@ struct VulkanBackend {
     VulkanBackend(GLFWwindow* window);
     ~VulkanBackend();
 
-    void begin_frame();
+    bool begin_frame();
     void use_default_renderpass(VkCommandBuffer commandBuffer);
-    void end_frame();
+
+    bool end_frame();
 
 private:
     void init_device();
     void init_surface(GLFWwindow* window);
     void init_command_pool();
     void create_swapchain();
+    void create_depth_resources();
+    void create_framebuffers();
 };

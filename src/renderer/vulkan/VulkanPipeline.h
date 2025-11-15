@@ -1,13 +1,19 @@
 #pragma once
-#include "VulkanBackend.h"
+#include <vulkan/vulkan_core.h>
+
+class VulkanBackend;
+class VulkanRenderPass;
 
 class VulkanPipeline {
 public:
-    VulkanPipeline();
-    ~VulkanPipeline();
+    VkPipeline handle;
+    VkPipelineLayout layout;
 
+    VulkanPipeline(VulkanBackend* p_backend, VulkanRenderPass* p_renderPass);
+    ~VulkanPipeline();
 
 
 private:
     VulkanBackend *_backend;
+    VulkanRenderPass *_renderPass;
 };

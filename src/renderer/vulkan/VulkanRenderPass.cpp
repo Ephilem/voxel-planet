@@ -1,13 +1,19 @@
-//
-// Created by raph on 09/11/2025.
-//
-
 #include "VulkanRenderPass.h"
+#include "VulkanBackend.h"
+
+#include <vulkan/vulkan_core.h>
 
 VulkanRenderPass::VulkanRenderPass(VulkanBackend *p_backend) {
     _backend = p_backend;
 
     createRenderPass();
+}
+
+VulkanRenderPass::~VulkanRenderPass() {
+    if (handle != VK_NULL_HANDLE) {
+        _backend->disp.destroyRenderPass(handle, nullptr);
+        handle = VK_NULL_HANDLE;
+    }
 }
 
 void VulkanRenderPass::createRenderPass() {
@@ -18,7 +24,7 @@ void VulkanRenderPass::createRenderPass() {
 
     /////////
     /// Color attachment
-    VkAttachmentDescription colorAttachment;
+    VkAttachmentDescription colorAttachment{};
     colorAttachment.format = _backend->swapchain.image_format;
     colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -29,7 +35,7 @@ void VulkanRenderPass::createRenderPass() {
     colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // pret a presenter
     colorAttachment.flags = 0;
 
-    VkAttachmentReference colorAttachmentRef = {};
+    VkAttachmentReference colorAttachmentRef{};
     colorAttachmentRef.attachment = 0;
     colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
@@ -39,7 +45,7 @@ void VulkanRenderPass::createRenderPass() {
     ///
     ////////////
     /// Depth Attachement
-    VkAttachmentDescription depthAttachment = {};
+    VkAttachmentDescription depthAttachment{};
     depthAttachment.format = VK_FORMAT_D32_SFLOAT;
     depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
     depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -50,9 +56,9 @@ void VulkanRenderPass::createRenderPass() {
     depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     depthAttachment.flags = 0;
 
-    VkAttachmentReference depthAttachmentRef = {};
-    depthAttachmentRef.attachment = 0;
-    depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+    VkAttachmentReference depthAttachmentRef{};
+    depthAttachmentRef.attachment = 1;
+    depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
     t_attachments[1] = depthAttachment;
     subpass.pDepthStencilAttachment = &depthAttachmentRef;
@@ -74,7 +80,8 @@ void VulkanRenderPass::createRenderPass() {
     dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
                                VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
-    VkRenderPassCreateInfo renderPassInfo = {VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};
+    VkRenderPassCreateInfo renderPassInfo{};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderPassInfo.attachmentCount = 2;
     renderPassInfo.pAttachments = t_attachments;
     renderPassInfo.subpassCount = 1;
@@ -84,10 +91,31 @@ void VulkanRenderPass::createRenderPass() {
     renderPassInfo.pNext = 0;
     renderPassInfo.flags = 0;
 
-    if (_backend->dispatch_table.createRenderPass(
+    if (_backend->disp.createRenderPass(
             &renderPassInfo,
             nullptr,
             &handle) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create render pass.");
     }
+}
+
+void VulkanRenderPass::use(VkCommandBuffer commandBuffer) {
+    VkRenderPassBeginInfo renderPassInfo{};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderPassInfo.renderPass = handle;
+    renderPassInfo.framebuffer = _backend->framebuffers[_backend->swapchainImageIndex];
+    renderPassInfo.renderArea.offset = {0, 0};
+    renderPassInfo.renderArea.extent = _backend->swapchain.extent;
+
+    VkClearValue clearValues[2];
+    clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+    clearValues[1].depthStencil = {1.0f, 0};
+    renderPassInfo.clearValueCount = 2;
+    renderPassInfo.pClearValues = clearValues;
+
+    _backend->disp.cmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+}
+
+void VulkanRenderPass::stopUse(VkCommandBuffer commandBuffer) {
+    _backend->disp.cmdEndRenderPass(commandBuffer);
 }

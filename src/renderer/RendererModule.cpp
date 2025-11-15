@@ -5,6 +5,9 @@
 #include "vulkan/VulkanBackend.h"
 #include <iostream>
 
+#include "vulkan/VulkanPipeline.h"
+#include "vulkan/VulkanRenderPass.h"
+
 RendererModule::RendererModule(flecs::world& ecs) {
     auto* app = ecs.get<Application>();
     if (!app || !app->window) {
@@ -19,7 +22,16 @@ RendererModule::RendererModule(flecs::world& ecs) {
     ecs.system<Renderer>()
         .each([](Renderer& renderer) {
             if (renderer.backend) {
-                renderer.backend->render();
+                if (renderer.backend->begin_frame()) {
+                    auto commandBuffer = renderer.backend->commandBuffers[renderer.backend->currentFrame];
+                    renderer.backend->renderPass->use(commandBuffer);
+
+                    renderer.backend->disp.cmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer.backend->pipeline->handle);
+                    renderer.backend->disp.cmdDraw(commandBuffer, 3, 1, 0, 0);
+
+                    renderer.backend->renderPass->stopUse(commandBuffer);
+                    renderer.backend->end_frame();
+                }
             }
         });
 }
