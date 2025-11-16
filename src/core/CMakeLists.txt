@@ -5,6 +5,7 @@ add_library(VoxelPlanetCore STATIC
         window/Window.h
         Application.cpp
         Application.h
+        events.h
 )
 
 add_library(VoxelPlanet::Core ALIAS VoxelPlanetCore)

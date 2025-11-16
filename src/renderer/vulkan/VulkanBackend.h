@@ -2,12 +2,14 @@
 #include <memory>
 
 #include "VkBootstrap.h"
+#include "VulkanSwapchain.h"
+#include "vulkan_type.inl"
 #include "GLFW/glfw3.h"
 
 class VulkanPipeline;
 class VulkanRenderPass;
 
-#define MAX_FRAMES_IN_FLIGHT 2
+#define MAX_FRAMES_IN_FLIGHT 4
 
 
 class VulkanBackend {
@@ -18,31 +20,18 @@ public:
     vkb::DispatchTable disp;
     VkSurfaceKHR surface;
 
+    VmaAllocator allocator;
+
     VkQueue graphicsQueue;
     VkQueue presentQueue;
-
-    vkb::Swapchain swapchain;
 
     VkCommandPool commandPool;
 
     uint32_t currentFrame = 0;
+    uint32_t imageIndex = 0;
+    std::vector<VulkanRenderFrameData> frames;
 
-    std::vector<VkImage> swapchainImages;
-    std::vector<VkImageView> swapchainImageViews;
-    std::vector<VkFramebuffer> framebuffers;
-    uint32_t swapchainImageIndex = 0;
-
-    std::vector<VkImage> depthImages;
-    std::vector<VkDeviceMemory> depthImageMemories;
-    std::vector<VkImageView> depthImageViews;
-
-    std::vector<VkCommandBuffer> commandBuffers;
-
-    std::vector<VkSemaphore> availableSemaphores;
-    std::vector<VkSemaphore> finishedSemaphore;
-    std::vector<VkFence> inFlightFences;
-    std::vector<VkFence> imageInFlight;
-
+    std::unique_ptr<VulkanSwapchain> swapchain;
     std::unique_ptr<VulkanRenderPass> renderPass;
     std::unique_ptr<VulkanPipeline> pipeline;
 
@@ -53,15 +42,12 @@ public:
     ~VulkanBackend();
 
     bool begin_frame();
-    void use_default_renderpass(VkCommandBuffer commandBuffer);
-
     bool end_frame();
+
+    void handle_resize(uint32_t width, uint32_t height);
 
 private:
     void init_device();
     void init_surface(GLFWwindow* window);
     void init_command_pool();
-    void create_swapchain();
-    void create_depth_resources();
-    void create_framebuffers();
 };

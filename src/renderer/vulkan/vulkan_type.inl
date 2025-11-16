@@ -16,11 +16,9 @@ typedef struct AllocatedBuffer {
 
 typedef struct VulkanRenderFrameData {
     VkFence renderFence;
+    VkCommandBuffer commandBuffer;
+    VulkanAllocatedBuffer uboBuffer;
+
     VkSemaphore imageAvailableSem;
     VkSemaphore renderFinishedSem;
-
-    VkCommandBuffer commandBuffer;
-
-    VulkanAllocatedBuffer uboBuffer;
 } VulkanRenderFrameData;
-

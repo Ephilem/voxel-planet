@@ -1,12 +1,16 @@
 #include "RendererModule.h"
 
 #include "Renderer.h"
-#include "core/Application.h"
-#include "vulkan/VulkanBackend.h"
-#include <iostream>
 
+#include "core/Application.h"
+#include "core/events.h"
+
+#include "vulkan/VulkanBackend.h"
 #include "vulkan/VulkanPipeline.h"
 #include "vulkan/VulkanRenderPass.h"
+
+#include <iostream>
+
 
 RendererModule::RendererModule(flecs::world& ecs) {
     auto* app = ecs.get<Application>();
@@ -23,7 +27,7 @@ RendererModule::RendererModule(flecs::world& ecs) {
         .each([](Renderer& renderer) {
             if (renderer.backend) {
                 if (renderer.backend->begin_frame()) {
-                    auto commandBuffer = renderer.backend->commandBuffers[renderer.backend->currentFrame];
+                    auto commandBuffer = renderer.backend->frames[renderer.backend->currentFrame].commandBuffer;
                     renderer.backend->renderPass->use(commandBuffer);
 
                     renderer.backend->disp.cmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer.backend->pipeline->handle);
@@ -32,6 +36,17 @@ RendererModule::RendererModule(flecs::world& ecs) {
                     renderer.backend->renderPass->stopUse(commandBuffer);
                     renderer.backend->end_frame();
                 }
+            }
+        });
+
+    ecs.observer<Application>()
+        .event<WindowResizeEvent>()
+        .run([](flecs::iter& it) {
+            auto* evt = it.param<WindowResizeEvent>();
+            auto* renderer = it.world().get_mut<Renderer>();
+
+            if (renderer && renderer->backend) {
+                renderer->backend->handle_resize(evt->width, evt->height);
             }
         });
 }

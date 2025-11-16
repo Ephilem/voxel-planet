@@ -6,6 +6,9 @@
 
 #include <stdexcept>
 
+#include "core/Application.h"
+#include "core/events.h"
+
 Window::Window(uint16_t w, uint16_t h, const std::string& t)
     : width(w), height(h), title(t) {
     if (!glfwInit()) {
@@ -39,4 +42,26 @@ glm::ivec2 Window::getFramebufferSize() const {
     int width, height;
     glfwGetFramebufferSize(window, &width, &height);
     return {width, height};
+}
+
+void Window::setupCallbacks(flecs::world &ecs) {
+    glfwSetWindowUserPointer(window, &ecs);
+
+    glfwSetFramebufferSizeCallback(window,
+        [](GLFWwindow* win, int width, int height) {
+            auto* world = static_cast<flecs::world*>(glfwGetWindowUserPointer(win));
+
+            WindowResizeEvent evt {
+                .width = static_cast<uint32_t>(width),
+                .height = static_cast<uint32_t>(height)
+            };
+
+            world->event<WindowResizeEvent>()
+                .ctx(evt)
+                .id<Application>()
+                .entity(world->id<Application>())
+                .enqueue();
+
+            // world->entity().enqueue<WindowResizeEvent>(evt);
+        });
 }

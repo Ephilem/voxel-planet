@@ -10,6 +10,9 @@ add_library(VoxelPlanetRenderer STATIC
         vulkan/VulkanRenderPass.cpp
         vulkan/VulkanRenderPass.h
         vulkan/vulkan_type.inl
+        vulkan/VulkanSwapchain.cpp
+        vulkan/VulkanSwapchain.h
+        vulkan/vma_implementation.cpp
 )
 
 add_library(VoxelPlanet::Renderer ALIAS VoxelPlanetRenderer)

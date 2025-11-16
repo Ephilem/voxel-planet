@@ -7,7 +7,12 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 
+#include "events.h"
+
 CoreModule::CoreModule(flecs::world& ecs) {
+
+    ecs.component<WindowResizeEvent>();
+
     ecs.set<Application>({
         .window = std::make_unique<Window>(1280, 720, "VoxelPlanet"),
         .isRunning = true,
@@ -51,6 +56,9 @@ CoreModule::CoreModule(flecs::world& ecs) {
             std::cout << "FPS: " << static_cast<int>(fps) << ", "
                       << "Delta: " << static_cast<int>(app.deltaTime * 1000) << "ms" << std::endl;
         });
+
+
+    ecs.get_mut<Application>()->window->setupCallbacks(ecs);
 }
 
 CoreModule::~CoreModule() = default;

@@ -25,7 +25,7 @@ void VulkanRenderPass::createRenderPass() {
     /////////
     /// Color attachment
     VkAttachmentDescription colorAttachment{};
-    colorAttachment.format = _backend->swapchain.image_format;
+    colorAttachment.format = _backend->swapchain->swapchain.image_format;
     colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -103,9 +103,9 @@ void VulkanRenderPass::use(VkCommandBuffer commandBuffer) {
     VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     renderPassInfo.renderPass = handle;
-    renderPassInfo.framebuffer = _backend->framebuffers[_backend->swapchainImageIndex];
+    renderPassInfo.framebuffer = _backend->swapchain->get_framebuffer(_backend->imageIndex);
     renderPassInfo.renderArea.offset = {0, 0};
-    renderPassInfo.renderArea.extent = _backend->swapchain.extent;
+    renderPassInfo.renderArea.extent = _backend->swapchain->get_extent();
 
     VkClearValue clearValues[2];
     clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};

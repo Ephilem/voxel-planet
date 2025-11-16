@@ -45,38 +45,36 @@ VulkanBackend::VulkanBackend(GLFWwindow* window) {
 
     instance = inst_ret.value();
 
+    frames.resize(MAX_FRAMES_IN_FLIGHT);
+
+
     init_surface(window);
     init_device();
-    create_swapchain();
-    init_command_pool();
 
+    VmaAllocatorCreateInfo allocatorInfo{};
+    allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
+    allocatorInfo.physicalDevice = device.physical_device;
+    allocatorInfo.device = device.device;
+    allocatorInfo.instance = instance.instance;
+    vmaCreateAllocator(&allocatorInfo, &allocator);
+
+    swapchain = std::make_unique<VulkanSwapchain>(this, 1280, 720);
     renderPass = std::make_unique<VulkanRenderPass>(this);
+    swapchain->create_framebuffers();
     pipeline = std::make_unique<VulkanPipeline>(this, renderPass.get());
 
-    create_depth_resources();
-    create_framebuffers();
-
-    // fences
-    availableSemaphores.resize(MAX_FRAMES_IN_FLIGHT, VK_NULL_HANDLE);
-    finishedSemaphore.resize(swapchain.image_count);
-    inFlightFences.resize(MAX_FRAMES_IN_FLIGHT, VK_NULL_HANDLE);
-    imageInFlight.resize(swapchain.image_count);
-
-    VkSemaphoreCreateInfo semaphoreInfo = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
+    init_command_pool();
 
     VkFenceCreateInfo fenceInfo = {VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};
     fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    for (size_t i = 0; i < swapchain.image_count; i++) {
-        if (disp.createSemaphore(&semaphoreInfo, nullptr, &finishedSemaphore[i]) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create semaphore!");
-        }
-    }
+    VkSemaphoreCreateInfo semaphoreInfo = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        if (disp.createSemaphore(&semaphoreInfo, nullptr, &availableSemaphores[i]) != VK_SUCCESS ||
-            disp.createFence(&fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create synchronization objects for a frame.");
+        if (disp.createFence(&fenceInfo, nullptr, &frames[i].renderFence) != VK_SUCCESS ||
+            disp.createSemaphore(&semaphoreInfo, nullptr, &frames[i].imageAvailableSem) != VK_SUCCESS ||
+            disp.createSemaphore(&semaphoreInfo, nullptr, &frames[i].renderFinishedSem) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create sync objects for frame " + std::to_string(i));
         }
     }
 }
@@ -88,33 +86,25 @@ VulkanBackend::~VulkanBackend() {
         }
     }
 
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        if (availableSemaphores.size() > i && availableSemaphores[i] != VK_NULL_HANDLE) {
-            disp.destroySemaphore(availableSemaphores[i], nullptr);
-        }
-        if (finishedSemaphore.size() > i && finishedSemaphore[i] != VK_NULL_HANDLE) {
-            disp.destroySemaphore(finishedSemaphore[i], nullptr);
-        }
-        if (inFlightFences.size() > i && inFlightFences[i] != VK_NULL_HANDLE) {
-            disp.destroyFence(inFlightFences[i], nullptr);
-        }
-    }
-
-    for (auto framebuffer : framebuffers) {
-        disp.destroyFramebuffer(framebuffer, nullptr);
-    }
-
-    for (size_t i = 0; i < depthImages.size(); i++) {
-        disp.destroyImageView(depthImageViews[i], nullptr);
-        disp.destroyImage(depthImages[i], nullptr);
-        disp.freeMemory(depthImageMemories[i], nullptr);
+    for (auto& frame : frames) {
+        disp.destroyFence(frame.renderFence, nullptr);
+        disp.destroySemaphore(frame.imageAvailableSem, nullptr);
+        disp.destroySemaphore(frame.renderFinishedSem, nullptr);
     }
 
     if (commandPool != VK_NULL_HANDLE) {
         disp.destroyCommandPool(commandPool, nullptr);
     }
 
-    vkb::destroy_swapchain(swapchain);
+    pipeline.reset();
+    renderPass.reset();
+    swapchain.reset();
+
+    if (allocator != VK_NULL_HANDLE) {
+        vmaDestroyAllocator(allocator);
+        allocator = VK_NULL_HANDLE;
+    }
+
     vkb::destroy_device(device);
     vkb::destroy_surface(instance, surface);
     vkb::destroy_instance(instance);
@@ -169,65 +159,41 @@ void VulkanBackend::init_command_pool() {
         throw std::runtime_error("Failed to create command pool.");
     }
 
-    commandBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+    for (auto& frame : frames) {
+        VkCommandBufferAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.commandPool = commandPool;
+        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocInfo.commandBufferCount = 1;
 
-    VkCommandBufferAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.commandPool = commandPool;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandBufferCount = MAX_FRAMES_IN_FLIGHT;
-
-    if (disp.allocateCommandBuffers(&allocInfo, commandBuffers.data()) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to allocate command buffers.");
+        if (disp.allocateCommandBuffers(&allocInfo, &frame.commandBuffer) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to allocate command buffer");
+        }
     }
-}
-
-void VulkanBackend::create_swapchain() {
-    vkb::SwapchainBuilder swapchainBuilder{device};
-    auto swapchain_ret = swapchainBuilder
-                                        .set_desired_present_mode(VK_PRESENT_MODE_MAILBOX_KHR)
-                                        .build();
-
-    if (!swapchain_ret) {
-        throw std::runtime_error("Failed to create swapchain: " + swapchain_ret.error().message());
-    }
-
-    vkb::destroy_swapchain(swapchain);
-    swapchain = swapchain_ret.value();
 }
 
 bool VulkanBackend::begin_frame() {
-    // 1. Attendre que le frame actuel soit disponible
-    disp.waitForFences(1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+    auto& frame = frames[currentFrame];
+    // 1. Wait for fence to be signaled from previous frame
+    if (disp.waitForFences(1, &frame.renderFence, VK_TRUE, UINT64_MAX) != VK_SUCCESS) {
+        return false;
+    }
 
-    // 2. Acquérir la prochaine image du swapchain
-    VkResult result = disp.acquireNextImageKHR(
-        swapchain.swapchain,
-        UINT64_MAX,
-        availableSemaphores[currentFrame],
-        VK_NULL_HANDLE,
-        &swapchainImageIndex
-    );
+    // 2. Get the next image from the swapchain
+    VkResult result = swapchain->acquire_next_image_index(UINT64_MAX, frame.imageAvailableSem, &imageIndex);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        create_swapchain();
+        swapchain->recreate();
         return false;
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
         throw std::runtime_error("Failed to acquire swap chain image.");
     }
 
-    // 3. Attendre si cette image est encore utilisée par un frame précédent
-    if (imageInFlight[swapchainImageIndex] != VK_NULL_HANDLE) {
-        disp.waitForFences(1, &imageInFlight[swapchainImageIndex], VK_TRUE, UINT64_MAX);
-    }
-    // Marquer cette image comme utilisée par le frame actuel
-    imageInFlight[swapchainImageIndex] = inFlightFences[currentFrame];
-
-    // 4. Reset la fence maintenant qu'on va commencer à travailler
-    disp.resetFences(1, &inFlightFences[currentFrame]);
+    // 3. Reset the fence for this frame
+    disp.resetFences(1, &frame.renderFence);
 
     // 5. Reset et commencer l'enregistrement du command buffer
-    disp.resetCommandBuffer(commandBuffers[currentFrame], 0);
+    disp.resetCommandBuffer(frame.commandBuffer, 0);
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -237,72 +203,72 @@ bool VulkanBackend::begin_frame() {
     VkViewport viewport = {};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = (float)swapchain.extent.width;
-    viewport.height = (float)swapchain.extent.height;
+    viewport.width = static_cast<float>(swapchain->get_width());
+    viewport.height = static_cast<float>(swapchain->get_height());
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
     VkRect2D scissor = {};
     scissor.offset = { 0, 0 };
-    scissor.extent = swapchain.extent;
+    scissor.extent = swapchain->get_extent();
 
-    if (disp.beginCommandBuffer(commandBuffers[currentFrame], &beginInfo) != VK_SUCCESS) {
+    if (disp.beginCommandBuffer(frame.commandBuffer, &beginInfo) != VK_SUCCESS) {
         throw std::runtime_error("Failed to begin recording command buffer.");
     }
 
-    disp.cmdSetViewport(commandBuffers[currentFrame], 0, 1, &viewport);
-    disp.cmdSetScissor(commandBuffers[currentFrame], 0, 1, &scissor);
+    disp.cmdSetViewport(frame.commandBuffer, 0, 1, &viewport);
+    disp.cmdSetScissor(frame.commandBuffer, 0, 1, &scissor);
 
     return true;
 }
 
 bool VulkanBackend::end_frame() {
-    // 1. Terminer l'enregistrement du command buffer
-    if (disp.endCommandBuffer(commandBuffers[currentFrame]) != VK_SUCCESS) {
+    auto& frame = frames[currentFrame];
+    // 1. Finish recording the command buffer
+    if (disp.endCommandBuffer(frame.commandBuffer) != VK_SUCCESS) {
         throw std::runtime_error("Failed to record command buffer.");
     }
 
-    // 2. Soumettre le command buffer à la queue graphique
+    // 2. Send the command buffer to the graphics queue
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-    // Attendre que l'image soit disponible avant de dessiner dessus
-    VkSemaphore waitSemaphores[] = { availableSemaphores[currentFrame] };
+    VkSemaphore waitSemaphores[] = { frame.imageAvailableSem };
     VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
     submitInfo.waitSemaphoreCount = 1;
     submitInfo.pWaitSemaphores = waitSemaphores;
     submitInfo.pWaitDstStageMask = waitStages;
 
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffers[currentFrame];
+    submitInfo.pCommandBuffers = &frame.commandBuffer;
 
-    // Signaler quand le rendu est terminé
-    VkSemaphore signalSemaphores[] = { finishedSemaphore[swapchainImageIndex] };
+    // Signal semaphore when rendering is finished
+    VkSemaphore signalSemaphores[] = { frame.renderFinishedSem };
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
-    // Soumettre avec la fence qui sera signalée quand tout est fini
-    if (disp.queueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS) {
+    // Send with the fence to signal when rendering is finished
+    if (disp.queueSubmit(graphicsQueue, 1, &submitInfo, frame.renderFence) != VK_SUCCESS) {
         throw std::runtime_error("Failed to submit draw command buffer.");
     }
 
-    // 3. Présenter l'image à l'écran
+    // 3. Present the swapchain image
     VkPresentInfoKHR presentInfo{};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 
-    // Attendre que le rendu soit fini avant de présenter
+    // Wait for rendering to finish
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = signalSemaphores;
 
-    VkSwapchainKHR swapchains[] = { swapchain.swapchain };
+    VkSwapchainKHR swapchains[] = { swapchain->get_handle() };
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = swapchains;
-    presentInfo.pImageIndices = &swapchainImageIndex;
+    presentInfo.pImageIndices = &imageIndex;
 
     VkResult result = disp.queuePresentKHR(presentQueue, &presentInfo);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        create_swapchain();
+        swapchain->recreate();
         return false;
     } else if (result != VK_SUCCESS) {
         throw std::runtime_error("Failed to present swap chain image.");
@@ -314,98 +280,7 @@ bool VulkanBackend::end_frame() {
     return true;
 }
 
-void VulkanBackend::create_framebuffers() {
-    swapchainImages = swapchain.get_images().value();
-    swapchainImageViews = swapchain.get_image_views().value();
-
-    framebuffers.resize(swapchainImageViews.size());
-
-    for (size_t i = 0; i < swapchainImageViews.size(); i++) {
-        VkImageView attachments[] = {
-            swapchainImageViews[i],
-            depthImageViews[i]
-        };
-
-        VkFramebufferCreateInfo framebufferInfo{};
-        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        framebufferInfo.renderPass = renderPass->handle;
-        framebufferInfo.attachmentCount = 2;
-        framebufferInfo.pAttachments = attachments;
-        framebufferInfo.width = swapchain.extent.width;
-        framebufferInfo.height = swapchain.extent.height;
-        framebufferInfo.layers = 1;
-
-        if (disp.createFramebuffer(&framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create framebuffer!");
-        }
-    }
+void VulkanBackend::handle_resize(uint32_t width, uint32_t height) {
+    swapchain->recreate(width, height);
 }
 
-void VulkanBackend::create_depth_resources() {
-    VkFormat depthFormat = VK_FORMAT_D32_SFLOAT;
-
-    depthImages.resize(swapchain.image_count);
-    depthImageMemories.resize(swapchain.image_count);
-    depthImageViews.resize(swapchain.image_count);
-
-    for (size_t i = 0; i < swapchain.image_count; i++) {
-        VkImageCreateInfo imageInfo{};
-        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        imageInfo.imageType = VK_IMAGE_TYPE_2D;
-        imageInfo.extent.width = swapchain.extent.width;
-        imageInfo.extent.height = swapchain.extent.height;
-        imageInfo.extent.depth = 1;
-        imageInfo.mipLevels = 1;
-        imageInfo.arrayLayers = 1;
-        imageInfo.format = depthFormat;
-        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-        if (disp.createImage(&imageInfo, nullptr, &depthImages[i]) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create depth image!");
-        }
-
-        VkMemoryRequirements memRequirements;
-        disp.getImageMemoryRequirements(depthImages[i], &memRequirements);
-
-        VkMemoryAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = 0; // Need to find proper memory type
-
-        VkPhysicalDeviceMemoryProperties memProperties;
-        vkGetPhysicalDeviceMemoryProperties(device.physical_device, &memProperties);
-
-        for (uint32_t j = 0; j < memProperties.memoryTypeCount; j++) {
-            if ((memRequirements.memoryTypeBits & (1 << j)) &&
-                (memProperties.memoryTypes[j].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
-                allocInfo.memoryTypeIndex = j;
-                break;
-            }
-        }
-
-        if (disp.allocateMemory(&allocInfo, nullptr, &depthImageMemories[i]) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to allocate depth image memory!");
-        }
-
-        disp.bindImageMemory(depthImages[i], depthImageMemories[i], 0);
-
-        VkImageViewCreateInfo viewInfo{};
-        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        viewInfo.image = depthImages[i];
-        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        viewInfo.format = depthFormat;
-        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-        viewInfo.subresourceRange.baseMipLevel = 0;
-        viewInfo.subresourceRange.levelCount = 1;
-        viewInfo.subresourceRange.baseArrayLayer = 0;
-        viewInfo.subresourceRange.layerCount = 1;
-
-        if (disp.createImageView(&viewInfo, nullptr, &depthImageViews[i]) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create depth image view!");
-        }
-    }
-}
