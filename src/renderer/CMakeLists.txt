@@ -13,6 +13,8 @@ add_library(VoxelPlanetRenderer STATIC
         vulkan/VulkanSwapchain.cpp
         vulkan/VulkanSwapchain.h
         vulkan/vma_implementation.cpp
+        managers/ImGuiManager.h
+        managers/ImGuiManager.cpp
 )
 
 add_library(VoxelPlanet::Renderer ALIAS VoxelPlanetRenderer)
@@ -28,6 +30,7 @@ target_link_libraries(VoxelPlanetRenderer
             vk-bootstrap::vk-bootstrap
             VulkanMemoryAllocator
             glm::glm
+            imgui
             flecs::flecs_static
         PRIVATE
 )

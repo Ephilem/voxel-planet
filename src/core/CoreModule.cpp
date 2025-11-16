@@ -15,6 +15,7 @@ CoreModule::CoreModule(flecs::world& ecs) {
 
     ecs.set<Application>({
         .window = std::make_unique<Window>(1280, 720, "VoxelPlanet"),
+        .resourceSystem = std::make_unique<ResourceSystem>(),
         .isRunning = true,
         .deltaTime = 0.0,
         .lastTime = glfwGetTime()

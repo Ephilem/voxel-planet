@@ -1,0 +1,31 @@
+#include "ResourceSystem.h"
+
+#include "loaders/ImageLoader.h"
+
+
+ResourceSystem::ResourceSystem() {
+    register_loader(ResourceType::IMAGE, std::make_unique<ImageLoader>());
+    // TODO Other loaders
+}
+
+ResourceSystem::~ResourceSystem() {
+    loaders.clear();
+}
+
+void ResourceSystem::register_loader(ResourceType type, std::unique_ptr<IResourceLoader> loader) {
+    loaders[type] = std::move(loader);
+}
+
+std::shared_ptr<IResource> ResourceSystem::load(const std::string &name, ResourceType type) {
+    auto it = loaders.find(type);
+    if (it != loaders.end()) {
+        return it->second->load(name);
+    }
+    return nullptr;
+}
+
+template<typename ResourceT>
+std::shared_ptr<ResourceT> ResourceSystem::load(const std::string &name, ResourceType type) {
+    auto resource = load(name, type);
+    return std::dynamic_pointer_cast<ResourceT>(resource);
+}
