@@ -4,6 +4,7 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 
+#include "imgui_internal.h"
 #include "renderer/vulkan/VulkanBackend.h"
 #include "renderer/vulkan/VulkanRenderPass.h"
 
@@ -94,8 +95,6 @@ void ImGuiManager::begin_frame() {
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-
-    ImGui::ShowDemoWindow();
 }
 
 void ImGuiManager::end_frame(VkCommandBuffer commandBuffer) {

@@ -30,7 +30,8 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
 }
 
 
-VulkanBackend::VulkanBackend(GLFWwindow* window) {
+VulkanBackend::VulkanBackend(GLFWwindow* window, ResourceSystem* resourceSystem) {
+    this->resourceSystem = resourceSystem;
     vkb::InstanceBuilder builder;
     auto inst_ret = builder.set_app_name("VoxelPlanet")
             .request_validation_layers(true)

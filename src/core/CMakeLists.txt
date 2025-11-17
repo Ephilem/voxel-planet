@@ -13,6 +13,8 @@ add_library(VoxelPlanetCore STATIC
         resource/loaders/ImageLoader.h
         resource/ResourceSystem.cpp
         resource/ResourceSystem.h
+        resource/loaders/ShaderLoader.cpp
+        resource/loaders/ShaderLoader.h
 )
 
 add_library(VoxelPlanet::Core ALIAS VoxelPlanetCore)

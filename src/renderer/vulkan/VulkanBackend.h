@@ -4,6 +4,7 @@
 #include "VkBootstrap.h"
 #include "VulkanSwapchain.h"
 #include "vulkan_type.inl"
+#include "core/resource/ResourceSystem.h"
 #include "GLFW/glfw3.h"
 
 class VulkanPipeline;
@@ -14,6 +15,8 @@ class VulkanRenderPass;
 
 class VulkanBackend {
 public:
+    ResourceSystem* resourceSystem;
+
     vkb::Instance instance;
 
     vkb::Device device;
@@ -38,7 +41,7 @@ public:
     /**
      * @param surface Pointer to a VkSurfaceKHR created from a GLFW window
      */
-    VulkanBackend(GLFWwindow* window);
+    VulkanBackend(GLFWwindow* window, ResourceSystem* resourceSystem);
     ~VulkanBackend();
 
     bool begin_frame();

@@ -12,7 +12,6 @@ public:
     VulkanPipeline(VulkanBackend* p_backend, VulkanRenderPass* p_renderPass);
     ~VulkanPipeline();
 
-
 private:
     VulkanBackend *_backend;
     VulkanRenderPass *_renderPass;

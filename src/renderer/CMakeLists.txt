@@ -15,6 +15,10 @@ add_library(VoxelPlanetRenderer STATIC
         vulkan/vma_implementation.cpp
         managers/ImGuiManager.h
         managers/ImGuiManager.cpp
+        vulkan/shaders/VulkanTerrainShader.cpp
+        vulkan/shaders/VulkanTerrainShader.h
+        vulkan/shaders/shader_helper.cpp
+        vulkan/shaders/shader_helper.h
 )
 
 add_library(VoxelPlanet::Renderer ALIAS VoxelPlanetRenderer)
