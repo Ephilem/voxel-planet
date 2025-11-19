@@ -30,7 +30,8 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
 }
 
 
-VulkanBackend::VulkanBackend(GLFWwindow* window) {
+VulkanBackend::VulkanBackend(GLFWwindow* window, ResourceSystem resourceSystem) {
+    this->resourceSystem = resourceSystem;
     vkb::InstanceBuilder builder;
     auto inst_ret = builder.set_app_name("VoxelPlanet")
             .request_validation_layers(true)
@@ -58,10 +59,13 @@ VulkanBackend::VulkanBackend(GLFWwindow* window) {
     allocatorInfo.instance = instance.instance;
     vmaCreateAllocator(&allocatorInfo, &allocator);
 
+    init_nvrhi();
+
     swapchain = std::make_unique<VulkanSwapchain>(this, 1280, 720);
-    renderPass = std::make_unique<VulkanRenderPass>(this);
-    swapchain->create_framebuffers();
-    pipeline = std::make_unique<VulkanPipeline>(this, renderPass.get());
+
+    create_nvrhi_pipeline();
+    create_nvrhi_framebuffer();
+    create_imgui_render_pass();
 
     init_command_pool();
 
@@ -96,8 +100,20 @@ VulkanBackend::~VulkanBackend() {
         disp.destroyCommandPool(commandPool, nullptr);
     }
 
-    pipeline.reset();
-    renderPass.reset();
+    if (nvrhiDevice) {
+        graphicsPipeline.Reset();
+        framebuffer.Reset();
+        vertexShader.Reset();
+        fragmentShader.Reset();
+        depthBuffer.Reset();
+        commandList.Reset();
+        nvrhiDevice.Reset();
+    }
+
+    if (imguiRenderPass != VK_NULL_HANDLE) {
+        disp.destroyRenderPass(imguiRenderPass, nullptr);
+    }
+
     swapchain.reset();
 
     if (allocator != VK_NULL_HANDLE) {
@@ -282,5 +298,128 @@ bool VulkanBackend::end_frame() {
 
 void VulkanBackend::handle_resize(uint32_t width, uint32_t height) {
     swapchain->recreate(width, height);
+}
+
+void VulkanBackend::init_nvrhi() {
+    nvrhi::vulkan::DeviceDesc deviceDesc;
+    deviceDesc.instance = instance.instance;
+    deviceDesc.physicalDevice = device.physical_device;
+    deviceDesc.device = device;
+    deviceDesc.graphicsQueue = graphicsQueue;
+
+    nvrhiDevice = nvrhi::vulkan::createDevice(deviceDesc);
+    commandList = nvrhiDevice->createCommandList();
+}
+
+void VulkanBackend::create_nvrhi_pipeline() {
+    // Create vertex shader
+    nvrhi::ShaderDesc vertexShaderDesc;
+    vertexShaderDesc.shaderType = nvrhi::ShaderType::Vertex;
+    vertexShaderDesc.debugName = "simple.vert";
+    auto& vert_binary =
+    vertexShader = nvrhiDevice->createShader("shaders/simple.vert.spv", vertexShaderDesc);
+
+    // Create fragment shader
+    nvrhi::ShaderDesc fragmentShaderDesc;
+    fragmentShaderDesc.shaderType = nvrhi::ShaderType::Fragment;
+    fragmentShaderDesc.debugName = "simple.frag";
+    fragmentShader = nvrhiDevice->createShaderFromFile("shaders/simple.frag.spv", fragmentShaderDesc);
+
+    // Create graphics pipeline
+    nvrhi::GraphicsPipelineDesc pipelineDesc;
+    pipelineDesc.VS = vertexShader;
+    pipelineDesc.PS = fragmentShader;
+    pipelineDesc.primType = nvrhi::PrimitiveType::TriangleList;
+    pipelineDesc.renderState.depthStencilState.depthTestEnable = true;
+    pipelineDesc.renderState.depthStencilState.depthWriteEnable = true;
+    pipelineDesc.renderState.depthStencilState.depthFunc = nvrhi::ComparisonFunc::Less;
+    pipelineDesc.renderState.rasterState.cullMode = nvrhi::RasterCullMode::None;
+    pipelineDesc.renderState.rasterState.fillMode = nvrhi::RasterFillMode::Solid;
+
+    graphicsPipeline = nvrhiDevice->createGraphicsPipeline(pipelineDesc);
+}
+
+void VulkanBackend::create_nvrhi_framebuffer() {
+    // Create depth buffer
+    nvrhi::TextureDesc depthDesc;
+    depthDesc.width = swapchain->get_width();
+    depthDesc.height = swapchain->get_height();
+    depthDesc.format = nvrhi::Format::D24_UNORM_S8_UINT;
+    depthDesc.debugName = "DepthBuffer";
+    depthDesc.initialState = nvrhi::ResourceStates::DepthWrite;
+    depthDesc.keepInitialState = true;
+    depthDesc.isRenderTarget = true;
+
+    depthBuffer = nvrhiDevice->createTexture(depthDesc);
+
+    // Create framebuffer using swapchain images
+    // Note: This will be updated each frame with the current swapchain image
+    nvrhi::FramebufferDesc framebufferDesc;
+    framebufferDesc.addColorAttachment(nullptr); // Will be set per frame
+    framebufferDesc.setDepthAttachment(depthBuffer);
+
+    framebuffer = nvrhiDevice->createFramebuffer(framebufferDesc);
+}
+
+void VulkanBackend::update_framebuffer_for_current_image() {
+    // Wrap the current swapchain image as an NVRHI texture
+    nvrhi::vulkan::TextureDesc swapchainImageDesc;
+    swapchainImageDesc.vkImage = swapchain->get_images()[imageIndex];
+    swapchainImageDesc.vkFormat = static_cast<VkFormat>(swapchain->swapchain.image_format);
+    swapchainImageDesc.width = swapchain->get_width();
+    swapchainImageDesc.height = swapchain->get_height();
+    swapchainImageDesc.debugName = "SwapchainImage";
+
+    auto swapchainTexture = nvrhiDevice->createTexture(swapchainImageDesc);
+
+    // Create a new framebuffer with the current swapchain image
+    nvrhi::FramebufferDesc framebufferDesc;
+    framebufferDesc.addColorAttachment(swapchainTexture);
+    framebufferDesc.setDepthAttachment(depthBuffer);
+
+    framebuffer = nvrhiDevice->createFramebuffer(framebufferDesc);
+}
+
+void VulkanBackend::create_imgui_render_pass() {
+    // Create a minimal render pass for ImGui compatibility
+    VkAttachmentDescription colorAttachment{};
+    colorAttachment.format = swapchain->swapchain.image_format;
+    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD; // Load existing content
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    VkAttachmentReference colorAttachmentRef{};
+    colorAttachmentRef.attachment = 0;
+    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass{};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &colorAttachmentRef;
+
+    VkSubpassDependency dependency{};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcAccessMask = 0;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    VkRenderPassCreateInfo renderPassInfo{};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    renderPassInfo.attachmentCount = 1;
+    renderPassInfo.pAttachments = &colorAttachment;
+    renderPassInfo.subpassCount = 1;
+    renderPassInfo.pSubpasses = &subpass;
+    renderPassInfo.dependencyCount = 1;
+    renderPassInfo.pDependencies = &dependency;
+
+    if (disp.createRenderPass(&renderPassInfo, nullptr, &imguiRenderPass) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create ImGui render pass!");
+    }
 }
 

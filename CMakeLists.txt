@@ -90,6 +90,16 @@ target_include_directories(imgui PUBLIC
 target_link_libraries(imgui PUBLIC glfw Vulkan::Vulkan)
 
 FetchContent_Declare(
+        nvrhi
+        GIT_REPOSITORY https://github.com/NVIDIA-RTX/NVRHI.git
+        GIT_TAG main
+)
+set(NVRHI_WITH_VULKAN ON CACHE BOOL "" FORCE)
+set(NVRHI_WITH_DX11 OFF CACHE BOOL "" FORCE)
+set(NVRHI_WITH_DX12 OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(nvrhi)
+
+FetchContent_Declare(
         fastnoise2
         GIT_REPOSITORY https://github.com/Auburn/FastNoise2.git
         GIT_TAG v0.10.0-alpha
@@ -138,6 +148,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         imgui
         FastNoise2
         stb
+        nvrhi
+        nvrhi_vk
 )
 
 file(GLOB_RECURSE SHADER_SOURCES

@@ -5,7 +5,6 @@
 #include <imgui_impl_vulkan.h>
 
 #include "renderer/vulkan/VulkanBackend.h"
-#include "renderer/vulkan/VulkanRenderPass.h"
 
 ImGuiManager::~ImGuiManager() {
     shutdown();
@@ -61,7 +60,7 @@ void ImGuiManager::init(GLFWwindow* window, VulkanBackend* backend) {
     initInfo.ImageCount = MAX_FRAMES_IN_FLIGHT;
     initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
     initInfo.Allocator = nullptr;
-    initInfo.RenderPass = backend->renderPass->handle;
+    initInfo.RenderPass = backend->imguiRenderPass;
     initInfo.CheckVkResultFn = nullptr;
 
     ImGui_ImplVulkan_Init(&initInfo);

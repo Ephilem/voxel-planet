@@ -5,15 +5,18 @@
 #include "VulkanSwapchain.h"
 #include "vulkan_type.inl"
 #include "GLFW/glfw3.h"
+#include <nvrhi/nvrhi.h>
+#include <nvrhi/vulkan.h>
 
-class VulkanPipeline;
-class VulkanRenderPass;
+#include "core/resource/ResourceSystem.h"
 
 #define MAX_FRAMES_IN_FLIGHT 4
 
 
 class VulkanBackend {
 public:
+    ResourceSystem resourceSystem;
+
     vkb::Instance instance;
 
     vkb::Device device;
@@ -32,8 +35,16 @@ public:
     std::vector<VulkanRenderFrameData> frames;
 
     std::unique_ptr<VulkanSwapchain> swapchain;
-    std::unique_ptr<VulkanRenderPass> renderPass;
-    std::unique_ptr<VulkanPipeline> pipeline;
+
+    nvrhi::DeviceHandle nvrhiDevice;
+    nvrhi::CommandListHandle commandList;
+    nvrhi::GraphicsPipelineHandle graphicsPipeline;
+    nvrhi::FramebufferHandle framebuffer;
+    nvrhi::ShaderHandle vertexShader;
+    nvrhi::ShaderHandle fragmentShader;
+    nvrhi::TextureHandle depthBuffer;
+
+    VkRenderPass imguiRenderPass;
 
     /**
      * @param surface Pointer to a VkSurfaceKHR created from a GLFW window
@@ -46,8 +57,14 @@ public:
 
     void handle_resize(uint32_t width, uint32_t height);
 
+    void update_framebuffer_for_current_image();
+
 private:
     void init_device();
     void init_surface(GLFWwindow* window);
     void init_command_pool();
+    void init_nvrhi();
+    void create_nvrhi_pipeline();
+    void create_nvrhi_framebuffer();
+    void create_imgui_render_pass();
 };

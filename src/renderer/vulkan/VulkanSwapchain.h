@@ -33,6 +33,7 @@ public:
     uint32_t get_height() const { return swapchain.extent.height; }
     VkExtent2D get_extent() const { return swapchain.extent; }
     VkFramebuffer get_framebuffer(uint32_t index) const { return framebuffers[index]; }
+    const std::vector<VkImage>& get_images() const { return images; }
 
     void create_framebuffers();
     void cleanup(bool noRecreation);

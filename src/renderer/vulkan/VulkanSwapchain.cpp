@@ -5,7 +5,6 @@
 #include "VulkanSwapchain.h"
 
 #include "VulkanBackend.h"
-#include "VulkanRenderPass.h"
 
 VulkanSwapchain::VulkanSwapchain(VulkanBackend* p_backend, uint32_t width, uint32_t height) {
     _backend = p_backend;
@@ -23,7 +22,7 @@ void VulkanSwapchain::recreate(uint32_t width, uint32_t height) {
 
     cleanup(false);
     create(width, height);
-    create_framebuffers();
+    // create_framebuffers(); // Not needed anymore - using NVRHI framebuffers
 }
 
 void VulkanSwapchain::recreate() {
@@ -136,24 +135,6 @@ void VulkanSwapchain::ensure_depth_resources() {
 }
 
 void VulkanSwapchain::create_framebuffers() {
-
-    int index = 0;
-    for (auto & framebuffer : framebuffers) {
-        VkImageView attachments[] = {
-            imageViews[index],
-            depthImageView
-        };
-        VkFramebufferCreateInfo framebufferInfo{};
-        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        framebufferInfo.renderPass = _backend->renderPass->handle;
-        framebufferInfo.attachmentCount = 2;
-        framebufferInfo.pAttachments = attachments;
-        framebufferInfo.width = swapchain.extent.width;
-        framebufferInfo.height = swapchain.extent.height;
-        framebufferInfo.layers = 1;
-        if (_backend->disp.createFramebuffer(&framebufferInfo, nullptr, &framebuffer) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create framebuffer!");
-        }
-        index++;
-    }
+    // This method is no longer needed - NVRHI handles framebuffer creation
+    // The old Vulkan framebuffers are replaced by NVRHI framebuffers
 }
