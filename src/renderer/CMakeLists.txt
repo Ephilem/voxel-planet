@@ -5,13 +5,7 @@ add_library(VoxelPlanetRenderer STATIC
         RendererModule.h
         Renderer.cpp
         Renderer.h
-        vulkan/VulkanPipeline.cpp
-        vulkan/VulkanPipeline.h
-        vulkan/VulkanRenderPass.cpp
-        vulkan/VulkanRenderPass.h
         vulkan/vulkan_type.inl
-        vulkan/VulkanSwapchain.cpp
-        vulkan/VulkanSwapchain.h
         vulkan/vma_implementation.cpp
         managers/ImGuiManager.h
         managers/ImGuiManager.cpp

@@ -10,41 +10,38 @@
 
 #include "core/resource/ResourceSystem.h"
 
-#define MAX_FRAMES_IN_FLIGHT 4
+#define MAX_FRAMES_IN_FLIGHT 2
 
 
 class VulkanBackend {
 public:
-    ResourceSystem resourceSystem;
-
+    // ResourceSystem resourceSystem;
     vkb::Instance instance;
+    vkb::Device vkDevice;
 
-    vkb::Device device;
-    vkb::DispatchTable disp;
-    VkSurfaceKHR surface;
-
-    VmaAllocator allocator;
+    nvrhi::DeviceHandle device;
+    nvrhi::CommandListHandle commandList;
+    nvrhi::FramebufferHandle framebuffer;
+    nvrhi::TextureHandle depthBuffer;
 
     VkQueue graphicsQueue;
     VkQueue presentQueue;
 
-    VkCommandPool commandPool;
+    VkSurfaceKHR surface;
 
-    uint32_t currentFrame = 0;
-    uint32_t imageIndex = 0;
-    std::vector<VulkanRenderFrameData> frames;
+    // Swapchain
+    vkb::Swapchain swapchain;
+    std::vector<nvrhi::TextureHandle> swapchainTextures;
+    std::vector<nvrhi::FramebufferHandle> swapchainFramebuffers;
+    nvrhi::TextureHandle depthTexture;
 
-    std::unique_ptr<VulkanSwapchain> swapchain;
+    uint32_t imageIndex;
 
-    nvrhi::DeviceHandle nvrhiDevice;
-    nvrhi::CommandListHandle commandList;
-    nvrhi::GraphicsPipelineHandle graphicsPipeline;
-    nvrhi::FramebufferHandle framebuffer;
-    nvrhi::ShaderHandle vertexShader;
-    nvrhi::ShaderHandle fragmentShader;
-    nvrhi::TextureHandle depthBuffer;
+    // Syncs (per frame in the swapchain)
+    std::vector<VkSemaphore> imageAvailableSemaphores;
+    std::vector<VkSemaphore> renderFinishedSemaphores;
+    std::vector<VkFence> inFlightFences;
 
-    VkRenderPass imguiRenderPass;
 
     /**
      * @param surface Pointer to a VkSurfaceKHR created from a GLFW window
@@ -57,14 +54,9 @@ public:
 
     void handle_resize(uint32_t width, uint32_t height);
 
-    void update_framebuffer_for_current_image();
-
 private:
-    void init_device();
-    void init_surface(GLFWwindow* window);
-    void init_command_pool();
     void init_nvrhi();
-    void create_nvrhi_pipeline();
-    void create_nvrhi_framebuffer();
-    void create_imgui_render_pass();
+    void init_swapchain();
+    void init_renderpasses();
+    void init_syncs();
 };
