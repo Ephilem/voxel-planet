@@ -32,10 +32,10 @@ void ImGuiManager::init(GLFWwindow* window, VulkanBackend* backend) {
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
     poolInfo.maxSets = 1000;
-    poolInfo.poolSizeCount = static_cast<uint32_t>(sizeof(poolSize) / sizeof(poolSize[0]));
+    poolInfo.poolSizeCount = static_cast<uint32_t>(std::size(poolSize));
     poolInfo.pPoolSizes = poolSize;
 
-    if (backend->disp.createDescriptorPool(&poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS) {
+    if (vkCreateDescriptorPool(backend->vkDevice, &poolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS) {
         throw std::runtime_error("failed to create ImGui descriptor pool!");
     }
 
@@ -50,7 +50,7 @@ void ImGuiManager::init(GLFWwindow* window, VulkanBackend* backend) {
 
     ImGui_ImplVulkan_InitInfo initInfo {};
     initInfo.Instance = backend->instance;
-    initInfo.PhysicalDevice = backend->device.physical_device;
+    initInfo.PhysicalDevice = backend->vkDevice.physical_device;
     initInfo.Device = backend->device;
     initInfo.QueueFamily = backend->device.get_queue_index(vkb::QueueType::graphics).value();
     initInfo.Queue = backend->graphicsQueue;

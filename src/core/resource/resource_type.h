@@ -7,6 +7,7 @@
 enum class ResourceType {
     TEXT,
     BINARY,
+    SHADER,
     IMAGE,
 };
 
@@ -19,6 +20,28 @@ public:
     virtual const std::string& get_name() const = 0;
     virtual size_t get_data_size() const = 0;
 
+};
+
+class ShaderResource : public IResource {
+    std::unique_ptr<uint8_t[]> _data{};
+    size_t _data_size{0};
+
+public:
+    AssetID id;
+    std::string name;
+
+    ShaderResource(std::string assetName, size_t dataSize,
+                   std::unique_ptr<uint8_t[]> data)
+        : name(std::move(assetName)), _data_size(dataSize), _data(std::move(data))
+    {
+        id = hash_string_runtime(name.c_str());
+    }
+
+    AssetID get_id() const override { return id; }
+    const std::string& get_name() const override { return name; }
+    size_t get_data_size() const override { return _data_size; }
+
+    uint8_t* getData() const { return _data.get(); }
 };
 
 class ImageResource : public IResource {

@@ -20,5 +20,7 @@ private:
     bool m_initialized = false;
     VulkanBackend* m_backend = nullptr;
     VkDescriptorPool m_descriptorPool = VK_NULL_HANDLE;
-    VkDevice m_device = VK_NULL_HANDLE;
+    VkRenderPass m_renderPass = VK_NULL_HANDLE;
+
+    void create_renderpass();
 };
