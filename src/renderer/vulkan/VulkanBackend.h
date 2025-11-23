@@ -27,7 +27,6 @@ public:
     vkb::Device vkDevice;
 
     nvrhi::vulkan::DeviceHandle device;
-    nvrhi::CommandListHandle commandList;
     nvrhi::TextureHandle depthBuffer;
 
     VkQueue graphicsQueue;
@@ -42,7 +41,7 @@ public:
     VulkanBackend(GLFWwindow* window, RenderParameters renderParameters);
     ~VulkanBackend();
 
-    bool begin_frame();
+    bool begin_frame(nvrhi::CommandListHandle &out_currentCommandList);
     bool present();
     nvrhi::FramebufferHandle get_current_framebuffer() const {
         return m_swapchainFramebuffers[m_imageIndex];
@@ -63,9 +62,11 @@ private:
     std::vector<nvrhi::TextureHandle> m_swapchainTextures;
     std::vector<nvrhi::FramebufferHandle> m_swapchainFramebuffers;
     nvrhi::TextureHandle m_depthTexture;
+    std::vector<nvrhi::CommandListHandle> m_commandLists;
 
     uint32_t m_imageIndex;
     uint32_t m_acquiredSemaphoreIndex = 0;
+    uint32_t m_commandListIndex = 0; // mapped to MAX_FRAMES_IN_FLIGHT
 
     bool m_windowVisible = true;
 

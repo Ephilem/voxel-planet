@@ -28,4 +28,6 @@ target_link_libraries(VoxelPlanetRenderer
             imgui
             flecs::flecs_static
         PRIVATE
+            VoxelPlanet::Core
+            VoxelPlanet::Platform
 )

@@ -1,6 +1,7 @@
 #include "VulkanBackend.h"
 
 #include <algorithm>
+#include <iostream>
 #include <VkBootstrap.h>
 #include "GLFW/glfw3.h"
 #include <stdexcept>
@@ -60,6 +61,8 @@ VulkanBackend::VulkanBackend(GLFWwindow *window, RenderParameters renderParamete
     init_nvrhi();
     create_swapchain();
     init_syncs();
+
+    m_commandLists.resize(MAX_FRAMES_IN_FLIGHT);
 }
 
 VulkanBackend::~VulkanBackend() {
@@ -74,15 +77,13 @@ VulkanBackend::~VulkanBackend() {
         device->waitEventQuery(query);
     }
 
+    for (auto& query : m_queryPool) {
+        query.Reset();
+    }
     m_queryPool.clear();
 
-    // Clear NVRHI handles BEFORE destroying the NVRHI device
-    // These are ref-counted and need to be released while device is still valid
-    m_swapchainFramebuffers.clear();
-    depthBuffer = nullptr;
-    m_swapchainTextures.clear();
+    m_commandLists.clear();
 
-    // Destroy sync objects (they may be referenced by pending work)
     for (const auto& semaphore : m_presentSemaphores) {
         vkDestroySemaphore(vkDevice.device, semaphore, nullptr);
     }
@@ -93,33 +94,15 @@ VulkanBackend::~VulkanBackend() {
     }
     m_acquireImageSemaphores.clear();
 
-    // Try destroying swapchain BEFORE NVRHI device
-    if (m_swapchain.swapchain != VK_NULL_HANDLE) {
-        // TEMP: Skip swapchain destruction to test if this is the culprit
-        printf("SKIPPING swapchain destruction for testing\n");
-        // VkResult waitResult = vkDeviceWaitIdle(vkDevice.device);
-        // printf("vkDeviceWaitIdle result: %d\n", waitResult);
-        // printf("About to destroy swapchain: device=%p, swapchain=%p\n",
-        //        (void*)vkDevice.device, (void*)m_swapchain.swapchain);
+    destroy_swapchain();
 
-        // // Get the function pointer directly from the instance
-        // auto func = (PFN_vkDestroySwapchainKHR)vkGetInstanceProcAddr(instance.instance, "vkDestroySwapchainKHR");
-        // printf("vkDestroySwapchainKHR func ptr: %p\n", (void*)func);
-        // if (func) {
-        //     func(vkDevice.device, m_swapchain.swapchain, nullptr);
-        // }
-        // m_swapchain.swapchain = VK_NULL_HANDLE;
-    }
-
-    // Destroy NVRHI device after swapchain
-    device = nullptr;
+    device.Reset();
 
     // Destroy surface
     vkDestroySurfaceKHR(instance, surface, nullptr);
 
-    // Destroy Vulkan device and instance
-    destroy_device(vkDevice);
-    vkDestroyInstance(instance, nullptr);
+    vkb::destroy_device(vkDevice);
+    vkb::destroy_instance(instance);
 }
 
 void VulkanBackend::init_nvrhi() {
@@ -254,14 +237,22 @@ void VulkanBackend::destroy_swapchain() {
         device->waitForIdle();
     }
 
-    // Clear NVRHI handles - they will be released automatically via ref counting
-    // Must happen while NVRHI device is still valid
+    // Explicitly release all swapchain NVRHI handles
+    for (auto& fb : m_swapchainFramebuffers) {
+        fb.Reset();
+    }
     m_swapchainFramebuffers.clear();
-    depthBuffer = nullptr;
+
+    depthBuffer.Reset();
+    m_depthTexture.Reset();
+
+    for (auto& tex : m_swapchainTextures) {
+        tex.Reset();
+    }
     m_swapchainTextures.clear();
 
     if (m_swapchain.swapchain != VK_NULL_HANDLE) {
-        vkDestroySwapchainKHR(vkDevice.device, m_swapchain.swapchain, nullptr);
+        vkb::destroy_swapchain(m_swapchain);
         m_swapchain.swapchain = VK_NULL_HANDLE;
     }
 }
@@ -300,7 +291,18 @@ void VulkanBackend::init_syncs() {
     }
 }
 
-bool VulkanBackend::begin_frame() {
+bool VulkanBackend::begin_frame(nvrhi::CommandListHandle &out_currentCommandList) {
+    // Wait for the oldest frame to complete BEFORE we start reusing resources
+    // This ensures command lists and ImGui buffers from frame N-2 are no longer in use
+    while (m_framesInFlight.size() >= MAX_FRAMES_IN_FLIGHT) {
+        auto query = m_framesInFlight.front();
+        m_framesInFlight.pop();
+
+        device->waitEventQuery(query);
+
+        m_queryPool.push_back(query);
+    }
+
     const auto& semaphore = m_acquireImageSemaphores[m_acquiredSemaphoreIndex];
 
     VkResult result;
@@ -327,6 +329,15 @@ bool VulkanBackend::begin_frame() {
     }
 
     m_acquiredSemaphoreIndex = (m_acquiredSemaphoreIndex + 1) % m_acquireImageSemaphores.size();
+
+    // Aquire a command list
+    // Create command list for this frame slot if it doesn't exist yet
+    if (!m_commandLists[m_commandListIndex]) {
+        m_commandLists[m_commandListIndex] = device->createCommandList();
+    }
+    out_currentCommandList = m_commandLists[m_commandListIndex];
+    m_commandListIndex = (m_commandListIndex + 1) % MAX_FRAMES_IN_FLIGHT;
+
 
     if (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR) {
         // Schedule the wait. The actual wait operation will be submitted when the app executes any command list!
@@ -358,15 +369,7 @@ bool VulkanBackend::present() {
         return false;
     }
 
-    while (m_framesInFlight.size() >= MAX_FRAMES_IN_FLIGHT) {
-        auto query = m_framesInFlight.front();
-        m_framesInFlight.pop();
-
-        device->waitEventQuery(query);
-
-        m_queryPool.push_back(query);
-    }
-
+    // Track this frame in flight
     nvrhi::EventQueryHandle query;
     if (!m_queryPool.empty()) {
         query = m_queryPool.back();

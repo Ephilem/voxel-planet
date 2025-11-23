@@ -127,8 +127,9 @@ set(CMAKE_CXX_FLAGS ${ORIGINAL_FLAGS})
 #### End Dependencies
 ####
 
-add_subdirectory(src/renderer)
 add_subdirectory(src/core)
+add_subdirectory(src/platform)
+add_subdirectory(src/renderer)
 
 add_executable(${PROJECT_NAME}
         src/main.cpp
@@ -140,6 +141,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
         VoxelPlanet::Renderer
+        VoxelPlanet::Platform
         VoxelPlanet::Core
         nvrhi_vk
         nvrhi

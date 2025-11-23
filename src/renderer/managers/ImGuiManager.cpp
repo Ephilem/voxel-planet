@@ -4,7 +4,7 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 
-#include "core/Application.h"
+#include "platform/PlatformState.h"
 #include "renderer/Renderer.h"
 #include "renderer/vulkan/VulkanBackend.h"
 
@@ -145,9 +145,9 @@ void ImGuiManager::render(VkCommandBuffer commandBuffer) {
 
 void ImGuiManager::Register(flecs::world& ecs) {
     auto *renderer = ecs.get_mut<Renderer>();
-    auto *app = ecs.get<Application>();
-    if (renderer && renderer->backend) {
-        renderer->imguiManager->init(app->window->window, renderer->backend.get());
+    auto *platform = ecs.get<PlatformState>();
+    if (renderer && renderer->backend && platform && platform->window) {
+        renderer->imguiManager->init(platform->window->window, renderer->backend.get());
     }
 
     // Start ImGui Frame (at Load so we can use ImGui in other systems)
@@ -164,7 +164,7 @@ void ImGuiManager::Register(flecs::world& ecs) {
     ecs.system<Renderer>("RenderImGuiSystem")
         .kind(flecs::OnStore)
         .each([](flecs::entity e, Renderer& renderer) {
-            auto ctx = renderer.frameContext;
+            auto& ctx = renderer.frameContext;
             if (!ctx.frameActive || !ctx.commandList) return;
 
             VkCommandBuffer vkCmdBuf = ctx.commandList->getNativeObject(nvrhi::ObjectTypes::VK_CommandBuffer);
