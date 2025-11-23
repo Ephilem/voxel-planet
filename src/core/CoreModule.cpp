@@ -3,6 +3,8 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 
+#include "log/Logger.h"
+
 CoreModule::CoreModule(flecs::world& ecs) {
     ecs.set<GameState>({
         .resourceSystem = std::make_unique<ResourceSystem>(),
@@ -25,8 +27,7 @@ CoreModule::CoreModule(flecs::world& ecs) {
         .interval(1.0f)
         .each([](flecs::iter& it, size_t, GameState& gameState) {
             double fps = 1.0 / gameState.deltaTime;
-            std::cout << "FPS: " << static_cast<int>(fps) << ", "
-                      << "Delta: " << static_cast<int>(gameState.deltaTime * 1000) << "ms" << std::endl;
+            LOG_TRACE("Core", "FPS: {:.0f}, Delta: {:.0f}ms", fps, gameState.deltaTime * 1000.0);
         });
 }
 

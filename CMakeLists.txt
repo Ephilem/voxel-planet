@@ -121,6 +121,14 @@ FetchContent_MakeAvailable(stb)
 add_library(stb INTERFACE)
 target_include_directories(stb INTERFACE ${stb_SOURCE_DIR})
 
+# fmt (formatting)
+FetchContent_Declare(
+        fmt
+        GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+        GIT_TAG 11.0.2
+)
+FetchContent_MakeAvailable(fmt)
+
 set(CMAKE_CXX_FLAGS ${ORIGINAL_FLAGS})
 
 ####

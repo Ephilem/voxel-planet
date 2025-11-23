@@ -8,6 +8,8 @@ add_library(VoxelPlanetRenderer STATIC
         vulkan/vulkan_type.inl
         managers/ImGuiManager.h
         managers/ImGuiManager.cpp
+        debug/LogConsole.h
+        debug/LogConsole.cpp
 )
 
 add_library(VoxelPlanet::Renderer ALIAS VoxelPlanetRenderer)

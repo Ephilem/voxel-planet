@@ -7,6 +7,8 @@
 #include <stdexcept>
 #include <vulkan/vulkan.hpp>
 
+#include "core/log/Logger.h"
+
 VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
     VkDebugUtilsMessageTypeFlagsEXT message_types,
@@ -66,9 +68,6 @@ VulkanBackend::VulkanBackend(GLFWwindow *window, RenderParameters renderParamete
 }
 
 VulkanBackend::~VulkanBackend() {
-    if (device) {
-        device->waitForIdle();
-    }
 
     // Drain all frames in flight - wait for all pending NVRHI queries
     while (!m_framesInFlight.empty()) {
@@ -77,12 +76,19 @@ VulkanBackend::~VulkanBackend() {
         device->waitEventQuery(query);
     }
 
+    if (device) {
+        device->waitForIdle();
+    }
+
+    for (auto& cmdList: m_commandLists) {
+        cmdList.Reset();
+    }
+    m_commandLists.clear();
+
     for (auto& query : m_queryPool) {
         query.Reset();
     }
     m_queryPool.clear();
-
-    m_commandLists.clear();
 
     for (const auto& semaphore : m_presentSemaphores) {
         vkDestroySemaphore(vkDevice.device, semaphore, nullptr);
@@ -292,17 +298,6 @@ void VulkanBackend::init_syncs() {
 }
 
 bool VulkanBackend::begin_frame(nvrhi::CommandListHandle &out_currentCommandList) {
-    // Wait for the oldest frame to complete BEFORE we start reusing resources
-    // This ensures command lists and ImGui buffers from frame N-2 are no longer in use
-    while (m_framesInFlight.size() >= MAX_FRAMES_IN_FLIGHT) {
-        auto query = m_framesInFlight.front();
-        m_framesInFlight.pop();
-
-        device->waitEventQuery(query);
-
-        m_queryPool.push_back(query);
-    }
-
     const auto& semaphore = m_acquireImageSemaphores[m_acquiredSemaphoreIndex];
 
     VkResult result;
@@ -369,6 +364,19 @@ bool VulkanBackend::present() {
         return false;
     }
 
+    // On Linux with validation layers, explicitly sync with GPU to prevent memory buildup
+    vkQueueWaitIdle(presentQueue);
+
+    // Drain old frames before creating new query
+    while (m_framesInFlight.size() >= MAX_FRAMES_IN_FLIGHT) {
+        auto query = m_framesInFlight.front();
+        m_framesInFlight.pop();
+
+        device->waitEventQuery(query);
+
+        m_queryPool.push_back(query);
+    }
+
     // Track this frame in flight
     nvrhi::EventQueryHandle query;
     if (!m_queryPool.empty()) {
@@ -382,6 +390,9 @@ bool VulkanBackend::present() {
     device->resetEventQuery(query);
     device->setEventQuery(query, nvrhi::CommandQueue::Graphics);
     m_framesInFlight.push(query);
+
+    device->runGarbageCollection();
+
     return true;
 }
 

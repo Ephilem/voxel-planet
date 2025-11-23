@@ -3,6 +3,8 @@ add_library(VoxelPlanetCore STATIC
     CoreModule.h
     GameState.h
     events.h
+    log/Logger.cpp
+    log/Logger.h
     resource/asset_id.h
     resource/resource_type.h
     resource/loaders/ResourceLoader.h
@@ -26,6 +28,7 @@ target_link_libraries(VoxelPlanetCore
         glm::glm
         stb
         flecs::flecs_static
+        fmt::fmt
     PRIVATE
         glfw  # For glfwGetTime()
 )
