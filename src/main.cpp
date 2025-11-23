@@ -13,9 +13,8 @@ int main() {
         ecs.import<CoreModule>();
         ecs.import<RendererModule>();
 
-
         while (ecs.progress()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(16));
+            // std::this_thread::sleep_for(std::chrono::milliseconds(16));
         }
 
 

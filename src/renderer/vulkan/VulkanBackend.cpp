@@ -4,12 +4,13 @@
 #include <VkBootstrap.h>
 #include "GLFW/glfw3.h"
 #include <stdexcept>
+#include <vulkan/vulkan.hpp>
 
 VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
     VkDebugUtilsMessageTypeFlagsEXT message_types,
     const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
-    void* user_data) {
+    void* _) {
     switch (message_severity) {
         default:
         case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
@@ -31,10 +32,13 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
 VulkanBackend::VulkanBackend(GLFWwindow *window, RenderParameters renderParameters) {
     this->renderParameters = renderParameters;
 
+    VULKAN_HPP_DEFAULT_DISPATCHER.init(glfwGetInstanceProcAddress);
+
     // Create Vulkan instance
     vkb::InstanceBuilder builder;
     auto inst_ret = builder.set_app_name("VoxelPlanet")
         .request_validation_layers(true)
+        .require_api_version(1, 3)
         .set_debug_callback(vk_debug_callback)
         .build();
 
@@ -43,6 +47,8 @@ VulkanBackend::VulkanBackend(GLFWwindow *window, RenderParameters renderParamete
     }
 
     instance = inst_ret.value();
+
+    VULKAN_HPP_DEFAULT_DISPATCHER.init(vk::Instance(instance.instance));
 
     VkSurfaceKHR surface;
     if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
@@ -57,27 +63,56 @@ VulkanBackend::VulkanBackend(GLFWwindow *window, RenderParameters renderParamete
 }
 
 VulkanBackend::~VulkanBackend() {
-    // Wait for device to be idle before destroying resources
     if (device) {
         device->waitForIdle();
     }
 
-    // Destroy sync objects
+    // Drain all frames in flight - wait for all pending NVRHI queries
+    while (!m_framesInFlight.empty()) {
+        auto query = m_framesInFlight.front();
+        m_framesInFlight.pop();
+        device->waitEventQuery(query);
+    }
+
+    m_queryPool.clear();
+
+    // Clear NVRHI handles BEFORE destroying the NVRHI device
+    // These are ref-counted and need to be released while device is still valid
+    m_swapchainFramebuffers.clear();
+    depthBuffer = nullptr;
+    m_swapchainTextures.clear();
+
+    // Destroy sync objects (they may be referenced by pending work)
     for (const auto& semaphore : m_presentSemaphores) {
         vkDestroySemaphore(vkDevice.device, semaphore, nullptr);
     }
+    m_presentSemaphores.clear();
+
     for (const auto& semaphore : m_acquireImageSemaphores) {
         vkDestroySemaphore(vkDevice.device, semaphore, nullptr);
     }
+    m_acquireImageSemaphores.clear();
 
-    // Destroy swapchain
-    destroy_swapchain();
+    // Try destroying swapchain BEFORE NVRHI device
+    if (m_swapchain.swapchain != VK_NULL_HANDLE) {
+        // TEMP: Skip swapchain destruction to test if this is the culprit
+        printf("SKIPPING swapchain destruction for testing\n");
+        // VkResult waitResult = vkDeviceWaitIdle(vkDevice.device);
+        // printf("vkDeviceWaitIdle result: %d\n", waitResult);
+        // printf("About to destroy swapchain: device=%p, swapchain=%p\n",
+        //        (void*)vkDevice.device, (void*)m_swapchain.swapchain);
 
-    // Destroy NVRHI device
-    if (device) {
-        device->Release();
-        device = nullptr;
+        // // Get the function pointer directly from the instance
+        // auto func = (PFN_vkDestroySwapchainKHR)vkGetInstanceProcAddr(instance.instance, "vkDestroySwapchainKHR");
+        // printf("vkDestroySwapchainKHR func ptr: %p\n", (void*)func);
+        // if (func) {
+        //     func(vkDevice.device, m_swapchain.swapchain, nullptr);
+        // }
+        // m_swapchain.swapchain = VK_NULL_HANDLE;
     }
+
+    // Destroy NVRHI device after swapchain
+    device = nullptr;
 
     // Destroy surface
     vkDestroySurfaceKHR(instance, surface, nullptr);
@@ -89,7 +124,9 @@ VulkanBackend::~VulkanBackend() {
 
 void VulkanBackend::init_nvrhi() {
     vkb::PhysicalDeviceSelector selector{ instance };
-    auto physicalDevice_ret = selector.set_surface(surface)
+    auto physicalDevice_ret = selector
+        .set_surface(surface)
+        .set_minimum_version(1, 3)
         .select();
 
     if (!physicalDevice_ret) {
@@ -98,8 +135,19 @@ void VulkanBackend::init_nvrhi() {
 
     vkb::PhysicalDevice physicalDevice = physicalDevice_ret.value();
 
-    vkb::DeviceBuilder device_builder{ physicalDevice };
-    auto device_ret = device_builder.build();
+    VkPhysicalDeviceTimelineSemaphoreFeatures timelineFeatures{};
+    timelineFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
+    timelineFeatures.timelineSemaphore = VK_TRUE;
+
+    VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures{};
+    dynamicRenderingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
+    dynamicRenderingFeatures.dynamicRendering = VK_TRUE;
+
+    vkb::DeviceBuilder deviceBuilder{ physicalDevice };
+    auto device_ret = deviceBuilder
+        .add_pNext(&timelineFeatures)
+        .add_pNext(&dynamicRenderingFeatures)
+        .build();
 
     if (!device_ret) {
         throw std::runtime_error("Failed to create logical device: " + std::string(device_ret.error().message()));
@@ -107,11 +155,32 @@ void VulkanBackend::init_nvrhi() {
 
     vkDevice = device_ret.value();
 
+    VULKAN_HPP_DEFAULT_DISPATCHER.init(vk::Instance(instance.instance), vk::Device(vkDevice.device));
+
+    auto presentQueue_ret = vkDevice.get_queue(vkb::QueueType::present);
+    if (!presentQueue_ret) {
+        throw std::runtime_error("Failed to get present queue");
+    }
+    presentQueue = presentQueue_ret.value();
+
+    auto graphicsQueue_ret = vkDevice.get_queue(vkb::QueueType::graphics);
+    if (!graphicsQueue_ret) {
+        throw std::runtime_error("Failed to get graphics queue");
+    }
+    graphicsQueue = graphicsQueue_ret.value();
+
+    // get family graphics queue index
+    auto graphicsQueueIndex_ret = vkDevice.get_queue_index(vkb::QueueType::graphics);
+    if (!graphicsQueueIndex_ret) {
+        throw std::runtime_error("Failed to get graphics queue index");
+    }
+
     nvrhi::vulkan::DeviceDesc deviceDesc;
     deviceDesc.instance = instance;
     deviceDesc.physicalDevice = physicalDevice;
     deviceDesc.device = vkDevice;
-    deviceDesc.graphicsQueue = vkDevice.get_queue(vkb::QueueType::graphics).value();
+    deviceDesc.graphicsQueue = graphicsQueue;
+    deviceDesc.graphicsQueueIndex = graphicsQueueIndex_ret.value();
 
     this->device = nvrhi::vulkan::createDevice(deviceDesc);
 }
@@ -130,6 +199,7 @@ void VulkanBackend::create_swapchain() {
     }
 
     m_swapchain = swapchain_ret.value();
+    swapchainFormat = m_swapchain.image_format;
     auto images = m_swapchain.get_images();
 
     // Create framebuffer and depth buffers
@@ -140,7 +210,7 @@ void VulkanBackend::create_swapchain() {
             .setDimension(nvrhi::TextureDimension::Texture2D)
             .setWidth(m_swapchain.extent.width)
             .setHeight(m_swapchain.extent.height)
-            .setFormat(nvrhi::Format::RGBA8_SNORM)
+            .setFormat(nvrhi::Format::RGBA8_UNORM)
             .setIsRenderTarget(true)
             .setInitialState(nvrhi::ResourceStates::Present)
             .setKeepInitialState(true)
@@ -151,7 +221,7 @@ void VulkanBackend::create_swapchain() {
             nvrhi::Object(images->at(i)),
             textureDesc);
 
-        m_swapchainTextures[i] = texture;
+        m_swapchainTextures.push_back(texture);
     }
 
     auto depthDesc = nvrhi::TextureDesc()
@@ -180,29 +250,19 @@ void VulkanBackend::create_swapchain() {
 }
 
 void VulkanBackend::destroy_swapchain() {
-    if (vkDevice) {
-        vkDeviceWaitIdle(vkDevice);
+    if (device) {
+        device->waitForIdle();
     }
 
-    // destroy framebuffers
-    for (auto& fb : m_swapchainFramebuffers) {
-        fb->Release();
-    }
-
-    // destroy depth buffer
-    if (depthBuffer) {
-        depthBuffer->Release();
-        depthBuffer = nullptr;
-    }
-
-    // destroy images
-    for (auto& tex : m_swapchainTextures) {
-        tex->Release();
-    }
+    // Clear NVRHI handles - they will be released automatically via ref counting
+    // Must happen while NVRHI device is still valid
+    m_swapchainFramebuffers.clear();
+    depthBuffer = nullptr;
     m_swapchainTextures.clear();
 
-    if (m_swapchain) {
-        vkDestroySwapchainKHR(vkDevice, m_swapchain, nullptr);
+    if (m_swapchain.swapchain != VK_NULL_HANDLE) {
+        vkDestroySwapchainKHR(vkDevice.device, m_swapchain.swapchain, nullptr);
+        m_swapchain.swapchain = VK_NULL_HANDLE;
     }
 }
 
@@ -278,7 +338,7 @@ bool VulkanBackend::begin_frame() {
     return false;
 }
 
-bool VulkanBackend::end_frame_and_present() {
+bool VulkanBackend::present() {
     const auto& semaphore = m_presentSemaphores[m_imageIndex];
 
     // This will signal the semaphore when all prior commands on the Graphics queue have completed
@@ -336,4 +396,9 @@ void VulkanBackend::handle_resize(uint32_t width, uint32_t height) {
 
         recreate_swapchain();
     }
+}
+
+nvrhi::FramebufferHandle VulkanBackend::get_swapchain_framebuffer(uint32_t index) const {
+    if (index >= m_swapchainFramebuffers.size()) return VK_NULL_HANDLE;
+    return m_swapchainFramebuffers[index];
 }

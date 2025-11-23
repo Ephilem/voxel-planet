@@ -6,7 +6,6 @@ add_library(VoxelPlanetRenderer STATIC
         Renderer.cpp
         Renderer.h
         vulkan/vulkan_type.inl
-        vulkan/vma_implementation.cpp
         managers/ImGuiManager.h
         managers/ImGuiManager.cpp
 )
@@ -24,8 +23,8 @@ target_link_libraries(VoxelPlanetRenderer
             vk-bootstrap::vk-bootstrap
             VulkanMemoryAllocator
             glm::glm
-            nvrhi
             nvrhi_vk
+            nvrhi
             imgui
             flecs::flecs_static
         PRIVATE

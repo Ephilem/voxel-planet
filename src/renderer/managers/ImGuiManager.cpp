@@ -4,6 +4,8 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 
+#include "core/Application.h"
+#include "renderer/Renderer.h"
 #include "renderer/vulkan/VulkanBackend.h"
 
 ImGuiManager::~ImGuiManager() {
@@ -48,11 +50,12 @@ void ImGuiManager::init(GLFWwindow* window, VulkanBackend* backend) {
 
     ImGui_ImplGlfw_InitForVulkan(window, true);
 
+    // Use Dynamic Rendering (Vulkan 1.3+) - no render pass needed!
     ImGui_ImplVulkan_InitInfo initInfo {};
     initInfo.Instance = backend->instance;
     initInfo.PhysicalDevice = backend->vkDevice.physical_device;
-    initInfo.Device = backend->device;
-    initInfo.QueueFamily = backend->device.get_queue_index(vkb::QueueType::graphics).value();
+    initInfo.Device = backend->vkDevice;
+    initInfo.QueueFamily = backend->vkDevice.get_queue_index(vkb::QueueType::graphics).value();
     initInfo.Queue = backend->graphicsQueue;
     initInfo.PipelineCache = VK_NULL_HANDLE;
     initInfo.DescriptorPool = m_descriptorPool;
@@ -60,8 +63,13 @@ void ImGuiManager::init(GLFWwindow* window, VulkanBackend* backend) {
     initInfo.ImageCount = MAX_FRAMES_IN_FLIGHT;
     initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
     initInfo.Allocator = nullptr;
-    initInfo.RenderPass = backend->imguiRenderPass;
     initInfo.CheckVkResultFn = nullptr;
+
+    // Dynamic rendering setup - no VkRenderPass!
+    initInfo.UseDynamicRendering = true;
+    initInfo.PipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+    initInfo.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
+    initInfo.PipelineRenderingCreateInfo.pColorAttachmentFormats = &backend->swapchainFormat;
 
     ImGui_ImplVulkan_Init(&initInfo);
 
@@ -71,7 +79,7 @@ void ImGuiManager::init(GLFWwindow* window, VulkanBackend* backend) {
 void ImGuiManager::shutdown() {
     if (!m_initialized) return;
 
-    if (m_backend->disp.deviceWaitIdle() != VK_SUCCESS) {
+    if (!m_backend->device->waitForIdle()) {
         throw std::runtime_error("Failed to wait device idle in ImGui shutdown!");
     }
 
@@ -80,7 +88,7 @@ void ImGuiManager::shutdown() {
     ImGui::DestroyContext();
 
     if (m_descriptorPool != VK_NULL_HANDLE) {
-        m_backend->disp.destroyDescriptorPool(m_descriptorPool, nullptr);
+        vkDestroyDescriptorPool(m_backend->vkDevice, m_descriptorPool, nullptr);
         m_descriptorPool = VK_NULL_HANDLE;
     }
 
@@ -97,9 +105,72 @@ void ImGuiManager::begin_frame() {
     ImGui::ShowDemoWindow();
 }
 
-void ImGuiManager::end_frame(VkCommandBuffer commandBuffer) {
+void ImGuiManager::render(VkCommandBuffer commandBuffer) {
     if (!m_initialized) return;
 
     ImGui::Render();
+
+    VkExtent2D extent = m_backend->get_swapchain_extent();
+
+    // Get image view from nvrhi texture
+    nvrhi::TextureHandle texture = m_backend->get_current_texture();
+    const auto& desc = texture->getDesc();
+    VkImageView imageView = texture->getNativeView(
+        nvrhi::ObjectTypes::VK_ImageView,
+        desc.format,
+        nvrhi::TextureSubresourceSet(0, 1, 0, 1),
+        desc.dimension
+    );
+
+    // Dynamic rendering
+    VkRenderingAttachmentInfo colorAttachment{};
+    colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+    colorAttachment.imageView = imageView;
+    colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;  // Keep existing content
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+    VkRenderingInfo renderingInfo{};
+    renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+    renderingInfo.renderArea.offset = {0, 0};
+    renderingInfo.renderArea.extent = extent;
+    renderingInfo.layerCount = 1;
+    renderingInfo.colorAttachmentCount = 1;
+    renderingInfo.pColorAttachments = &colorAttachment;
+
+    vkCmdBeginRendering(commandBuffer, &renderingInfo);
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
+    vkCmdEndRendering(commandBuffer);
+}
+
+void ImGuiManager::Register(flecs::world& ecs) {
+    auto *renderer = ecs.get_mut<Renderer>();
+    auto *app = ecs.get<Application>();
+    if (renderer && renderer->backend) {
+        renderer->imguiManager->init(app->window->window, renderer->backend.get());
+    }
+
+    // Start ImGui Frame (at Load so we can use ImGui in other systems)
+    ecs.system<Renderer>("BeginImGuiFrameSystem")
+        .kind(flecs::OnLoad)
+        .each([](flecs::entity e, Renderer& renderer) {
+            if (renderer.imguiManager) {
+                renderer.imguiManager->begin_frame();
+            }
+        });
+
+
+    // Renderer System
+    ecs.system<Renderer>("RenderImGuiSystem")
+        .kind(flecs::OnStore)
+        .each([](flecs::entity e, Renderer& renderer) {
+            auto ctx = renderer.frameContext;
+            if (!ctx.frameActive || !ctx.commandList) return;
+
+            VkCommandBuffer vkCmdBuf = ctx.commandList->getNativeObject(nvrhi::ObjectTypes::VK_CommandBuffer);
+
+            if (vkCmdBuf && renderer.imguiManager) {
+                renderer.imguiManager->render(vkCmdBuf);
+            }
+        });
 }

@@ -34,6 +34,7 @@ public:
     VkQueue presentQueue;
 
     VkSurfaceKHR surface;
+    VkFormat swapchainFormat = VK_FORMAT_R8G8B8A8_UNORM;
 
     /**
      * @param surface Pointer to a VkSurfaceKHR created from a GLFW window
@@ -42,7 +43,17 @@ public:
     ~VulkanBackend();
 
     bool begin_frame();
-    bool end_frame_and_present();
+    bool present();
+    nvrhi::FramebufferHandle get_current_framebuffer() const {
+        return m_swapchainFramebuffers[m_imageIndex];
+    }
+
+    uint32_t get_current_image_index() const { return m_imageIndex; }
+    uint32_t get_swapchain_image_count() const { return static_cast<uint32_t>(m_swapchainTextures.size()); }
+
+    nvrhi::FramebufferHandle get_swapchain_framebuffer(uint32_t index) const;
+    nvrhi::TextureHandle get_current_texture() const { return m_swapchainTextures[m_imageIndex]; }
+    VkExtent2D get_swapchain_extent() const { return m_swapchain.extent; }
 
     void handle_resize(uint32_t width, uint32_t height);
 

@@ -10,6 +10,7 @@
 #include <iostream>
 
 #include "managers/ImGuiManager.h"
+#include "nvrhi/utils.h"
 
 
 RendererModule::RendererModule(flecs::world& ecs) {
@@ -23,21 +24,44 @@ RendererModule::RendererModule(flecs::world& ecs) {
         .imguiManager = std::make_unique<ImGuiManager>()
     });
 
-    // Init ImGui
-    auto *renderer = ecs.get_mut<Renderer>();
-    if (renderer && renderer->backend) {
-        renderer->imguiManager->init(app->window->window, renderer->backend.get());
-    }
+    auto PostStore = ecs.entity("PostStore")
+        .add(flecs::Phase)
+        .depends_on(flecs::OnStore);
 
-    // Add render system that gets called each frame
-    ecs.system<Renderer>()
-        .each([](Renderer& renderer) {
-            if (renderer.backend) {
-                if (renderer.backend->begin_frame()) {
+    ImGuiManager::Register(ecs);
 
-                    renderer.backend->end_frame_and_present();
-                }
+    ecs.system<Renderer>("BeginFrameSystem")
+        .kind(flecs::PreStore)
+        .each([](flecs::entity e, Renderer& renderer) {
+            FrameContext& ctx = renderer.frameContext;
+            ctx.frameActive = false;
+            ctx.commandList = nullptr;
+
+            if (!renderer.backend) return;
+
+            if (renderer.backend->begin_frame()) {
+                ctx.commandList = renderer.backend->device->createCommandList();
+                ctx.commandList->open();
+
+                nvrhi::utils::ClearColorAttachment(ctx.commandList, renderer.backend->get_current_framebuffer(), 0, nvrhi::Color(0.1f, 1.0f, 0.1f, 1.0f));
+
+                ctx.frameActive = true;
             }
+        });
+
+    ecs.system<Renderer>("EndFrameSystem")
+        .kind(PostStore)
+        .each([](flecs::entity e, Renderer& renderer) {
+            FrameContext& ctx = renderer.frameContext;
+            if (!ctx.frameActive || !ctx.commandList) return;
+
+            ctx.commandList->close();
+            renderer.backend->device->executeCommandLists(&ctx.commandList, 1);
+
+            renderer.backend->present();
+
+            ctx.frameActive = false;
+            ctx.commandList = nullptr;
         });
 
     ecs.observer<Application>()

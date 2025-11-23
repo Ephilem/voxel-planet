@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 4.0)
 project(VoxelPlanet VERSION 0.1.0 LANGUAGES CXX)
 
+add_compile_definitions(VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -97,6 +99,7 @@ FetchContent_Declare(
 set(NVRHI_WITH_VULKAN ON CACHE BOOL "" FORCE)
 set(NVRHI_WITH_DX11 OFF CACHE BOOL "" FORCE)
 set(NVRHI_WITH_DX12 OFF CACHE BOOL "" FORCE)
+set(NVRHI_BUILD_SHARED OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(nvrhi)
 
 FetchContent_Declare(
@@ -127,7 +130,9 @@ set(CMAKE_CXX_FLAGS ${ORIGINAL_FLAGS})
 add_subdirectory(src/renderer)
 add_subdirectory(src/core)
 
-add_executable(${PROJECT_NAME} src/main.cpp)
+add_executable(${PROJECT_NAME}
+        src/main.cpp
+        src/vulkan_dispatcher.cpp)
 
 target_include_directories(${PROJECT_NAME} PRIVATE
         ${CMAKE_SOURCE_DIR}/src
@@ -136,9 +141,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} PRIVATE
         VoxelPlanet::Renderer
         VoxelPlanet::Core
-)
-
-target_link_libraries(${PROJECT_NAME} PRIVATE
+        nvrhi_vk
+        nvrhi
         Vulkan::Vulkan
         vk-bootstrap::vk-bootstrap
         VulkanMemoryAllocator
@@ -148,8 +152,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         imgui
         FastNoise2
         stb
-        nvrhi
-        nvrhi_vk
 )
 
 file(GLOB_RECURSE SHADER_SOURCES
