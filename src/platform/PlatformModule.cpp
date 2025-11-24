@@ -5,6 +5,8 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 
+#include "core/log/Logger.h"
+
 PlatformModule::PlatformModule(flecs::world& ecs) {
     auto* gameState = ecs.get<GameState>();
     if (!gameState) {
@@ -44,7 +46,7 @@ PlatformModule::PlatformModule(flecs::world& ecs) {
 }
 
 void shutdown_platform(flecs::world& ecs) {
-    std::cout << "PlatformModule: Shutting down..." << std::endl;
+    LOG_INFO("PlatformModule", "Shutting down...");
     auto* platform = ecs.get_mut<PlatformState>();
     if (platform && platform->window) {
         platform->window.reset();

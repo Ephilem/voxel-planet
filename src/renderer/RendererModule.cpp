@@ -10,7 +10,7 @@
 
 #include <iostream>
 
-#include "managers/ImGuiManager.h"
+#include "debug/ImGuiManager.h"
 #include "debug/LogConsole.h"
 #include "nvrhi/utils.h"
 
@@ -44,7 +44,7 @@ RendererModule::RendererModule(flecs::world& ecs) {
             if (renderer.backend->begin_frame(ctx.commandList)) {
                 ctx.commandList->open();
 
-                nvrhi::utils::ClearColorAttachment(ctx.commandList, renderer.backend->get_current_framebuffer(), 0, nvrhi::Color(0.1f, 1.0f, 0.1f, 1.0f));
+                nvrhi::utils::ClearColorAttachment(ctx.commandList, renderer.backend->get_current_framebuffer(), 0, nvrhi::Color(0.1f, 0.1f, 0.4f, 1.0f));
 
                 ctx.frameActive = true;
             }
@@ -79,10 +79,9 @@ RendererModule::RendererModule(flecs::world& ecs) {
 }
 
 void shutdown_renderer(flecs::world& ecs) {
-    std::cout << "RendererModule: Shutting down..." << std::endl;
+    LOG_INFO("RendererModule", "Shutting down...");
     auto* renderer = ecs.get_mut<Renderer>();
     if (renderer) {
-        std::cout << "RendererModule: Cleaning up Vulkan backend before window destruction..." << std::endl;
         if (renderer->debugModuleManager) {
             renderer->debugModuleManager.reset();
         }

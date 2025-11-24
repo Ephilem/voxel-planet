@@ -5,8 +5,8 @@ add_library(VoxelPlanetRenderer STATIC
         RendererModule.h
         Renderer.h
         vulkan/vulkan_type.inl
-        managers/ImGuiManager.h
-        managers/ImGuiManager.cpp
+        debug/ImGuiManager.h
+        debug/ImGuiManager.cpp
         debug/LogConsole.h
         debug/LogConsole.cpp
         debug/IImGuiDebugModule.h

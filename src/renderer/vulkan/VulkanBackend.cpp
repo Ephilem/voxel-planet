@@ -123,6 +123,7 @@ void VulkanBackend::init_nvrhi() {
     }
 
     vkb::PhysicalDevice physicalDevice = physicalDevice_ret.value();
+    LOG_INFO("VulkanBackend", "Selected GPU: {}", physicalDevice.properties.deviceName);
 
     VkPhysicalDeviceTimelineSemaphoreFeatures timelineFeatures{};
     timelineFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;

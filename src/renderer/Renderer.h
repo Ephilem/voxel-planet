@@ -3,7 +3,7 @@
 
 #include "debug/ImGuiDebugModuleManager.h"
 #include "debug/LogConsole.h"
-#include "managers/ImGuiManager.h"
+#include "debug/ImGuiManager.h"
 #include "nvrhi/nvrhi.h"
 #include "vulkan/VulkanBackend.h"
 

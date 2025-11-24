@@ -17,7 +17,7 @@ CoreModule::CoreModule(flecs::world& ecs) {
         .kind(flecs::PostUpdate)
         .each([](flecs::iter& it, size_t, GameState& gameState) {
             if (!gameState.isRunning) {
-                std::cout << "CoreModule: Shutdown requested, quitting ECS world..." << std::endl;
+                LOG_INFO("CoreModule", "Shutdown resquest has been received, quitting...");
                 it.world().quit();
             }
         });
@@ -26,10 +26,9 @@ CoreModule::CoreModule(flecs::world& ecs) {
 CoreModule::~CoreModule() = default;
 
 void shutdown_core(flecs::world& ecs) {
-    std::cout << "CoreModule: Shutting down..." << std::endl;
+    LOG_INFO("CoreModule", "Shutting down...");
     auto* gameState = ecs.get_mut<GameState>();
     if (gameState && gameState->resourceSystem) {
-        std::cout << "CoreModule: Shutting down resource system..." << std::endl;
         gameState->resourceSystem.reset();
     }
 }
