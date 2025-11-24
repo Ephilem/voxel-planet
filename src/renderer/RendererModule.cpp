@@ -2,56 +2,71 @@
 
 #include "Renderer.h"
 
-#include "core/Application.h"
-#include "core/events.h"
+#include "core/GameState.h"
+#include "platform/PlatformState.h"
+#include "platform/events.h"
 
 #include "vulkan/VulkanBackend.h"
-#include "vulkan/VulkanPipeline.h"
-#include "vulkan/VulkanRenderPass.h"
 
 #include <iostream>
 
 #include "managers/ImGuiManager.h"
+#include "debug/LogConsole.h"
+#include "nvrhi/utils.h"
 
 
 RendererModule::RendererModule(flecs::world& ecs) {
-    auto* app = ecs.get<Application>();
-    if (!app || !app->window) {
-        throw std::runtime_error("RendererModule: Application must be initialized before RendererModule");
+    auto* platform = ecs.get<PlatformState>();
+    if (!platform || !platform->window) {
+        throw std::runtime_error("RendererModule: PlatformModule must be initialized before RendererModule");
     }
 
     ecs.set<Renderer>({
-        .backend = std::make_unique<VulkanBackend>(app->window->window),
+        .backend = std::make_unique<VulkanBackend>(platform->window->window, RenderParameters{platform->window->width, platform->window->height}),
         .imguiManager = std::make_unique<ImGuiManager>()
     });
 
-    // Init ImGui
-    auto *renderer = ecs.get_mut<Renderer>();
-    if (renderer && renderer->backend) {
-        renderer->imguiManager->init(app->window->window, renderer->backend.get());
-    }
+    auto PostStore = ecs.entity("PostStore")
+        .add(flecs::Phase)
+        .depends_on(flecs::OnStore);
 
-    // Add render system that gets called each frame
-    ecs.system<Renderer>()
-        .each([](Renderer& renderer) {
-            if (renderer.backend) {
-                if (renderer.backend->begin_frame()) {
-                    auto commandBuffer = renderer.backend->frames[renderer.backend->currentFrame].commandBuffer;
-                    renderer.imguiManager->begin_frame();
+    ImGuiManager::Register(ecs);
+    LogConsole::Register(ecs);
 
-                    renderer.backend->renderPass->use(commandBuffer);
+    ecs.system<Renderer>("BeginFrameSystem")
+        .kind(flecs::PreStore)
+        .each([](flecs::entity e, Renderer& renderer) {
+            FrameContext& ctx = renderer.frameContext;
+            ctx.frameActive = false;
 
-                    renderer.backend->disp.cmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, renderer.backend->pipeline->handle);
-                    renderer.backend->disp.cmdDraw(commandBuffer, 3, 1, 0, 0);
+            if (!renderer.backend) return;
 
-                    renderer.imguiManager->end_frame(commandBuffer);
-                    renderer.backend->renderPass->stopUse(commandBuffer);
-                    renderer.backend->end_frame();
-                }
+            if (renderer.backend->begin_frame(ctx.commandList)) {
+                ctx.commandList->open();
+
+                nvrhi::utils::ClearColorAttachment(ctx.commandList, renderer.backend->get_current_framebuffer(), 0, nvrhi::Color(0.1f, 1.0f, 0.1f, 1.0f));
+
+                ctx.frameActive = true;
             }
         });
 
-    ecs.observer<Application>()
+    ecs.system<Renderer>("EndFrameSystem")
+        .kind(PostStore)
+        .each([](flecs::entity e, Renderer& renderer) {
+            FrameContext& ctx = renderer.frameContext;
+            if (!ctx.frameActive || !ctx.commandList) return;
+
+            ctx.commandList->close();
+            nvrhi::CommandListHandle cmdList = ctx.commandList;
+            renderer.backend->device->executeCommandLists(&cmdList, 1);
+
+            renderer.backend->present();
+
+            ctx.frameActive = false;
+            // Cycle to next frame slot
+        });
+
+    ecs.observer<PlatformState>()
         .event<WindowResizeEvent>()
         .run([](flecs::iter& it) {
             auto* evt = it.param<WindowResizeEvent>();
@@ -63,3 +78,19 @@ RendererModule::RendererModule(flecs::world& ecs) {
         });
 }
 
+void shutdown_renderer(flecs::world& ecs) {
+    std::cout << "RendererModule: Shutting down..." << std::endl;
+    auto* renderer = ecs.get_mut<Renderer>();
+    if (renderer) {
+        std::cout << "RendererModule: Cleaning up Vulkan backend before window destruction..." << std::endl;
+        if (renderer->logConsole) {
+            renderer->logConsole.reset();
+        }
+        if (renderer->imguiManager) {
+            renderer->imguiManager.reset();
+        }
+        if (renderer->backend) {
+            renderer->backend.reset();
+        }
+    }
+}

@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 4.0)
 project(VoxelPlanet VERSION 0.1.0 LANGUAGES CXX)
 
+add_compile_definitions(VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -90,6 +92,17 @@ target_include_directories(imgui PUBLIC
 target_link_libraries(imgui PUBLIC glfw Vulkan::Vulkan)
 
 FetchContent_Declare(
+        nvrhi
+        GIT_REPOSITORY https://github.com/NVIDIA-RTX/NVRHI.git
+        GIT_TAG main
+)
+set(NVRHI_WITH_VULKAN ON CACHE BOOL "" FORCE)
+set(NVRHI_WITH_DX11 OFF CACHE BOOL "" FORCE)
+set(NVRHI_WITH_DX12 OFF CACHE BOOL "" FORCE)
+set(NVRHI_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(nvrhi)
+
+FetchContent_Declare(
         fastnoise2
         GIT_REPOSITORY https://github.com/Auburn/FastNoise2.git
         GIT_TAG v0.10.0-alpha
@@ -108,16 +121,27 @@ FetchContent_MakeAvailable(stb)
 add_library(stb INTERFACE)
 target_include_directories(stb INTERFACE ${stb_SOURCE_DIR})
 
+# fmt (formatting)
+FetchContent_Declare(
+        fmt
+        GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+        GIT_TAG 11.0.2
+)
+FetchContent_MakeAvailable(fmt)
+
 set(CMAKE_CXX_FLAGS ${ORIGINAL_FLAGS})
 
 ####
 #### End Dependencies
 ####
 
-add_subdirectory(src/renderer)
 add_subdirectory(src/core)
+add_subdirectory(src/platform)
+add_subdirectory(src/renderer)
 
-add_executable(${PROJECT_NAME} src/main.cpp)
+add_executable(${PROJECT_NAME}
+        src/main.cpp
+        src/vulkan_dispatcher.cpp)
 
 target_include_directories(${PROJECT_NAME} PRIVATE
         ${CMAKE_SOURCE_DIR}/src
@@ -125,10 +149,10 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
         VoxelPlanet::Renderer
+        VoxelPlanet::Platform
         VoxelPlanet::Core
-)
-
-target_link_libraries(${PROJECT_NAME} PRIVATE
+        nvrhi_vk
+        nvrhi
         Vulkan::Vulkan
         vk-bootstrap::vk-bootstrap
         VulkanMemoryAllocator

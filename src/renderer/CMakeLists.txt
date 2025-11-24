@@ -5,20 +5,11 @@ add_library(VoxelPlanetRenderer STATIC
         RendererModule.h
         Renderer.cpp
         Renderer.h
-        vulkan/VulkanPipeline.cpp
-        vulkan/VulkanPipeline.h
-        vulkan/VulkanRenderPass.cpp
-        vulkan/VulkanRenderPass.h
         vulkan/vulkan_type.inl
-        vulkan/VulkanSwapchain.cpp
-        vulkan/VulkanSwapchain.h
-        vulkan/vma_implementation.cpp
         managers/ImGuiManager.h
         managers/ImGuiManager.cpp
-        vulkan/shaders/VulkanTerrainShader.cpp
-        vulkan/shaders/VulkanTerrainShader.h
-        vulkan/shaders/shader_helper.cpp
-        vulkan/shaders/shader_helper.h
+        debug/LogConsole.h
+        debug/LogConsole.cpp
 )
 
 add_library(VoxelPlanet::Renderer ALIAS VoxelPlanetRenderer)
@@ -34,7 +25,11 @@ target_link_libraries(VoxelPlanetRenderer
             vk-bootstrap::vk-bootstrap
             VulkanMemoryAllocator
             glm::glm
+            nvrhi_vk
+            nvrhi
             imgui
             flecs::flecs_static
         PRIVATE
+            VoxelPlanet::Core
+            VoxelPlanet::Platform
 )

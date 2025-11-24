@@ -58,7 +58,7 @@ public:
 
     ImageResource(std::string assetName, uint32_t w, uint32_t h,
                   uint8_t channels, std::unique_ptr<uint8_t[]> data)
-        : name(std::move(assetName)), width(w), height(h), _data(std::move(data)), channel_count(channels)
+        : _data(std::move(data)), name(std::move(assetName)), width(w), height(h), channel_count(channels)
     {
         id = hash_string_runtime(name.c_str());
 

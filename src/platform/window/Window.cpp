@@ -1,13 +1,10 @@
-//
-// Created by raph on 08/11/2025.
-//
-
 #include "Window.h"
 
+#include <iostream>
 #include <stdexcept>
 
-#include "core/Application.h"
-#include "core/events.h"
+#include "platform/PlatformState.h"
+#include "platform/events.h"
 
 Window::Window(uint16_t w, uint16_t h, const std::string& t)
     : width(w), height(h), title(t) {
@@ -26,6 +23,7 @@ Window::Window(uint16_t w, uint16_t h, const std::string& t)
 }
 
 Window::~Window() {
+    std::cout << "Destroying GLFW window..." << std::endl;
     glfwDestroyWindow(window);
     glfwTerminate();
 }
@@ -58,10 +56,8 @@ void Window::setupCallbacks(flecs::world &ecs) {
 
             world->event<WindowResizeEvent>()
                 .ctx(evt)
-                .id<Application>()
-                .entity(world->id<Application>())
+                .id<PlatformState>()
+                .entity(world->id<PlatformState>())
                 .enqueue();
-
-            // world->entity().enqueue<WindowResizeEvent>(evt);
         });
 }

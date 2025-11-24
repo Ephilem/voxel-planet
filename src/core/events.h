@@ -1,7 +1,4 @@
 #pragma once
-#include <cstdint>
 
-struct WindowResizeEvent {
-    uint32_t width;
-    uint32_t height;
-};
+// Game events (shared between server and client)
+// Platform-specific events (WindowResizeEvent, etc.) are in platform/events.h
