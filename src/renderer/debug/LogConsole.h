@@ -6,23 +6,21 @@
 #include <string>
 #include <mutex>
 
-class LogConsole {
+#include "IImGuiDebugModule.h"
+
+class LogConsole : public IImGuiDebugModule {
 public:
     LogConsole();
-    ~LogConsole();
+    ~LogConsole() override;
 
-    // Register ECS systems for the console
-    static void Register(flecs::world& world);
-
-    // Draw the ImGui console window
     void draw();
 
-    // Clear all logs
     void clear();
 
-    // Settings
     void setMaxEntries(size_t max) { maxEntries = max; }
     void setAutoScroll(bool enable) { autoScroll = enable; }
+
+    void register_ecs(flecs::world &ecs) override;
 
     bool isOpen = true;
 

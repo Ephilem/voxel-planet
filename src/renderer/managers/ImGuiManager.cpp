@@ -101,8 +101,6 @@ void ImGuiManager::begin_frame() {
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
-
-    ImGui::ShowDemoWindow();
 }
 
 void ImGuiManager::render(VkCommandBuffer commandBuffer) {

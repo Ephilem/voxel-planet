@@ -31,7 +31,7 @@ RendererModule::RendererModule(flecs::world& ecs) {
         .depends_on(flecs::OnStore);
 
     ImGuiManager::Register(ecs);
-    LogConsole::Register(ecs);
+    ImGuiDebugModuleManager::Register(ecs);
 
     ecs.system<Renderer>("BeginFrameSystem")
         .kind(flecs::PreStore)
@@ -83,8 +83,8 @@ void shutdown_renderer(flecs::world& ecs) {
     auto* renderer = ecs.get_mut<Renderer>();
     if (renderer) {
         std::cout << "RendererModule: Cleaning up Vulkan backend before window destruction..." << std::endl;
-        if (renderer->logConsole) {
-            renderer->logConsole.reset();
+        if (renderer->debugModuleManager) {
+            renderer->debugModuleManager.reset();
         }
         if (renderer->imguiManager) {
             renderer->imguiManager.reset();

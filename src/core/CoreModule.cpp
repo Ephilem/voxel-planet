@@ -21,14 +21,6 @@ CoreModule::CoreModule(flecs::world& ecs) {
                 it.world().quit();
             }
         });
-
-    ecs.system<GameState>("FPSLogSystem")
-        .kind(flecs::PostUpdate)
-        .interval(1.0f)
-        .each([](flecs::iter& it, size_t, GameState& gameState) {
-            double fps = 1.0 / gameState.deltaTime;
-            LOG_TRACE("Core", "FPS: {:.0f}, Delta: {:.0f}ms", fps, gameState.deltaTime * 1000.0);
-        });
 }
 
 CoreModule::~CoreModule() = default;

@@ -49,6 +49,16 @@ void LogConsole::clear() {
     entries.clear();
 }
 
+void LogConsole::register_ecs(flecs::world &ecs) {
+    ecs.system<Renderer>("ImGuiDebugLogConsole")
+        .kind(flecs::PreStore)
+        .each([this](flecs::entity e, Renderer& renderer) {
+            if (renderer.debugModuleManager) {
+                this->draw();
+            }
+        });
+}
+
 void LogConsole::draw() {
     if (!isOpen) return;
 
@@ -130,21 +140,4 @@ void LogConsole::draw() {
 
     ImGui::EndChild();
     ImGui::End();
-}
-
-void LogConsole::Register(flecs::world& ecs) {
-    auto* renderer = ecs.get_mut<Renderer>();
-    if (!renderer) return;
-
-    // Create the console
-    renderer->logConsole = std::make_unique<LogConsole>();
-
-    // Draw system (runs after ImGui frame starts, before render)
-    ecs.system<Renderer>("LogConsoleSystem")
-        .kind(flecs::PreUpdate)
-        .each([](flecs::entity e, Renderer& renderer) {
-            if (renderer.logConsole) {
-                renderer.logConsole->draw();
-            }
-        });
 }

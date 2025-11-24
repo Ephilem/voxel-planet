@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 
+#include "debug/ImGuiDebugModuleManager.h"
 #include "debug/LogConsole.h"
 #include "managers/ImGuiManager.h"
 #include "nvrhi/nvrhi.h"
@@ -14,7 +15,7 @@ struct FrameContext {
 struct Renderer {
     std::unique_ptr<VulkanBackend> backend;
     std::unique_ptr<ImGuiManager> imguiManager;
-    std::unique_ptr<LogConsole> logConsole;
+    std::unique_ptr<ImGuiDebugModuleManager> debugModuleManager;
     FrameContext frameContext = {};
 };
 

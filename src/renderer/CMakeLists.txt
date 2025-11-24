@@ -3,13 +3,17 @@ add_library(VoxelPlanetRenderer STATIC
         vulkan/VulkanBackend.h
         RendererModule.cpp
         RendererModule.h
-        Renderer.cpp
         Renderer.h
         vulkan/vulkan_type.inl
         managers/ImGuiManager.h
         managers/ImGuiManager.cpp
         debug/LogConsole.h
         debug/LogConsole.cpp
+        debug/IImGuiDebugModule.h
+        debug/ImGuiDebugModuleManager.cpp
+        debug/ImGuiDebugModuleManager.h
+        debug/FpsCounter.cpp
+        debug/FpsCounter.h
 )
 
 add_library(VoxelPlanet::Renderer ALIAS VoxelPlanetRenderer)
