@@ -1,10 +1,12 @@
 #include "ResourceSystem.h"
 
 #include "loaders/ImageLoader.h"
+#include "loaders/ShaderLoader.h"
 
 
 ResourceSystem::ResourceSystem() {
     register_loader(ResourceType::IMAGE, std::make_unique<ImageLoader>());
+    register_loader(ResourceType::SHADER, std::make_unique<ShaderLoader>());
     // TODO Other loaders
 }
 

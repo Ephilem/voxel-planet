@@ -14,6 +14,12 @@ add_library(VoxelPlanetRenderer STATIC
         debug/ImGuiDebugModuleManager.h
         debug/FpsCounter.cpp
         debug/FpsCounter.h
+        world/VoxelTerrainRenderer.cpp
+        world/VoxelTerrainRenderer.h
+        world/RenderingComponents.h
+        world/VoxelBuffer.cpp
+        world/VoxelBuffer.h
+        render_types.h
 )
 
 add_library(VoxelPlanet::Renderer ALIAS VoxelPlanetRenderer)
