@@ -32,6 +32,7 @@ RendererModule::RendererModule(flecs::world& ecs) {
 
     ImGuiManager::Register(ecs);
     ImGuiDebugModuleManager::Register(ecs);
+    VoxelTerrainRenderer::Register(ecs);
 
     ecs.system<Renderer>("BeginFrameSystem")
         .kind(flecs::PreStore)

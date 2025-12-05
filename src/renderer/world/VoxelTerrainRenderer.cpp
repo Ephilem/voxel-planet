@@ -62,33 +62,44 @@ void VoxelTerrainRenderer::destroy() {
 
 // --- ECS ---
 
-void VoxelTerrainRenderer::Register(flecs::world &ecs, VulkanBackend *backend) {
+void VoxelTerrainRenderer::Register(flecs::world &ecs) {
     auto* renderer = ecs.get_mut<Renderer>();
     auto* gameState = ecs.get_mut<GameState>();
-    auto* voxelRenderer = new VoxelTerrainRenderer(backend, gameState->resourceSystem.get());
+    auto* voxelRenderer = new VoxelTerrainRenderer(renderer->backend.get(), gameState->resourceSystem.get());
     renderer->voxelTerrainRenderer.reset(voxelRenderer);
 
-    ecs.component<MeshDirty>();
-    ecs.component<MeshUploaded>();
+    // ecs.component<MeshDirty>();
+    // ecs.component<MeshUploaded>();
 
     ecs.system<VoxelChunk, VoxelChunkMesh>("BuildVoxelChunkMeshSystem")
         .kind(flecs::PostUpdate)
         .with<MeshDirty>()
-        .each([voxelRenderer](flecs::entity e, VoxelChunk& chunk, VoxelChunkMesh& mesh) {
-            voxelRenderer->buildVoxelChunkMesh(e, chunk, mesh);
+        .each([voxelRenderer](VoxelChunk& chunk, VoxelChunkMesh& mesh) {
+            voxelRenderer->build_voxel_chunk_mesh_system(chunk, mesh);
         });
 
     ecs.system<VoxelChunk, VoxelChunkMesh>("UploadVoxelChunkMeshSystem")
         .kind(flecs::PreStore)
         .without<MeshDirty>()
         .without<MeshUploaded>()
-        .each([voxelRenderer](flecs::entity e, VoxelChunk& chunk, VoxelChunkMesh& mesh) {
-            voxelRenderer->uploadChunkMesh(e, chunk, mesh);
+        .each([voxelRenderer](VoxelChunk& chunk, VoxelChunkMesh& mesh) {
+            voxelRenderer->upload_chunk_mesh_system(chunk, mesh);
         });
 
     ecs.system<Renderer>("RenderTerrainSystem")
         .kind(flecs::OnStore)
-        .each([voxelRenderer](flecs::entity e, Renderer& renderer) {
-            voxelRenderer->renderTerrain(e, renderer);
+        .each([voxelRenderer](Renderer& renderer) {
+            voxelRenderer->render_terrain_system(renderer);
         });
+}
+
+void VoxelTerrainRenderer::build_voxel_chunk_mesh_system(VoxelChunk &chunk,
+                                                         VoxelChunkMesh &mesh) {
+}
+
+void VoxelTerrainRenderer::upload_chunk_mesh_system(const VoxelChunk &chunk,
+                                                    VoxelChunkMesh &mesh) {
+}
+
+void VoxelTerrainRenderer::render_terrain_system(Renderer &renderer) {
 }

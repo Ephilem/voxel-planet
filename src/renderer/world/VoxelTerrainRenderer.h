@@ -3,12 +3,14 @@
 #include <flecs.h>
 #include <vector>
 
+#include "VoxelBuffer.h"
 #include "core/resource/ResourceSystem.h"
+#include "core/world/WorldComponents.h"
 #include "glm/vec3.hpp"
 #include "nvrhi/nvrhi.h"
 
-class VoxelBuffer;
 class VulkanBackend;
+struct Renderer;
 
 
 class VoxelTerrainRenderer {
@@ -17,7 +19,7 @@ public:
     ~VoxelTerrainRenderer();
 
     // create instance and register components/systems in the ECS
-    static void Register(flecs::world& ecs, VulkanBackend* backend);
+    static void Register(flecs::world& ecs);
 
 private:
     VulkanBackend* m_backend;
@@ -34,14 +36,14 @@ private:
     void init();
     void destroy();
 
-    void build_voxel_chunk_mesh_system(flecs::iter& it,
-                                       struct VoxelChunk& chunk,
-                                       struct VoxelChunkMesh& mesh);
+    void build_voxel_chunk_mesh_system(
+        VoxelChunk &chunk,
+        VoxelChunkMesh &mesh);
 
-    void upload_chunk_mesh_system(flecs::iter& it,
-                                  const struct VoxelChunk& chunk,
-                                  struct VoxelChunkMesh& mesh);
+    void upload_chunk_mesh_system(
+        const VoxelChunk &chunk,
+        VoxelChunkMesh &mesh);
 
-    void render_terrain_system(flecs::iter& it,
-                               struct Renderer& renderer);
+    void render_terrain_system(
+        Renderer &renderer);
 };
