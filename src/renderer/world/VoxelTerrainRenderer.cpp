@@ -55,13 +55,24 @@ void VoxelTerrainRenderer::init() {
 
     // Create Pipeline
     auto framebufferInfo = nvrhi::FramebufferInfo()
-    .addColorFormat(nvrhi::Format::RGBA8_UNORM);
+        .addColorFormat(nvrhi::Format::RGBA8_UNORM)
+        .setDepthFormat(nvrhi::Format::D24S8);
+
+    // Configure render state
+    nvrhi::RenderState renderState;
+    renderState.rasterState.cullMode = nvrhi::RasterCullMode::None;
+    renderState.rasterState.fillMode = nvrhi::RasterFillMode::Solid;
+    renderState.depthStencilState.depthTestEnable = true;
+    renderState.depthStencilState.depthWriteEnable = true;
+    renderState.depthStencilState.depthFunc = nvrhi::ComparisonFunc::LessOrEqual;
+    renderState.depthStencilState.stencilEnable = false;
 
     auto pipelineDesc = nvrhi::GraphicsPipelineDesc()
         .setInputLayout(inputLayout)
         .setVertexShader(m_vertexShader)
         .setPixelShader(m_pixelShader)
-        .setPrimType(nvrhi::PrimitiveType::TriangleList);
+        .setPrimType(nvrhi::PrimitiveType::TriangleList)
+        .setRenderState(renderState);
     m_pipeline = m_backend->device->createGraphicsPipeline(pipelineDesc, framebufferInfo);
 }
 
@@ -101,6 +112,7 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
     ecs.system<Renderer>("RenderTerrainSystem")
         .kind(flecs::OnStore)
         .each([voxelRenderer](Renderer& renderer) {
+            if (!renderer.frameContext.frameActive) return;
             voxelRenderer->render_terrain_system(renderer);
         });
 }
@@ -114,4 +126,16 @@ void VoxelTerrainRenderer::upload_chunk_mesh_system(const VoxelChunk &chunk,
 }
 
 void VoxelTerrainRenderer::render_terrain_system(Renderer &renderer) {
+    auto& commandList = renderer.frameContext.commandList;
+    auto extent = m_backend->get_swapchain_extent();
+    auto graphicsState = nvrhi::GraphicsState()
+        .setPipeline(m_pipeline)
+        .setViewport(nvrhi::ViewportState().addViewportAndScissorRect(nvrhi::Viewport(extent.width, extent.height)))
+        .setFramebuffer(m_backend->get_current_framebuffer());
+    commandList->setGraphicsState(graphicsState);
+
+    auto drawArguments = nvrhi::DrawArguments().setVertexCount(3);
+    commandList->draw(drawArguments);
+
+    commandList->clearState();
 }

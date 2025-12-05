@@ -141,3 +141,57 @@ void VoxelBuffer::free(VoxelChunkMesh& mesh) {
     mesh.indexRegionCount = 0;
     mesh.indirectRegionIndex = UINT32_MAX;
 }
+
+uint32_t VoxelBuffer::get_used_vertex_regions() const {
+    uint32_t totalFree = 0;
+    for (const auto& [start, count] : m_freeVertexRegions) {
+        totalFree += count;
+    }
+    return MAX_VERTEX_REGION - totalFree;
+}
+
+uint32_t VoxelBuffer::get_used_index_regions() const {
+    uint32_t totalFree = 0;
+    for (const auto& [start, count] : m_freeIndexRegions) {
+        totalFree += count;
+    }
+    return MAX_INDEX_REGION - totalFree;
+}
+
+uint32_t VoxelBuffer::get_used_indirect_regions() const {
+    uint32_t totalFree = 0;
+    for (const auto& [start, count] : m_freeIndirectRegions) {
+        totalFree += count;
+    }
+    return static_cast<uint32_t>(MAX_INDIRECT_REGION - totalFree);
+}
+
+uint32_t VoxelBuffer::get_largest_free_vertex_block() const {
+    uint32_t largest = 0;
+    for (const auto& [start, count] : m_freeVertexRegions) {
+        if (count > largest) {
+            largest = count;
+        }
+    }
+    return largest;
+}
+
+uint32_t VoxelBuffer::get_largest_free_index_block() const {
+    uint32_t largest = 0;
+    for (const auto& [start, count] : m_freeIndexRegions) {
+        if (count > largest) {
+            largest = count;
+        }
+    }
+    return largest;
+}
+
+uint32_t VoxelBuffer::get_largest_free_indirect_block() const {
+    uint32_t largest = 0;
+    for (const auto& [start, count] : m_freeIndirectRegions) {
+        if (count > largest) {
+            largest = count;
+        }
+    }
+    return largest;
+}

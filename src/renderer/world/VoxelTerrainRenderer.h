@@ -46,4 +46,8 @@ private:
 
     void render_terrain_system(
         Renderer &renderer);
+
+public:
+    // Debug accessor for buffer visualization
+    const std::vector<VoxelBuffer>& get_voxel_buffers() const { return m_voxelBuffers; }
 };

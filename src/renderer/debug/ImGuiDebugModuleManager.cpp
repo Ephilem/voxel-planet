@@ -7,6 +7,7 @@
 #include "FpsCounter.h"
 #include "imgui.h"
 #include "LogConsole.h"
+#include "VoxelBufferVisualizer.h"
 #include "renderer/Renderer.h"
 #include <map>
 
@@ -48,10 +49,10 @@ void ImGuiDebugModuleManager::Register(flecs::world &ecs) {
     renderer->debugModuleManager = std::make_unique<ImGuiDebugModuleManager>();
     renderer->debugModuleManager->register_module<LogConsole>();
     renderer->debugModuleManager->register_module<FpsCounter>();
+    renderer->debugModuleManager->register_module<VoxelBufferVisualizer>();
 
     renderer->debugModuleManager->register_all_ecs(ecs);
 
-    // Add system to draw the menu bar
     ecs.system<Renderer>("DrawDebugMenuBarSystem")
         .kind(flecs::PreStore)
         .each([](flecs::entity e, Renderer& renderer) {

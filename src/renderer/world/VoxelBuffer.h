@@ -111,4 +111,23 @@ public:
     uint64_t get_indirect_offset(uint32_t regionIndex) const {
         return INDIRECT_SECTION_OFFSET + (regionIndex * INDIRECT_REGION_SIZE);
     }
+
+    // Debug accessors for visualization
+    const std::vector<std::pair<uint32_t, uint32_t>>& get_free_vertex_regions() const { return m_freeVertexRegions; }
+    const std::vector<std::pair<uint32_t, uint32_t>>& get_free_index_regions() const { return m_freeIndexRegions; }
+    const std::vector<std::pair<uint32_t, uint32_t>>& get_free_indirect_regions() const { return m_freeIndirectRegions; }
+
+    /**
+     * Calculate total used regions for each section
+     */
+    uint32_t get_used_vertex_regions() const;
+    uint32_t get_used_index_regions() const;
+    uint32_t get_used_indirect_regions() const;
+
+    /**
+     * Get the largest contiguous free block for each section
+     */
+    uint32_t get_largest_free_vertex_block() const;
+    uint32_t get_largest_free_index_block() const;
+    uint32_t get_largest_free_indirect_block() const;
 };

@@ -30,9 +30,9 @@ RendererModule::RendererModule(flecs::world& ecs) {
         .add(flecs::Phase)
         .depends_on(flecs::OnStore);
 
+    VoxelTerrainRenderer::Register(ecs);
     ImGuiManager::Register(ecs);
     ImGuiDebugModuleManager::Register(ecs);
-    VoxelTerrainRenderer::Register(ecs);
 
     ecs.system<Renderer>("BeginFrameSystem")
         .kind(flecs::PreStore)
@@ -46,6 +46,7 @@ RendererModule::RendererModule(flecs::world& ecs) {
                 ctx.commandList->open();
 
                 nvrhi::utils::ClearColorAttachment(ctx.commandList, renderer.backend->get_current_framebuffer(), 0, nvrhi::Color(0.1f, 0.1f, 0.4f, 1.0f));
+                nvrhi::utils::ClearDepthStencilAttachment(ctx.commandList, renderer.backend->get_current_framebuffer(), 1.0f, 0);
 
                 ctx.frameActive = true;
             }

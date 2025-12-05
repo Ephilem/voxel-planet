@@ -14,6 +14,8 @@ add_library(VoxelPlanetRenderer STATIC
         debug/ImGuiDebugModuleManager.h
         debug/FpsCounter.cpp
         debug/FpsCounter.h
+        debug/VoxelBufferVisualizer.cpp
+        debug/VoxelBufferVisualizer.h
         world/VoxelTerrainRenderer.cpp
         world/VoxelTerrainRenderer.h
         world/RenderingComponents.h
