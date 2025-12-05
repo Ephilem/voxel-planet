@@ -8,6 +8,7 @@
 
 #include "RenderingComponents.h"
 #include "core/GameState.h"
+#include "core/log/Logger.h"
 #include "renderer/Renderer.h"
 #include "renderer/render_types.h"
 
@@ -18,13 +19,20 @@ VoxelTerrainRenderer::VoxelTerrainRenderer(VulkanBackend *backend, ResourceSyste
 }
 
 VoxelTerrainRenderer::~VoxelTerrainRenderer() {
+    LOG_DEBUG("VoxelTerrainRenderer", "Destroying VoxelTerrainRenderer");
     destroy();
 }
 
 void VoxelTerrainRenderer::init() {
     // Load shaders
-    auto vertexRes = m_resourceSystem->load<ShaderResource>("simple.vert", ResourceType::SHADER);
-    auto pixelRes = m_resourceSystem->load<ShaderResource>("simple.frag", ResourceType::SHADER);
+    std::shared_ptr<ShaderResource> vertexRes, pixelRes;
+    try {
+        vertexRes = m_resourceSystem->load<ShaderResource>("simple.vert", ResourceType::SHADER);
+        pixelRes = m_resourceSystem->load<ShaderResource>("simple.frag", ResourceType::SHADER);
+    } catch (const std::exception& e) {
+        LOG_FATAL("VoxelTerrainRenderer", "Error when reading voxel terrain shaders: {}", e.what());
+        throw e;
+    }
 
     m_vertexShader = m_backend->device->createShader(
         nvrhi::ShaderDesc().setShaderType(nvrhi::ShaderType::Vertex),
@@ -58,6 +66,10 @@ void VoxelTerrainRenderer::init() {
 }
 
 void VoxelTerrainRenderer::destroy() {
+    m_backend->device->waitForIdle();
+    m_pipeline = nullptr;
+    m_pixelShader = nullptr;
+    m_vertexShader = nullptr;
 }
 
 // --- ECS ---

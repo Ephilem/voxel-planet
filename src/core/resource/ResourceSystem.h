@@ -11,7 +11,10 @@ public:
     ~ResourceSystem();
 
     template<typename ResourceT>
-    std::shared_ptr<ResourceT> load(const std::string& name, ResourceType type);
+    std::shared_ptr<ResourceT> load(const std::string& name, ResourceType type) {
+        auto resource = load(name, type);
+        return std::dynamic_pointer_cast<ResourceT>(resource);
+    }
 
 private:
     /**

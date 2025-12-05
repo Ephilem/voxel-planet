@@ -3,6 +3,7 @@
 #include <iostream>
 #include <stdexcept>
 
+#include "core/log/Logger.h"
 #include "platform/PlatformState.h"
 #include "platform/events.h"
 
@@ -23,7 +24,7 @@ Window::Window(uint16_t w, uint16_t h, const std::string& t)
 }
 
 Window::~Window() {
-    std::cout << "Destroying GLFW window..." << std::endl;
+    LOG_DEBUG("Window", "Destroying GLFW window...");
     glfwDestroyWindow(window);
     glfwTerminate();
 }

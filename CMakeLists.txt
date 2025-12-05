@@ -165,13 +165,21 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 )
 
 file(GLOB_RECURSE SHADER_SOURCES
-        "${CMAKE_SOURCE_DIR}/shaders/*.vert"
-        "${CMAKE_SOURCE_DIR}/shaders/*.frag"
+        "${CMAKE_SOURCE_DIR}/assets/shaders/*.vert"
+        "${CMAKE_SOURCE_DIR}/assets/shaders/*.frag"
 )
+
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/assets
+        $<TARGET_FILE_DIR:${PROJECT_NAME}>/assets
+        COMMENT "Copying assets to build directory"
+)
+
 
 foreach(SHADER ${SHADER_SOURCES})
     get_filename_component(SHADER_NAME ${SHADER} NAME)
-    set(SHADER_OUTPUT "${CMAKE_BINARY_DIR}/shaders/${SHADER_NAME}.spv")
+    set(SHADER_OUTPUT "${CMAKE_BINARY_DIR}/assets/shaders/${SHADER_NAME}.spv")
 
     add_custom_command(
             OUTPUT ${SHADER_OUTPUT}
@@ -187,21 +195,15 @@ endforeach()
 add_custom_target(shaders ALL DEPENDS ${SHADER_OUTPUTS})
 add_dependencies(${PROJECT_NAME} shaders)
 
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_SOURCE_DIR}/assets
-        $<TARGET_FILE_DIR:${PROJECT_NAME}>/assets
-        COMMENT "Copying assets to build directory"
-)
-
 install(TARGETS ${PROJECT_NAME}
         RUNTIME DESTINATION bin
-)
-
-install(DIRECTORY ${CMAKE_BINARY_DIR}/shaders
-        DESTINATION bin
 )
 
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/assets
         DESTINATION bin
 )
+#
+#install(DIRECTORY ${CMAKE_BINARY_DIR}/assets/shaders
+#        DESTINATION bin
+#)
+

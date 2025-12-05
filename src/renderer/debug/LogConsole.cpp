@@ -8,17 +8,17 @@
 
 LogConsole::LogConsole() {
     // Register as a sink to receive log messages
-    sinkId = Logger::addSink([this](const Logger::LogEntry& entry) {
-        onLogReceived(entry);
+    m_sinkId = Logger::addSink([this](const Logger::LogEntry& entry) {
+        on_log_received(entry);
     });
 }
 
 LogConsole::~LogConsole() {
-    Logger::removeSink(sinkId);
+    Logger::removeSink(m_sinkId);
 }
 
-void LogConsole::onLogReceived(const Logger::LogEntry& entry) {
-    std::lock_guard<std::mutex> lock(entriesMutex);
+void LogConsole::on_log_received(const Logger::LogEntry& entry) {
+    std::lock_guard<std::mutex> lock(m_entriesMutex);
 
     // Format timestamp
     auto time = std::chrono::system_clock::to_time_t(entry.timestamp);
@@ -29,7 +29,7 @@ void LogConsole::onLogReceived(const Logger::LogEntry& entry) {
     ss << std::put_time(std::localtime(&time), "%H:%M:%S");
     ss << '.' << std::setfill('0') << std::setw(3) << ms.count();
 
-    entries.push_back({
+    m_entries.push_back({
         entry.level,
         entry.component,
         entry.message,
@@ -37,16 +37,16 @@ void LogConsole::onLogReceived(const Logger::LogEntry& entry) {
     });
 
     // Trim old entries
-    if (entries.size() > maxEntries) {
-        entries.erase(entries.begin(), entries.begin() + (entries.size() - maxEntries));
+    if (m_entries.size() > m_maxEntries) {
+        m_entries.erase(m_entries.begin(), m_entries.begin() + (m_entries.size() - m_maxEntries));
     }
 
-    scrollToBottom = autoScroll;
+    m_scrollToBottom = m_autoScroll;
 }
 
 void LogConsole::clear() {
-    std::lock_guard<std::mutex> lock(entriesMutex);
-    entries.clear();
+    std::lock_guard<std::mutex> lock(m_entriesMutex);
+    m_entries.clear();
 }
 
 void LogConsole::register_ecs(flecs::world &ecs) {
@@ -74,34 +74,34 @@ void LogConsole::draw() {
     }
     ImGui::SameLine();
 
-    ImGui::Checkbox("Auto-scroll", &autoScroll);
+    ImGui::Checkbox("Auto-scroll", &m_autoScroll);
     ImGui::SameLine();
 
     // Level filter
     const char* levels[] = { "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL" };
     ImGui::SetNextItemWidth(80);
-    ImGui::Combo("##Level", &filterLevel, levels, IM_ARRAYSIZE(levels));
+    ImGui::Combo("##Level", &m_filterLevel, levels, IM_ARRAYSIZE(levels));
     ImGui::SameLine();
 
     // Text filter
     ImGui::SetNextItemWidth(200);
-    ImGui::InputTextWithHint("##Filter", "Filter...", filterText, IM_ARRAYSIZE(filterText));
+    ImGui::InputTextWithHint("##Filter", "Filter...", m_filterText, IM_ARRAYSIZE(m_filterText));
 
     ImGui::Separator();
 
     // Log entries
     ImGui::BeginChild("LogScrollRegion", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
 
-    std::lock_guard<std::mutex> lock(entriesMutex);
+    std::lock_guard<std::mutex> lock(m_entriesMutex);
 
-    for (const auto& entry : entries) {
+    for (const auto& entry : m_entries) {
         // Filter by level
-        if (static_cast<int>(entry.level) < filterLevel) continue;
+        if (static_cast<int>(entry.level) < m_filterLevel) continue;
 
         // Filter by text
-        if (filterText[0] != '\0') {
-            if (entry.message.find(filterText) == std::string::npos &&
-                entry.component.find(filterText) == std::string::npos) {
+        if (m_filterText[0] != '\0') {
+            if (entry.message.find(m_filterText) == std::string::npos &&
+                entry.component.find(m_filterText) == std::string::npos) {
                 continue;
             }
         }
@@ -133,9 +133,9 @@ void LogConsole::draw() {
         ImGui::TextUnformatted(entry.message.c_str());
     }
 
-    if (scrollToBottom) {
+    if (m_scrollToBottom) {
         ImGui::SetScrollHereY(1.0f);
-        scrollToBottom = false;
+        m_scrollToBottom = false;
     }
 
     ImGui::EndChild();

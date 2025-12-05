@@ -17,12 +17,17 @@ public:
 
     void clear();
 
-    void setMaxEntries(size_t max) { maxEntries = max; }
-    void setAutoScroll(bool enable) { autoScroll = enable; }
+    void set_max_entries(size_t max) { m_maxEntries = max; }
+    void set_auto_scroll(bool enable) { m_autoScroll = enable; }
 
     void register_ecs(flecs::world &ecs) override;
 
-    bool isOpen = true;
+    const char* get_name() const override { return "Console"; }
+    const char* get_category() const override { return "Logging"; }
+    bool is_visible() const override { return isOpen; }
+    void set_visible(bool visible) override { isOpen = visible; }
+
+    bool isOpen = false;
 
 private:
     struct DisplayEntry {
@@ -32,17 +37,17 @@ private:
         std::string timestamp;
     };
 
-    void onLogReceived(const Logger::LogEntry& entry);
+    void on_log_received(const Logger::LogEntry& entry);
 
-    std::vector<DisplayEntry> entries;
-    std::mutex entriesMutex;
-    Logger::SinkId sinkId = 0;
+    std::vector<DisplayEntry> m_entries;
+    std::mutex m_entriesMutex;
+    Logger::SinkId m_sinkId = 0;
 
-    size_t maxEntries = 1000;
-    bool autoScroll = true;
-    bool scrollToBottom = false;
+    size_t m_maxEntries = 1000;
+    bool m_autoScroll = true;
+    bool m_scrollToBottom = false;
 
     // Filters
-    int filterLevel = 0;  // Index into level names
-    char filterText[128] = "";
+    int m_filterLevel = 0;  // Index into level names
+    char m_filterText[128] = "";
 };

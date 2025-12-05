@@ -25,9 +25,3 @@ std::shared_ptr<IResource> ResourceSystem::load(const std::string &name, Resourc
     }
     return nullptr;
 }
-
-template<typename ResourceT>
-std::shared_ptr<ResourceT> ResourceSystem::load(const std::string &name, ResourceType type) {
-    auto resource = load(name, type);
-    return std::dynamic_pointer_cast<ResourceT>(resource);
-}

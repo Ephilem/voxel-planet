@@ -34,7 +34,7 @@ void VoxelBuffer::init() {
     m_buffer = m_backend->device->createBuffer(bufferDesc);
 }
 
-bool VoxelBuffer::canAllocate(uint32_t vertexCount, uint32_t indexCount) {
+bool VoxelBuffer::can_allocate(uint32_t vertexCount, uint32_t indexCount) {
     uint32_t vertexRegionsNeeded = (vertexCount + VERTICES_PER_REGION - 1) / VERTICES_PER_REGION;
     uint32_t indexRegionsNeeded = (indexCount + (INDEX_REGION_SIZE / INDEX_SIZE) - 1) / (INDEX_REGION_SIZE / INDEX_SIZE);
 
@@ -66,7 +66,7 @@ bool VoxelBuffer::canAllocate(uint32_t vertexCount, uint32_t indexCount) {
     return hasVertexSpace && hasIndexSpace && hasIndirectSpace;
 }
 
-bool VoxelBuffer::allocateRegions(std::vector<std::pair<uint32_t, uint32_t>>& freeList,
+bool VoxelBuffer::allocate_regions(std::vector<std::pair<uint32_t, uint32_t>>& freeList,
                                   uint32_t regionCount, uint32_t& outStart) {
     // Find first fit
     for (auto it = freeList.begin(); it != freeList.end(); ++it) {
@@ -86,7 +86,7 @@ bool VoxelBuffer::allocateRegions(std::vector<std::pair<uint32_t, uint32_t>>& fr
     return false;
 }
 
-void VoxelBuffer::freeRegions(std::vector<std::pair<uint32_t, uint32_t>>& freeList,
+void VoxelBuffer::free_regions(std::vector<std::pair<uint32_t, uint32_t>>& freeList,
                               uint32_t start, uint32_t count) {
     freeList.emplace_back(start, count);
 }
@@ -97,20 +97,20 @@ bool VoxelBuffer::allocate(uint32_t vertexCount, uint32_t indexCount, VoxelChunk
 
     uint32_t vertexStart, indexStart, indirectStart;
 
-    if (!allocateRegions(m_freeVertexRegions, vertexRegionsNeeded, vertexStart)) {
+    if (!allocate_regions(m_freeVertexRegions, vertexRegionsNeeded, vertexStart)) {
         return false;
     }
 
-    if (!allocateRegions(m_freeIndexRegions, indexRegionsNeeded, indexStart)) {
+    if (!allocate_regions(m_freeIndexRegions, indexRegionsNeeded, indexStart)) {
         // Rollback vertex allocation
-        freeRegions(m_freeVertexRegions, vertexStart, vertexRegionsNeeded);
+        free_regions(m_freeVertexRegions, vertexStart, vertexRegionsNeeded);
         return false;
     }
 
-    if (!allocateRegions(m_freeIndirectRegions, 1, indirectStart)) {
+    if (!allocate_regions(m_freeIndirectRegions, 1, indirectStart)) {
         // Rollback previous allocations
-        freeRegions(m_freeVertexRegions, vertexStart, vertexRegionsNeeded);
-        freeRegions(m_freeIndexRegions, indexStart, indexRegionsNeeded);
+        free_regions(m_freeVertexRegions, vertexStart, vertexRegionsNeeded);
+        free_regions(m_freeIndexRegions, indexStart, indexRegionsNeeded);
         return false;
     }
 
@@ -127,13 +127,13 @@ bool VoxelBuffer::allocate(uint32_t vertexCount, uint32_t indexCount, VoxelChunk
 }
 
 void VoxelBuffer::free(VoxelChunkMesh& mesh) {
-    if (!mesh.isAllocated()) {
+    if (!mesh.is_allocated()) {
         return;
     }
 
-    freeRegions(m_freeVertexRegions, mesh.vertexRegionStart, mesh.vertexRegionCount);
-    freeRegions(m_freeIndexRegions, mesh.indexRegionStart, mesh.indexRegionCount);
-    freeRegions(m_freeIndirectRegions, mesh.indirectRegionIndex, 1);
+    free_regions(m_freeVertexRegions, mesh.vertexRegionStart, mesh.vertexRegionCount);
+    free_regions(m_freeIndexRegions, mesh.indexRegionStart, mesh.indexRegionCount);
+    free_regions(m_freeIndirectRegions, mesh.indirectRegionIndex, 1);
 
     mesh.vertexRegionStart = UINT32_MAX;
     mesh.vertexRegionCount = 0;

@@ -14,15 +14,17 @@ void FpsCounter::register_ecs(flecs::world &ecs) {
         .kind(flecs::OnUpdate)
         .each([this](flecs::iter& it, size_t, GameState& gameState) {
             float fps = static_cast<float>(1.0 / gameState.deltaTime);
-            this->currentFPS = fps;
+            this->m_currentFPS = fps;
 
-            this->fpsHistory[this->fpsHistoryIndex] = fps;
-            this->fpsHistoryIndex = (this->fpsHistoryIndex + 1) % this->fpsHistory.size();
+            this->m_fpsHistory[this->m_fpsHistoryIndex] = fps;
+            this->m_fpsHistoryIndex = (this->m_fpsHistoryIndex + 1) % this->m_fpsHistory.size();
         });
 
     ecs.system<GameState>("FPSCounter-FPSDisplaySystem")
         .kind(flecs::PreStore) // Or wherever you render ImGui
         .each([this](flecs::iter& it, size_t, GameState& gameState) {
+            if (!this->m_visible) return;
+
             ImGuiWindowFlags window_flags =
                 ImGuiWindowFlags_NoDecoration |
                 ImGuiWindowFlags_AlwaysAutoResize |
@@ -42,7 +44,7 @@ void FpsCounter::register_ecs(flecs::world &ecs) {
             ImGui::SetNextWindowBgAlpha(0.35f);
 
             if (ImGui::Begin("FPS Counter", nullptr, window_flags)) {
-                float fps = this->currentFPS;
+                float fps = this->m_currentFPS;
                 float frameTime = gameState.deltaTime * 1000.0f;
 
                 // Color-code based on performance
@@ -55,15 +57,15 @@ void FpsCounter::register_ecs(flecs::world &ecs) {
 
                 // Calculate average FPS
                 float avgFPS = 0.0f;
-                for (float f : this->fpsHistory) avgFPS += f;
-                avgFPS /= this->fpsHistory.size();
+                for (float f : this->m_fpsHistory) avgFPS += f;
+                avgFPS /= this->m_fpsHistory.size();
                 ImGui::Text("Avg: %.0f", avgFPS);
 
                 // FPS Graph
                 ImGui::PlotLines("##fps_graph",
-                    this->fpsHistory.data(),
-                    this->fpsHistory.size(),
-                    this->fpsHistoryIndex,
+                    this->m_fpsHistory.data(),
+                    this->m_fpsHistory.size(),
+                    this->m_fpsHistoryIndex,
                     nullptr,
                     0.0f,
                     120.0f,

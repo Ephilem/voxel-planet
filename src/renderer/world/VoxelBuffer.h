@@ -53,9 +53,9 @@ class VoxelBuffer {
     void init();
 
     // Helper methods for region management
-    bool allocateRegions(std::vector<std::pair<uint32_t, uint32_t>>& freeList,
+    bool allocate_regions(std::vector<std::pair<uint32_t, uint32_t>>& freeList,
                         uint32_t regionCount, uint32_t& outStart);
-    void freeRegions(std::vector<std::pair<uint32_t, uint32_t>>& freeList,
+    void free_regions(std::vector<std::pair<uint32_t, uint32_t>>& freeList,
                     uint32_t start, uint32_t count);
 
 public:
@@ -68,7 +68,7 @@ public:
      * @param indexCount The count of indices to allocate
      * @return True if allocation is possible, false otherwise
      */
-    bool canAllocate(uint32_t vertexCount, uint32_t indexCount);
+    bool can_allocate(uint32_t vertexCount, uint32_t indexCount);
 
     /**
      * Allocate space in the buffer for a chunk mesh
@@ -89,26 +89,26 @@ public:
     /**
      * Get the underlying buffer handle
      */
-    nvrhi::BufferHandle getBuffer() const { return m_buffer; }
+    nvrhi::BufferHandle get_buffer() const { return m_buffer; }
 
     /**
      * Get byte offset for a vertex region
      */
-    uint64_t getVertexOffset(uint32_t regionStart) const {
+    uint64_t get_vertex_offset(uint32_t regionStart) const {
         return VERTEX_SECTION_OFFSET + (regionStart * VERTEX_REGION_SIZE);
     }
 
     /**
      * Get byte offset for an index region
      */
-    uint64_t getIndexOffset(uint32_t regionStart) const {
+    uint64_t get_index_offset(uint32_t regionStart) const {
         return INDEX_SECTION_OFFSET + (regionStart * INDEX_REGION_SIZE);
     }
 
     /**
      * Get byte offset for an indirect region
      */
-    uint64_t getIndirectOffset(uint32_t regionIndex) const {
+    uint64_t get_indirect_offset(uint32_t regionIndex) const {
         return INDIRECT_SECTION_OFFSET + (regionIndex * INDIRECT_REGION_SIZE);
     }
 };

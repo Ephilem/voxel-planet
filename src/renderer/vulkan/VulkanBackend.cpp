@@ -17,16 +17,20 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
     switch (message_severity) {
         default:
         case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-            printf("%s\n", callback_data->pMessage);
+            // printf("%s\n", callback_data->pMessage);
+            LOG_ERROR("VulkanValidation", "{}", callback_data->pMessage);
             break;
         case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-            printf("%s\n", callback_data->pMessage);
+            // printf("{}\n", callback_data->pMessage);
+            LOG_WARN("VulkanValidation", "{}", callback_data->pMessage);
             break;
         case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-            printf("%s\n", callback_data->pMessage);
+            // printf("{}\n", callback_data->pMessage);
+            LOG_DEBUG("VulkanValidation", "{}", callback_data->pMessage);
             break;
         case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
-            printf("%s\n", callback_data->pMessage);
+            // printf("{}\n", callback_data->pMessage);
+            LOG_TRACE("VulkanValidation", "{}", callback_data->pMessage);
             break;
     }
     return VK_FALSE;
@@ -109,6 +113,8 @@ VulkanBackend::~VulkanBackend() {
 
     vkb::destroy_device(vkDevice);
     vkb::destroy_instance(instance);
+
+    LOG_INFO("VulkanBackend", "Vulkan backend destroyed. All called to Vulkan could lead to a segfault.");
 }
 
 void VulkanBackend::init_nvrhi() {

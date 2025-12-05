@@ -22,8 +22,8 @@ RendererModule::RendererModule(flecs::world& ecs) {
     }
 
     ecs.set<Renderer>({
-        .backend = std::make_unique<VulkanBackend>(platform->window->window, RenderParameters{platform->window->width, platform->window->height}),
-        .imguiManager = std::make_unique<ImGuiManager>()
+        .imguiManager = std::make_unique<ImGuiManager>(),
+        .backend = std::make_unique<VulkanBackend>(platform->window->window, RenderParameters{platform->window->width, platform->window->height})
     });
 
     auto PostStore = ecs.entity("PostStore")
@@ -64,7 +64,6 @@ RendererModule::RendererModule(flecs::world& ecs) {
             renderer.backend->present();
 
             ctx.frameActive = false;
-            // Cycle to next frame slot
         });
 
     ecs.observer<PlatformState>()
@@ -83,6 +82,9 @@ void shutdown_renderer(flecs::world& ecs) {
     LOG_INFO("RendererModule", "Shutting down...");
     auto* renderer = ecs.get_mut<Renderer>();
     if (renderer) {
+        if (renderer->voxelTerrainRenderer) {
+            renderer->voxelTerrainRenderer.reset();
+        }
         if (renderer->debugModuleManager) {
             renderer->debugModuleManager.reset();
         }

@@ -15,7 +15,7 @@ struct VoxelChunkMesh {
     uint32_t indexCount = 0;
     uint32_t vertexCount = 0;
 
-    bool isAllocated() const {
+    bool is_allocated() const {
         return vertexRegionStart != UINT32_MAX &&
                indexRegionStart != UINT32_MAX &&
                indirectRegionIndex != UINT32_MAX;
