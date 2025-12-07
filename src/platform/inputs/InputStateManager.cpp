@@ -9,6 +9,7 @@
 
 InputStateManager::InputStateManager() {
     bind_action(ActionInputType::DebugMenuBar, GLFW_KEY_F3);
+    bind_action(ActionInputType::ToggleMouseCapture, GLFW_KEY_LEFT_ALT);
 }
 
 InputStateManager::~InputStateManager() {
@@ -38,6 +39,24 @@ bool InputStateManager::is_binding_active(const KeyBinding &binding, const Input
     }
 }
 
+void InputStateManager::set_mouse_captured(GLFWwindow* window, InputState& inputState, bool captured) {
+    if (inputState.mouseCaptured == captured) return;
+
+    inputState.mouseCaptured = captured;
+
+    if (captured) {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        if (glfwRawMouseMotionSupported()) {
+            glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+        }
+    } else {
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_FALSE);
+    }
+
+    inputState.mouseDeltaX = 0.0f;
+    inputState.mouseDeltaY = 0.0f;
+}
 
 void InputStateManager::Register(flecs::world &ecs) {
     ecs.set<InputState>({});
@@ -134,6 +153,8 @@ void InputStateManager::update_action_states_system(InputState &inputState, Inpu
     auto* inputManager = platformState.inputManager.get();
     if (!inputManager) return;
 
+    GLFWwindow* window = platformState.window->window;
+
     // Handle transitions
     for (KeyState & action : actionState.actions) {
         if (action == KeyState::Pressed) {
@@ -163,5 +184,10 @@ void InputStateManager::update_action_states_system(InputState &inputState, Inpu
                 currentState = KeyState::Released;
             }
         }
+    }
+
+    if (actionState.is_action_pressed(ActionInputType::ToggleMouseCapture)) {
+        inputManager->set_mouse_captured(window, inputState, !inputState.mouseCaptured);
+        LOG_TRACE("InputStateManager", "Mouse capture toggled: {}", inputState.mouseCaptured);
     }
 }

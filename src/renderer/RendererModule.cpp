@@ -16,6 +16,7 @@
 #include "debug/ImGuiManager.h"
 #include "debug/LogConsole.h"
 #include "nvrhi/utils.h"
+#include "platform/inputs/input_state.h"
 
 
 RendererModule::RendererModule(flecs::world& ecs) {
@@ -29,13 +30,26 @@ RendererModule::RendererModule(flecs::world& ecs) {
         .backend = std::make_unique<VulkanBackend>(platform->window->window, RenderParameters{platform->window->width, platform->window->height})
     });
 
-    ecs.component<Dirty>();
-
     VoxelTerrainRenderer::Register(ecs);
     ImGuiManager::Register(ecs);
     ImGuiDebugModuleManager::Register(ecs);
 
     Camera3dSystems::Register(ecs);
+
+    ecs.system<Orientation>("MouseLookSystem")
+        .kind(flecs::OnUpdate)
+        .with<Camera3d>()
+        .each([](flecs::entity e, Orientation& orientation) {
+            auto* inputState = e.world().get_mut<InputState>();
+            if (!inputState->mouseCaptured) return;
+
+            float sensitivity = 0.1f;
+            orientation.yaw += inputState->mouseDeltaX * sensitivity;
+            orientation.pitch += inputState->mouseDeltaY * sensitivity;
+
+            if (orientation.pitch > 89.0f) orientation.pitch = 89.0f;
+            if (orientation.pitch < -89.0f) orientation.pitch = -89.0f;
+        });
 
     // create camera here for now
     ecs.entity()

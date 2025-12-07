@@ -37,11 +37,6 @@ PlatformModule::PlatformModule(flecs::world& ecs) {
             if (platform->window->shouldClose()) {
                 gameState->isRunning = false;
             }
-
-            if (glfwGetKey(platform->window->window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-                std::cout << "ESC pressed, initiating shutdown..." << std::endl;
-                gameState->isRunning = false;
-            }
         });
 
     ecs.get_mut<PlatformState>()->window->setupCallbacks(ecs);

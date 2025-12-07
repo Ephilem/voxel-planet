@@ -3,6 +3,7 @@
 
 enum class ActionInputType {
     DebugMenuBar,
+    ToggleMouseCapture,
 
     Last,
 };
@@ -21,6 +22,8 @@ struct InputState {
     float mouseX, mouseY;
     float mouseDeltaX, mouseDeltaY;
     float scrollDeltaX, scrollDeltaY;
+
+    bool mouseCaptured = false;
 
     inline bool is_key_down(int key) const {
         return keys[key] == KeyState::Down || keys[key] == KeyState::Pressed;

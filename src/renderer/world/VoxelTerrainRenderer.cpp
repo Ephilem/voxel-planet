@@ -5,6 +5,7 @@
 #include "VoxelTerrainRenderer.h"
 
 #include <memory>
+#include <vulkan/vulkan.h>
 
 #include "../rendering_components.h"
 #include "core/GameState.h"
@@ -83,9 +84,13 @@ void VoxelTerrainRenderer::init() {
     nvrhi::InputLayoutHandle inputLayout = m_backend->device->createInputLayout(
         vertexAttrs, std::size(vertexAttrs), m_vertexShader);
 
+    nvrhi::Format swapchainNvrhiFormat = m_backend->swapchainFormat == VK_FORMAT_B8G8R8A8_UNORM
+        ? nvrhi::Format::BGRA8_UNORM
+        : nvrhi::Format::RGBA8_UNORM;
+
     // Create Pipeline
     auto framebufferInfo = nvrhi::FramebufferInfo()
-        .addColorFormat(nvrhi::Format::RGBA8_UNORM)
+        .addColorFormat(swapchainNvrhiFormat)
         .setDepthFormat(nvrhi::Format::D24S8);
 
     // Configure render state

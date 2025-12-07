@@ -227,6 +227,10 @@ void VulkanBackend::create_swapchain() {
     auto images = m_swapchain.get_images();
 
     // Create framebuffer and depth buffers
+    nvrhi::Format nvrhiFormat = swapchainFormat == VK_FORMAT_B8G8R8A8_UNORM
+        ? nvrhi::Format::BGRA8_UNORM
+        : nvrhi::Format::RGBA8_UNORM;
+
     m_swapchainTextures.clear();
     m_swapchainTextures.reserve(images->size());
     for (size_t i = 0; i < images->size(); ++i) {
@@ -234,7 +238,7 @@ void VulkanBackend::create_swapchain() {
             .setDimension(nvrhi::TextureDimension::Texture2D)
             .setWidth(m_swapchain.extent.width)
             .setHeight(m_swapchain.extent.height)
-            .setFormat(nvrhi::Format::RGBA8_UNORM)
+            .setFormat(nvrhiFormat)
             .setIsRenderTarget(true)
             .setInitialState(nvrhi::ResourceStates::Present)
             .setKeepInitialState(true)

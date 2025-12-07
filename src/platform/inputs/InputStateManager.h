@@ -43,9 +43,10 @@ public:
 
     bool is_binding_active(const KeyBinding& binding, const InputState& inputState) const;
 
+    void set_mouse_captured(GLFWwindow* window, InputState& inputState, bool captured);
+
     static void Register(flecs::world& ecs);
 
-    // -- ECS --
     static void capture_input_system(InputState &inputState, PlatformState& platformState);
     static void update_action_states_system(InputState &inputState, InputActionState &actionState, PlatformState& platformState);
 };

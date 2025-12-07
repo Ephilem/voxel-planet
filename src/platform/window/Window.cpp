@@ -9,6 +9,7 @@
 
 Window::Window(uint16_t w, uint16_t h, const std::string& t)
     : width(w), height(h), title(t) {
+    glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
     if (!glfwInit()) {
         throw std::runtime_error("Failed to initialize GLFW");
     }
