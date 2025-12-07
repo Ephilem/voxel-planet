@@ -3,9 +3,15 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 
+#include "main_components.h"
 #include "log/Logger.h"
+#include "world/world_components.h"
 
 CoreModule::CoreModule(flecs::world& ecs) {
+
+    ecs.component<VoxelChunk>();
+    ecs.component<Position>();
+
     ecs.set<GameState>({
         .resourceSystem = std::make_unique<ResourceSystem>(),
         .isRunning = true,
@@ -13,14 +19,27 @@ CoreModule::CoreModule(flecs::world& ecs) {
         .lastTime = glfwGetTime()
     });
 
-    // ecs.system<GameState>("CoreShutdownSystem")
-    //     .kind(flecs::PostUpdate)
-    //     .each([](flecs::iter& it, size_t, GameState& gameState) {
-    //         if (!gameState.isRunning) {
-    //             LOG_INFO("CoreModule", "Shutdown resquest has been received, quitting...");
-    //             it.world().quit();
-    //         }
-    //     });
+    // test chunk
+    VoxelChunk chunk = {
+        .position = glm::ivec3(0.0f, 0.0f, 0.0f),
+    };
+
+    // generate a flat chunk
+    for (int x = 0; x < CHUNK_SIZE; ++x) {
+        for (int y = 0; y < CHUNK_SIZE; ++y) {
+            for (int z = 0; z < CHUNK_SIZE; ++z) {
+                if (y < CHUNK_SIZE / 2) {
+                    chunk.data[x][y][z] = 1; // solid voxel
+                } else {
+                    chunk.data[x][y][z] = 0; // empty voxel
+                }
+            }
+        }
+    }
+
+    auto testChunk = ecs.entity("TestChunk")
+    .set<VoxelChunk>(chunk);
+
 }
 
 CoreModule::~CoreModule() = default;

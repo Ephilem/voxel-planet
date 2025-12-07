@@ -14,7 +14,8 @@ add_library(VoxelPlanetCore STATIC
     resource/ResourceSystem.h
     resource/loaders/ShaderLoader.cpp
     resource/loaders/ShaderLoader.h
-        world/WorldComponents.h
+        world/world_components.h
+        main_components.h
 )
 
 add_library(VoxelPlanet::Core ALIAS VoxelPlanetCore)

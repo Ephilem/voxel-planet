@@ -1,6 +1,5 @@
 #pragma once
-#include "glm/fwd.hpp"
-#include "glm/vec3.hpp"
+#include <glm/glm.hpp>
 
 #define CHUNK_SIZE 16
 

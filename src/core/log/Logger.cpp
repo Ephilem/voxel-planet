@@ -7,7 +7,7 @@
 // Static member initialization
 std::map<std::string, size_t> Logger::maxLengths = {
     {"LEVEL", 5},
-    {"COMPONENT", 10}
+    {"COMPONENT", 20}
 };
 
 std::map<std::string, std::unique_ptr<Logger>> Logger::loggers;

@@ -3,7 +3,7 @@
 //
 
 #include "VoxelBuffer.h"
-#include "RenderingComponents.h"
+#include "../rendering_components.h"
 
 VoxelBuffer::VoxelBuffer(VulkanBackend *backend) {
     this->m_backend = backend;

@@ -4,7 +4,6 @@
 #include "renderer/RendererModule.h"
 #include <flecs.h>
 #include <iostream>
-#include <stdexcept>
 
 int main() {
     try {

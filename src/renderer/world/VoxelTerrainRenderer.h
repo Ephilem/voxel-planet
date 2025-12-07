@@ -5,13 +5,19 @@
 
 #include "VoxelBuffer.h"
 #include "core/resource/ResourceSystem.h"
-#include "core/world/WorldComponents.h"
-#include "glm/vec3.hpp"
+#include "core/world/world_components.h"
 #include "nvrhi/nvrhi.h"
 
+struct Camera3d;
 class VulkanBackend;
 struct Renderer;
 
+// UBO to store in the GPU for terrain rendering
+struct alignas(16) TerrainUBO {
+    glm::mat4 view;
+    glm::mat4 projection{1};
+    float time;
+};
 
 class VoxelTerrainRenderer {
 public:
@@ -25,8 +31,13 @@ private:
     VulkanBackend* m_backend;
     ResourceSystem* m_resourceSystem;
 
+    // UBO
+    nvrhi::BufferHandle m_uboBuffer;
+    TerrainUBO m_ubo; // CPU-side copy of the UBO. Will be use to know when to update the GPU UBO. (compare the camera entity value with this one)
+    nvrhi::BindingLayoutHandle m_uboBindingLayout;
+    nvrhi::BindingSetHandle m_uboBindingSet;
+
     std::vector<VoxelBuffer> m_chunkBuffers;
-    glm::vec3 m_cameraPosition{0.0f};
 
     nvrhi::ShaderHandle m_vertexShader;
     nvrhi::ShaderHandle m_pixelShader;
@@ -45,7 +56,8 @@ private:
         VoxelChunkMesh &mesh);
 
     void render_terrain_system(
-        Renderer &renderer);
+        Renderer &renderer,
+        Camera3d &camera);
 
 public:
     // Debug accessor for buffer visualization

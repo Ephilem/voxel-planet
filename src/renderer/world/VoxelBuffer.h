@@ -1,6 +1,5 @@
 #pragma once
 
-#include "glm/vec3.hpp"
 #include "nvrhi/nvrhi.h"
 #include "renderer/render_types.h"
 #include "renderer/vulkan/VulkanBackend.h"

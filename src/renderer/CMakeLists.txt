@@ -18,10 +18,11 @@ add_library(VoxelPlanetRenderer STATIC
         debug/VoxelBufferVisualizer.h
         world/VoxelTerrainRenderer.cpp
         world/VoxelTerrainRenderer.h
-        world/RenderingComponents.h
         world/VoxelBuffer.cpp
         world/VoxelBuffer.h
         render_types.h
+        Camera3dSystems.cpp
+        Camera3dSystems.h
 )
 
 add_library(VoxelPlanet::Renderer ALIAS VoxelPlanetRenderer)

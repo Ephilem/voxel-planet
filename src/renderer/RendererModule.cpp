@@ -10,6 +10,9 @@
 
 #include <iostream>
 
+#include "Camera3dSystems.h"
+#include "rendering_components.h"
+#include "core/main_components.h"
 #include "debug/ImGuiManager.h"
 #include "debug/LogConsole.h"
 #include "nvrhi/utils.h"
@@ -26,13 +29,22 @@ RendererModule::RendererModule(flecs::world& ecs) {
         .backend = std::make_unique<VulkanBackend>(platform->window->window, RenderParameters{platform->window->width, platform->window->height})
     });
 
-    // auto PostStore = ecs.entity("PostStore")
-    //     .add(flecs::Phase)
-    //     .depends_on(flecs::OnStore);
+    ecs.component<Dirty>();
 
     VoxelTerrainRenderer::Register(ecs);
     ImGuiManager::Register(ecs);
     ImGuiDebugModuleManager::Register(ecs);
+
+    Camera3dSystems::Register(ecs);
+
+    // create camera here for now
+    ecs.entity()
+        .set<Position>({0.0f, 0.0f, 5.0f})
+        .set<Camera3dParameters>({
+            .fov = 45.0f
+        })
+        .set<Orientation>({0.0f, 0.0f, 0.0f})
+        .set<Camera3d>({});
 
     ecs.system<Renderer>("BeginFrameSystem")
         .kind(flecs::PreStore)

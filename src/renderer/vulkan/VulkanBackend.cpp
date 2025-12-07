@@ -36,6 +36,33 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
     return VK_FALSE;
 }
 
+
+class DefaultMessageCallback : public nvrhi::IMessageCallback
+{
+public:
+    static DefaultMessageCallback& GetInstance();
+
+    void message(nvrhi::MessageSeverity severity, const char* messageText) override {
+        switch (severity) {
+            case nvrhi::MessageSeverity::Fatal:
+                LOG_FATAL("NVRHI", "{}", messageText);
+                break;
+            case nvrhi::MessageSeverity::Error:
+                LOG_ERROR("NVRHI", "{}", messageText);
+                break;
+            case nvrhi::MessageSeverity::Warning:
+                LOG_WARN("NVRHI", "{}", messageText);
+                break;
+            case nvrhi::MessageSeverity::Info:
+                LOG_INFO("NVRHI", "{}", messageText);
+                break;
+            default:
+                LOG_TRACE("NVRHI", "{}", messageText);
+                break;
+        }
+    }
+};
+
 VulkanBackend::VulkanBackend(GLFWwindow *window, RenderParameters renderParameters) {
     this->renderParameters = renderParameters;
 
@@ -177,6 +204,7 @@ void VulkanBackend::init_nvrhi() {
     deviceDesc.device = vkDevice;
     deviceDesc.graphicsQueue = graphicsQueue;
     deviceDesc.graphicsQueueIndex = graphicsQueueIndex_ret.value();
+    deviceDesc.errorCB = new DefaultMessageCallback();
 
     this->device = nvrhi::vulkan::createDevice(deviceDesc);
 }
@@ -356,7 +384,7 @@ bool VulkanBackend::begin_frame(nvrhi::CommandListHandle &out_currentCommandList
 
     m_acquiredSemaphoreIndex = (m_acquiredSemaphoreIndex + 1) % m_acquireImageSemaphores.size();
 
-    // Aquire a command list
+    // Acquire a command list
     // Create command list for this frame slot if it doesn't exist yet
     if (!m_commandLists[m_commandListIndex]) {
         m_commandLists[m_commandListIndex] = device->createCommandList();
