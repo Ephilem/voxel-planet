@@ -44,21 +44,23 @@ glm::ivec2 Window::getFramebufferSize() const {
 }
 
 void Window::setupCallbacks(flecs::world &ecs) {
-    glfwSetWindowUserPointer(window, &ecs);
+    glfwSetWindowUserPointer(window, ecs.c_ptr());
 
     glfwSetFramebufferSizeCallback(window,
-        [](GLFWwindow* win, int width, int height) {
-            auto* world = static_cast<flecs::world*>(glfwGetWindowUserPointer(win));
+    [](GLFWwindow* win, int width, int height) {
+            auto* world_c = static_cast<ecs_world_t*>(glfwGetWindowUserPointer(win));
+            flecs::world world(world_c);
+            auto platformStateEntity = world.entity<PlatformState>();
 
             WindowResizeEvent evt {
                 .width = static_cast<uint32_t>(width),
                 .height = static_cast<uint32_t>(height)
             };
 
-            world->event<WindowResizeEvent>()
-                .ctx(evt)
-                .id<PlatformState>()
-                .entity(world->id<PlatformState>())
-                .enqueue();
+            world.event<WindowResizeEvent>()
+            .id<PlatformState>()
+            .entity(platformStateEntity)
+            .ctx(evt)
+            .emit();
         });
 }

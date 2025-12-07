@@ -26,9 +26,9 @@ RendererModule::RendererModule(flecs::world& ecs) {
         .backend = std::make_unique<VulkanBackend>(platform->window->window, RenderParameters{platform->window->width, platform->window->height})
     });
 
-    auto PostStore = ecs.entity("PostStore")
-        .add(flecs::Phase)
-        .depends_on(flecs::OnStore);
+    // auto PostStore = ecs.entity("PostStore")
+    //     .add(flecs::Phase)
+    //     .depends_on(flecs::OnStore);
 
     VoxelTerrainRenderer::Register(ecs);
     ImGuiManager::Register(ecs);
@@ -53,7 +53,7 @@ RendererModule::RendererModule(flecs::world& ecs) {
         });
 
     ecs.system<Renderer>("EndFrameSystem")
-        .kind(PostStore)
+        .kind(flecs::PostFrame)
         .each([](flecs::entity e, Renderer& renderer) {
             FrameContext& ctx = renderer.frameContext;
             if (!ctx.frameActive || !ctx.commandList) return;

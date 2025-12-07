@@ -74,6 +74,11 @@ void VoxelTerrainRenderer::init() {
         .setPrimType(nvrhi::PrimitiveType::TriangleList)
         .setRenderState(renderState);
     m_pipeline = m_backend->device->createGraphicsPipeline(pipelineDesc, framebufferInfo);
+
+
+    // create initial chunk buffer
+    m_chunkBuffers.emplace_back(m_backend);
+    m_chunkBuffers.emplace_back(m_backend);
 }
 
 void VoxelTerrainRenderer::destroy() {

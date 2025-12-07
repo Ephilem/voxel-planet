@@ -1,4 +1,5 @@
 #include "core/CoreModule.h"
+#include "core/GameState.h"
 #include "platform/PlatformModule.h"
 #include "renderer/RendererModule.h"
 #include <flecs.h>
@@ -7,25 +8,31 @@
 
 int main() {
     try {
-        flecs::world ecs{};
+        auto ecs = std::make_unique<flecs::world>();
 
-        // Import modules in dependency order
-        // Core: GameState, ResourceSystem (shared - can run on server)
-        // Platform: Window, Input (client only)
-        // Renderer: VulkanBackend, ImGui (client only, depends on Platform)
-        ecs.import<CoreModule>();
-        ecs.import<PlatformModule>();
-        ecs.import<RendererModule>();
+        ecs->import<CoreModule>();
+        ecs->import<PlatformModule>();
+        ecs->import<RendererModule>();
+        ecs->import<flecs::stats>();
+        ecs->set<flecs::Rest>({});
 
-        while (ecs.progress()) {
-            // Main loop
-        }
+        ecs->system("ShutdownSystem")
+            .kind(flecs::PostFrame)
+            .run([](flecs::iter& it) {
+                flecs::world world = it.world();
+                auto* gameState = world.get<GameState>();
+                if (gameState && !gameState->isRunning) {
+                    shutdown_renderer(world);
+                    shutdown_platform(world);
+                    shutdown_core(world);
+                    world.quit();
+                }
+            });
 
-        // Explicit shutdown in reverse order (before world destruction)
-        // This ensures Vulkan resources are destroyed before the window
-        shutdown_renderer(ecs);
-        shutdown_platform(ecs);
-        shutdown_core(ecs);
+        ecs->app()
+          .enable_stats()
+          .enable_rest()
+          .run();
 
     } catch (const std::exception& e) {
         std::cerr << "Fatal error: " << e.what() << std::endl;

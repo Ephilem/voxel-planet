@@ -163,7 +163,11 @@ void ImGuiManager::Register(flecs::world& ecs) {
         .kind(flecs::OnStore)
         .each([](flecs::entity e, Renderer& renderer) {
             auto& ctx = renderer.frameContext;
-            if (!ctx.frameActive || !ctx.commandList) return;
+            if (!ctx.frameActive || !ctx.commandList) {
+                // need to close the begin frame first
+                ImGui::EndFrame();
+                return;
+            }
 
             VkCommandBuffer vkCmdBuf = ctx.commandList->getNativeObject(nvrhi::ObjectTypes::VK_CommandBuffer);
 

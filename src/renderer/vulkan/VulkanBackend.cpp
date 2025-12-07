@@ -307,6 +307,29 @@ void VulkanBackend::init_syncs() {
 bool VulkanBackend::begin_frame(nvrhi::CommandListHandle &out_currentCommandList) {
     const auto& semaphore = m_acquireImageSemaphores[m_acquiredSemaphoreIndex];
 
+    // Check if resize has finished (no resize events for 150ms)
+    if (m_isResizing) {
+        auto now = std::chrono::steady_clock::now();
+        auto timeSinceResize = std::chrono::duration_cast<std::chrono::milliseconds>(
+            now - m_lastResizeTime).count();
+
+        if (timeSinceResize > 150) {
+            m_isResizing = false;
+            LOG_DEBUG("VulkanBackend", "Resize completed, will recreate swapchain");
+        }
+    }
+
+    // Skip swapchain recreation during active resize to avoid stutter
+    if (m_swapchainDirty && !m_isResizing) {
+        recreate_swapchain();
+        m_swapchainDirty = false;
+    }
+
+    // If still resizing and swapchain is dirty, skip this frame
+    // if (m_isResizing && m_swapchainDirty) {
+    //     return false;
+    // }
+
     VkResult result;
     int const maxAttempts = 3;
     for (int attempt = 0; attempt < maxAttempts; ++attempt) {
@@ -324,6 +347,7 @@ bool VulkanBackend::begin_frame(nvrhi::CommandListHandle &out_currentCommandList
             renderParameters.width = surfaceCaps.currentExtent.width;
             renderParameters.height = surfaceCaps.currentExtent.height;
 
+            LOG_WARN("VulkanBackend", "Ouch, recreating swapchain");
             recreate_swapchain();
         }
         else
@@ -372,7 +396,7 @@ bool VulkanBackend::present() {
     }
 
     // On Linux with validation layers, explicitly sync with GPU to prevent memory buildup
-    vkQueueWaitIdle(presentQueue);
+    // vkQueueWaitIdle(presentQueue);
 
     // Drain old frames before creating new query
     while (m_framesInFlight.size() >= MAX_FRAMES_IN_FLIGHT) {
@@ -415,7 +439,11 @@ void VulkanBackend::handle_resize(uint32_t width, uint32_t height) {
         renderParameters.width = width;
         renderParameters.height = height;
 
-        recreate_swapchain();
+        m_swapchainDirty = true;
+        m_isResizing = true;
+        m_lastResizeTime = std::chrono::steady_clock::now();
+
+        LOG_TRACE("VulkanBackend", "Window resized to {}x{}, marking swapchain dirty", width, height);
     }
 }
 

@@ -13,14 +13,14 @@ CoreModule::CoreModule(flecs::world& ecs) {
         .lastTime = glfwGetTime()
     });
 
-    ecs.system<GameState>("CoreShutdownSystem")
-        .kind(flecs::PostUpdate)
-        .each([](flecs::iter& it, size_t, GameState& gameState) {
-            if (!gameState.isRunning) {
-                LOG_INFO("CoreModule", "Shutdown resquest has been received, quitting...");
-                it.world().quit();
-            }
-        });
+    // ecs.system<GameState>("CoreShutdownSystem")
+    //     .kind(flecs::PostUpdate)
+    //     .each([](flecs::iter& it, size_t, GameState& gameState) {
+    //         if (!gameState.isRunning) {
+    //             LOG_INFO("CoreModule", "Shutdown resquest has been received, quitting...");
+    //             it.world().quit();
+    //         }
+    //     });
 }
 
 CoreModule::~CoreModule() = default;

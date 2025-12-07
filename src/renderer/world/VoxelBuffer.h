@@ -23,14 +23,15 @@ static constexpr uint32_t INDEX_REGION_SIZE = ((INDICES_PER_VERTEX_REGION * INDE
 static constexpr uint32_t COMMAND_PER_ALLOCATION = 1; // assuming 1 draw command per chunk (per allocation so)
 static constexpr uint32_t INDIRECT_REGION_SIZE = ((COMMAND_PER_ALLOCATION * INDIRECT_CMD_SIZE + 63) / 64) * 64; // align to 64 bytes
 
-static constexpr uint32_t MAX_VERTEX_REGION = (TOTAL_BUFFER_SIZE * 60 / 100) / VERTEX_REGION_SIZE; // 60% of the total buffer for vertexs
-static constexpr uint64_t VERTEX_SECTION_SIZE = MAX_VERTEX_REGION * VERTEX_REGION_SIZE;
-static constexpr uint32_t MAX_INDEX_REGION = MAX_VERTEX_REGION * VERTEX_REGION_SIZE / INDEX_REGION_SIZE;
-static constexpr uint64_t INDEX_SECTION_SIZE = MAX_INDEX_REGION * INDEX_REGION_SIZE;
+// Buffer layout: 40% vertex, 40% index, 20% indirect
+static constexpr uint64_t VERTEX_SECTION_SIZE = (TOTAL_BUFFER_SIZE * 40 / 100);
+static constexpr uint64_t INDEX_SECTION_SIZE = (TOTAL_BUFFER_SIZE * 40 / 100);
 static constexpr uint64_t INDIRECT_SECTION_SIZE = TOTAL_BUFFER_SIZE - VERTEX_SECTION_SIZE - INDEX_SECTION_SIZE;
+
+static constexpr uint32_t MAX_VERTEX_REGION = VERTEX_SECTION_SIZE / VERTEX_REGION_SIZE;
+static constexpr uint32_t MAX_INDEX_REGION = INDEX_SECTION_SIZE / INDEX_REGION_SIZE;
 static constexpr uint64_t MAX_INDIRECT_REGION = INDIRECT_SECTION_SIZE / INDIRECT_REGION_SIZE;
 
-// Section offsets in the single 64MB buffer
 static constexpr uint64_t VERTEX_SECTION_OFFSET = 0;
 static constexpr uint64_t INDEX_SECTION_OFFSET = VERTEX_SECTION_SIZE;
 static constexpr uint64_t INDIRECT_SECTION_OFFSET = INDEX_SECTION_OFFSET + INDEX_SECTION_SIZE;

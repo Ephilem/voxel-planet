@@ -5,6 +5,9 @@ add_library(VoxelPlanetPlatform STATIC
     events.h
     window/Window.cpp
     window/Window.h
+        inputs/InputStateManager.cpp
+        inputs/InputStateManager.h
+        inputs/input_state.h
 )
 
 add_library(VoxelPlanet::Platform ALIAS VoxelPlanetPlatform)

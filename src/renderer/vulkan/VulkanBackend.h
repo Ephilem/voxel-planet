@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include <queue>
+#include <chrono>
 
 #include "VkBootstrap.h"
 #include "vulkan_type.inl"
@@ -58,6 +59,7 @@ public:
 
 private:
     // Swapchain
+    bool m_swapchainDirty = false;
     vkb::Swapchain m_swapchain;
     std::vector<nvrhi::TextureHandle> m_swapchainTextures;
     std::vector<nvrhi::FramebufferHandle> m_swapchainFramebuffers;
@@ -69,6 +71,10 @@ private:
     uint32_t m_commandListIndex = 0; // mapped to MAX_FRAMES_IN_FLIGHT
 
     bool m_windowVisible = true;
+
+    // Resize tracking
+    bool m_isResizing = false;
+    std::chrono::steady_clock::time_point m_lastResizeTime;
 
     // Syncs
     std::vector<VkSemaphore> m_acquireImageSemaphores; // for each frame in flight

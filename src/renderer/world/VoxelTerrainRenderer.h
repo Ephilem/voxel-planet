@@ -25,7 +25,7 @@ private:
     VulkanBackend* m_backend;
     ResourceSystem* m_resourceSystem;
 
-    std::vector<VoxelBuffer> m_voxelBuffers;
+    std::vector<VoxelBuffer> m_chunkBuffers;
     glm::vec3 m_cameraPosition{0.0f};
 
     nvrhi::ShaderHandle m_vertexShader;
@@ -49,5 +49,5 @@ private:
 
 public:
     // Debug accessor for buffer visualization
-    const std::vector<VoxelBuffer>& get_voxel_buffers() const { return m_voxelBuffers; }
+    const std::vector<VoxelBuffer>& get_voxel_buffers() const { return m_chunkBuffers; }
 };

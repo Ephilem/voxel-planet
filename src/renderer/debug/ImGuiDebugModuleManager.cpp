@@ -11,6 +11,8 @@
 #include "renderer/Renderer.h"
 #include <map>
 
+#include "platform/inputs/input_state.h"
+
 void ImGuiDebugModuleManager::register_all_ecs(flecs::world &ecs) {
     for (auto& module : m_modules) {
         module->register_ecs(ecs);
@@ -58,6 +60,16 @@ void ImGuiDebugModuleManager::Register(flecs::world &ecs) {
         .each([](flecs::entity e, Renderer& renderer) {
             if (renderer.debugModuleManager) {
                 renderer.debugModuleManager->draw_menu_bar();
+            }
+        });
+
+    ecs.system<Renderer, InputActionState>("OpenDebugMenuBarSystem")
+        .kind(flecs::OnUpdate)
+        .singleton()
+        .each([](flecs::entity e, Renderer& renderer, InputActionState& debugMenuAction) {
+            if (renderer.debugModuleManager && debugMenuAction.is_action_pressed(ActionInputType::DebugMenuBar)) {
+                bool currentVisibility = renderer.debugModuleManager->is_menu_bar_visible();
+                renderer.debugModuleManager->set_menu_bar_visible(!currentVisibility);
             }
         });
 }

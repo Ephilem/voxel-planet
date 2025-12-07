@@ -19,6 +19,8 @@ PlatformModule::PlatformModule(flecs::world& ecs) {
         .window = std::make_unique<Window>(1280, 720, "VoxelPlanet")
     });
 
+    InputStateManager::Register(ecs);
+
     ecs.system("PlatformUpdateSystem")
         .kind(flecs::PreUpdate)
         .run([](flecs::iter& it) {
