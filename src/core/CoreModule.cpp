@@ -20,25 +20,28 @@ CoreModule::CoreModule(flecs::world& ecs) {
     });
 
     // test chunk
-    VoxelChunk chunk = {
-        .position = glm::ivec3(0.0f, 0.0f, 0.0f),
-    };
+    VoxelChunk chunk = {};
 
     // generate a flat chunk
     for (int x = 0; x < CHUNK_SIZE; ++x) {
         for (int y = 0; y < CHUNK_SIZE; ++y) {
             for (int z = 0; z < CHUNK_SIZE; ++z) {
-                if (y < CHUNK_SIZE / 2) {
-                    chunk.data[x][y][z] = 1; // solid voxel
-                } else {
-                    chunk.data[x][y][z] = 0; // empty voxel
-                }
+                // if (y < CHUNK_SIZE / 2) {
+                //     chunk.data[x][y][z] = 1; // solid voxel
+                // } else {
+                //     chunk.data[x][y][z] = 0; // empty voxel
+                // }
+                chunk.data[x][y][z] = std::rand() % 2;
             }
         }
     }
 
-    auto testChunk = ecs.entity("TestChunk")
-    .set<VoxelChunk>(chunk);
+    for (int i = 0; i < 1; ++i) {
+        std::string entityName = "TestChunk_" + std::to_string(i);
+        ecs.entity(entityName.c_str())
+            .set<Position>({static_cast<float>(i * CHUNK_SIZE), 0.0f, 0.0f})
+            .set<VoxelChunk>(chunk);
+    }
 
 }
 

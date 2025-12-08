@@ -5,35 +5,47 @@
 #include "renderer/vulkan/VulkanBackend.h"
 
 
+// ==================== CONFIGURATION OPTIMALE ====================
 static constexpr uint64_t TOTAL_BUFFER_SIZE = 64 * 1024 * 1024; // 64 MB
-static constexpr uint32_t VERTEX_REGION_SIZE = 4 * 1024; // 4 KB
 
 static constexpr uint32_t VERTEX_SIZE = sizeof(Vertex3d);
 static constexpr uint32_t INDEX_SIZE = sizeof(uint32_t);
 static constexpr uint32_t INDIRECT_CMD_SIZE = sizeof(VkDrawIndexedIndirectCommand);
 
-// We will assure a ration of 1.5 indices per vertex.
 static constexpr float INDEX_TO_VERTEX_RATIO = 1.5f;
 
-static constexpr uint32_t VERTICES_PER_REGION = VERTEX_REGION_SIZE / VERTEX_SIZE; // 4 KB / 12 B = 341 vertices
+// Tailles des régions
+static constexpr uint32_t VERTEX_REGION_SIZE = 4 * 1024; // 4 KB
+static constexpr uint32_t VERTICES_PER_REGION = VERTEX_REGION_SIZE / VERTEX_SIZE; // 341
+static constexpr uint32_t INDICES_PER_VERTEX_REGION = static_cast<uint32_t>(VERTICES_PER_REGION * INDEX_TO_VERTEX_RATIO); // 511
+static constexpr uint32_t INDEX_REGION_SIZE = ((INDICES_PER_VERTEX_REGION * INDEX_SIZE + 1023) / 1024) * 1024; // 2048 bytes
+static constexpr uint32_t INDIRECT_REGION_SIZE = ((INDIRECT_CMD_SIZE + 63) / 64) * 64; // 64 bytes
 
-static constexpr uint32_t INDICES_PER_VERTEX_REGION = static_cast<uint32_t>(VERTICES_PER_REGION * INDEX_TO_VERTEX_RATIO); // 341 * 1.5 = 511 indices
-static constexpr uint32_t INDEX_REGION_SIZE = ((INDICES_PER_VERTEX_REGION * INDEX_SIZE + 1023) / 1024) * 1024;
-static constexpr uint32_t COMMAND_PER_ALLOCATION = 1; // assuming 1 draw command per chunk (per allocation so)
-static constexpr uint32_t INDIRECT_REGION_SIZE = ((COMMAND_PER_ALLOCATION * INDIRECT_CMD_SIZE + 63) / 64) * 64; // align to 64 bytes
+// Sections optimales (63/32/5) - TOUS ALIGNÉS À 64 BYTES
+static constexpr uint64_t VERTEX_SECTION_SIZE = 42278528ULL;    // 40.32 MB (63%)
+static constexpr uint64_t INDEX_SECTION_SIZE = 21474816ULL;     // 20.48 MB (32%)
+static constexpr uint64_t INDIRECT_SECTION_SIZE = 3355520ULL;   // 3.20 MB (5%)
 
-// Buffer layout: 40% vertex, 40% index, 20% indirect
-static constexpr uint64_t VERTEX_SECTION_SIZE = (TOTAL_BUFFER_SIZE * 40 / 100);
-static constexpr uint64_t INDEX_SECTION_SIZE = (TOTAL_BUFFER_SIZE * 40 / 100);
-static constexpr uint64_t INDIRECT_SECTION_SIZE = TOTAL_BUFFER_SIZE - VERTEX_SECTION_SIZE - INDEX_SECTION_SIZE;
-
-static constexpr uint32_t MAX_VERTEX_REGION = VERTEX_SECTION_SIZE / VERTEX_REGION_SIZE;
-static constexpr uint32_t MAX_INDEX_REGION = INDEX_SECTION_SIZE / INDEX_REGION_SIZE;
-static constexpr uint64_t MAX_INDIRECT_REGION = INDIRECT_SECTION_SIZE / INDIRECT_REGION_SIZE;
-
+// Offsets des sections
 static constexpr uint64_t VERTEX_SECTION_OFFSET = 0;
-static constexpr uint64_t INDEX_SECTION_OFFSET = VERTEX_SECTION_SIZE;
-static constexpr uint64_t INDIRECT_SECTION_OFFSET = INDEX_SECTION_OFFSET + INDEX_SECTION_SIZE;
+static constexpr uint64_t INDEX_SECTION_OFFSET = 42278528ULL;
+static constexpr uint64_t INDIRECT_SECTION_OFFSET = 63753344ULL;
+
+// Capacités maximales
+static constexpr uint32_t MAX_VERTEX_REGION = 10321;    // Vertex section / région
+static constexpr uint32_t MAX_INDEX_REGION = 10485;     // Index section / région
+static constexpr uint64_t MAX_INDIRECT_REGION = 52430;  // Indirect section / région
+
+// Vérifications de compilation
+static_assert(VERTEX_SECTION_SIZE + INDEX_SECTION_SIZE + INDIRECT_SECTION_SIZE == TOTAL_BUFFER_SIZE,
+              "Sections must sum to total buffer size");
+static_assert(INDEX_SECTION_OFFSET % 4 == 0,
+              "Index offset MUST be aligned to 4 bytes for VK_INDEX_TYPE_UINT32");
+static_assert(INDEX_SECTION_OFFSET % 64 == 0,
+              "Index offset should be aligned to 64 bytes for cache efficiency");
+static_assert(INDIRECT_SECTION_OFFSET % 64 == 0,
+              "Indirect offset should be aligned to 64 bytes");
+
 
 
 
@@ -73,12 +85,17 @@ public:
     /**
      * Allocate space in the buffer for a chunk mesh
      * Updates the VoxelChunkMesh component with allocation info
-     * @param vertexCount Number of vertices
-     * @param indexCount Number of indices
-     * @param mesh Output: VoxelChunkMesh component to fill with allocation data
+     * @param mesh VoxelChunkMesh component to fill with allocation data
      * @return True if allocation succeeded, false otherwise
      */
-    bool allocate(uint32_t vertexCount, uint32_t indexCount, struct VoxelChunkMesh& mesh);
+    bool allocate(struct VoxelChunkMesh& mesh);
+
+    /**
+     * Write data of an already allocated mesh to the buffer.
+     * Warning: it will not check if allocate in this buffer or not
+     * @param mesh Allocated mesh data to write in the buffer
+     */
+    void write(nvrhi::CommandListHandle cmd, struct VoxelChunkMesh& mesh);
 
     /**
      * Free a previously allocated chunk
@@ -112,21 +129,14 @@ public:
         return INDIRECT_SECTION_OFFSET + (regionIndex * INDIRECT_REGION_SIZE);
     }
 
-    // Debug accessors for visualization
     const std::vector<std::pair<uint32_t, uint32_t>>& get_free_vertex_regions() const { return m_freeVertexRegions; }
     const std::vector<std::pair<uint32_t, uint32_t>>& get_free_index_regions() const { return m_freeIndexRegions; }
     const std::vector<std::pair<uint32_t, uint32_t>>& get_free_indirect_regions() const { return m_freeIndirectRegions; }
 
-    /**
-     * Calculate total used regions for each section
-     */
     uint32_t get_used_vertex_regions() const;
     uint32_t get_used_index_regions() const;
     uint32_t get_used_indirect_regions() const;
 
-    /**
-     * Get the largest contiguous free block for each section
-     */
     uint32_t get_largest_free_vertex_block() const;
     uint32_t get_largest_free_index_block() const;
     uint32_t get_largest_free_indirect_block() const;

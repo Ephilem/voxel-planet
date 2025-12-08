@@ -47,12 +47,12 @@ private:
     void init();
     void destroy();
 
-    void build_voxel_chunk_mesh_system(
-        VoxelChunk &chunk,
+    bool build_voxel_chunk_mesh_system(
+        const VoxelChunk &chunk,
         VoxelChunkMesh &mesh);
 
-    void upload_chunk_mesh_system(
-        const VoxelChunk &chunk,
+    bool upload_chunk_mesh_system(
+        nvrhi::CommandListHandle cmd,
         VoxelChunkMesh &mesh);
 
     void render_terrain_system(

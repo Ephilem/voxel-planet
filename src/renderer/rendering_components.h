@@ -13,9 +13,10 @@ struct Camera3d {
 };
 
 struct Dirty {};
-struct MeshUploaded {};
+struct DirtyGpu {};
 
 struct VoxelChunkMesh {
+    // GPU side info
     uint32_t vertexRegionStart = UINT32_MAX;
     uint32_t vertexRegionCount = 0;
 
@@ -23,6 +24,10 @@ struct VoxelChunkMesh {
     uint32_t indexRegionCount = 0;
 
     uint32_t indirectRegionIndex = UINT32_MAX;
+
+    // CPU side info
+    std::vector<Vertex3d> vertices;
+    std::vector<uint32_t> indices;
 
     uint32_t indexCount = 0;
     uint32_t vertexCount = 0;

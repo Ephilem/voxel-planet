@@ -10,6 +10,13 @@
 InputStateManager::InputStateManager() {
     bind_action(ActionInputType::DebugMenuBar, GLFW_KEY_F3);
     bind_action(ActionInputType::ToggleMouseCapture, GLFW_KEY_LEFT_ALT);
+
+    bind_action(ActionInputType::Forward, GLFW_KEY_W);
+    bind_action(ActionInputType::Backward, GLFW_KEY_S);
+    bind_action(ActionInputType::Left, GLFW_KEY_A);
+    bind_action(ActionInputType::Right, GLFW_KEY_D);
+    bind_action(ActionInputType::Up, GLFW_KEY_SPACE);
+    bind_action(ActionInputType::Down, GLFW_KEY_LEFT_SHIFT);
 }
 
 InputStateManager::~InputStateManager() {

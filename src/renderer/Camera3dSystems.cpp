@@ -41,14 +41,21 @@ void Camera3dSystems::update_camera_projection_system(Camera3d &camera, const Ca
 }
 
 void Camera3dSystems::update_camera_view_system(Camera3d &camera, const Position &position, const Orientation &orientation) {
-    auto view = glm::mat4(1.0f);
+    float yawRad = glm::radians(orientation.yaw);
+    float pitchRad = glm::radians(orientation.pitch);
 
-    view = glm::rotate(view, glm::radians(orientation.yaw), glm::vec3(0.0f, 1.0f, 0.0f));   // Yaw
-    view = glm::rotate(view, glm::radians(orientation.pitch), glm::vec3(1.0f, 0.0f, 0.0f)); // Pitch
-    view = glm::rotate(view, glm::radians(orientation.roll), glm::vec3(0.0f, 0.0f, 1.0f));  // Roll
+    glm::vec3 forward;
+    forward.x = cos(pitchRad) * sin(yawRad);
+    forward.y = sin(pitchRad);
+    forward.z = cos(pitchRad) * cos(yawRad);
+    forward = glm::normalize(forward);
 
-    // Apply translation
-    view = glm::translate(view, -glm::vec3(position.x, position.y, position.z));
+    glm::vec3 worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
+    glm::vec3 right = glm::normalize(glm::cross(worldUp, forward));
 
-    camera.viewMatrix = view;
+    glm::vec3 up = glm::cross(forward, right);
+
+    glm::vec3 cameraPos = glm::vec3(position.x, position.y, position.z);
+
+    camera.viewMatrix = glm::lookAt(cameraPos, cameraPos + forward, up);
 }

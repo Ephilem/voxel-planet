@@ -5,6 +5,13 @@ enum class ActionInputType {
     DebugMenuBar,
     ToggleMouseCapture,
 
+    Forward,
+    Backward,
+    Left,
+    Right,
+    Up,
+    Down,
+
     Last,
 };
 

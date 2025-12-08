@@ -13,6 +13,7 @@
 #include "Camera3dSystems.h"
 #include "rendering_components.h"
 #include "core/main_components.h"
+#include "core/world/world_components.h"
 #include "debug/ImGuiManager.h"
 #include "debug/LogConsole.h"
 #include "nvrhi/utils.h"
@@ -26,39 +27,9 @@ RendererModule::RendererModule(flecs::world& ecs) {
     }
 
     ecs.set<Renderer>({
+        .backend = std::make_unique<VulkanBackend>(platform->window->window, RenderParameters{platform->window->width, platform->window->height}),
         .imguiManager = std::make_unique<ImGuiManager>(),
-        .backend = std::make_unique<VulkanBackend>(platform->window->window, RenderParameters{platform->window->width, platform->window->height})
     });
-
-    VoxelTerrainRenderer::Register(ecs);
-    ImGuiManager::Register(ecs);
-    ImGuiDebugModuleManager::Register(ecs);
-
-    Camera3dSystems::Register(ecs);
-
-    ecs.system<Orientation>("MouseLookSystem")
-        .kind(flecs::OnUpdate)
-        .with<Camera3d>()
-        .each([](flecs::entity e, Orientation& orientation) {
-            auto* inputState = e.world().get_mut<InputState>();
-            if (!inputState->mouseCaptured) return;
-
-            float sensitivity = 0.1f;
-            orientation.yaw += inputState->mouseDeltaX * sensitivity;
-            orientation.pitch += inputState->mouseDeltaY * sensitivity;
-
-            if (orientation.pitch > 89.0f) orientation.pitch = 89.0f;
-            if (orientation.pitch < -89.0f) orientation.pitch = -89.0f;
-        });
-
-    // create camera here for now
-    ecs.entity()
-        .set<Position>({0.0f, 0.0f, 5.0f})
-        .set<Camera3dParameters>({
-            .fov = 45.0f
-        })
-        .set<Orientation>({0.0f, 0.0f, 0.0f})
-        .set<Camera3d>({});
 
     ecs.system<Renderer>("BeginFrameSystem")
         .kind(flecs::PreStore)
@@ -77,6 +48,88 @@ RendererModule::RendererModule(flecs::world& ecs) {
                 ctx.frameActive = true;
             }
         });
+
+    // Initialize chunk meshes for any VoxelChunk that doesn't have a mesh yet
+    ecs.system<const VoxelChunk>("InitializeChunkMeshSystem")
+        .kind(flecs::OnUpdate)
+        .without<VoxelChunkMesh>()
+        .each([](flecs::entity e, const VoxelChunk& chunk) {
+            e.set<VoxelChunkMesh>({})
+             .add<Dirty>();
+        });
+
+    VoxelTerrainRenderer::Register(ecs);
+    ImGuiManager::Register(ecs);
+    ImGuiDebugModuleManager::Register(ecs);
+
+    Camera3dSystems::Register(ecs);
+
+    ecs.system<Orientation>("MouseLookSystem")
+        .kind(flecs::OnUpdate)
+        .with<Camera3d>()
+        .each([](flecs::entity e, Orientation& orientation) {
+            auto* inputState = e.world().get_mut<InputState>();
+            if (!inputState->mouseCaptured) return;
+
+            float sensitivity = -0.1f;
+            orientation.yaw += inputState->mouseDeltaX * sensitivity;
+            orientation.pitch += inputState->mouseDeltaY * sensitivity;
+
+            if (orientation.pitch > 89.0f) orientation.pitch = 89.0f;
+            if (orientation.pitch < -89.0f) orientation.pitch = -89.0f;
+        });
+
+    ecs.system<Position, const Orientation>("BasicCameraMovementSystem")
+        .kind(flecs::OnUpdate)
+        .with<Camera3d>()
+        .each([](flecs::entity e, Position& pos, const Orientation& orientation) {
+            float moveSpeed = 5.0f;
+            const auto* inputState = e.world().get<InputActionState>();
+
+            glm::vec3 forward = glm::vec3(
+                sin(glm::radians(orientation.yaw)),
+                0.0f,
+                cos(glm::radians(orientation.yaw))
+            );
+            glm::vec3 right = glm::vec3(
+                cos(glm::radians(orientation.yaw)),
+                0.0f,
+                -sin(glm::radians(orientation.yaw))
+            );
+
+            glm::vec3 velocity = glm::vec3(0.0f);
+
+            if (inputState->is_action_active(ActionInputType::Forward))
+                velocity += forward;
+            if (inputState->is_action_active(ActionInputType::Backward))
+                velocity -= forward;
+            if (inputState->is_action_active(ActionInputType::Left))
+                velocity += right;
+            if (inputState->is_action_active(ActionInputType::Right))
+                velocity -= right;
+            if (inputState->is_action_active(ActionInputType::Up))
+                velocity += glm::vec3(0.0f, 1.0f, 0.0f);
+            if (inputState->is_action_active(ActionInputType::Down))
+                velocity -= glm::vec3(0.0f, 1.0f, 0.0f);
+            if (glm::length(velocity) > 0.0f) {
+                velocity = glm::normalize(velocity) * moveSpeed;
+                pos += glm::vec3(
+                    velocity.x * cos(glm::radians(orientation.yaw)) - velocity.z * sin(glm::radians(orientation.yaw)),
+                    velocity.y,
+                    velocity.x * sin(glm::radians(orientation.yaw)) + velocity.z * cos(glm::radians(orientation.yaw))
+                ) * static_cast<float>(e.world().get<GameState>()->deltaTime);
+            }
+        });
+
+
+    // create camera here for now
+    ecs.entity()
+        .set<Position>({0.0f, 0.0f, 5.0f})
+        .set<Camera3dParameters>({
+            .fov = 45.0f
+        })
+        .set<Orientation>({0.0f, 0.0f, 0.0f})
+        .set<Camera3d>({});
 
     ecs.system<Renderer>("EndFrameSystem")
         .kind(flecs::PostFrame)
