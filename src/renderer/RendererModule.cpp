@@ -73,7 +73,9 @@ RendererModule::RendererModule(flecs::world& ecs) {
 
             float sensitivity = -0.1f;
             orientation.yaw += inputState->mouseDeltaX * sensitivity;
+            orientation.yaw = fmod(orientation.yaw, 360.0f);
             orientation.pitch += inputState->mouseDeltaY * sensitivity;
+            orientation.pitch = fmod(orientation.pitch, 360.0f);
 
             if (orientation.pitch > 89.0f) orientation.pitch = 89.0f;
             if (orientation.pitch < -89.0f) orientation.pitch = -89.0f;
@@ -83,14 +85,16 @@ RendererModule::RendererModule(flecs::world& ecs) {
         .kind(flecs::OnUpdate)
         .with<Camera3d>()
         .each([](flecs::entity e, Position& pos, const Orientation& orientation) {
-            float moveSpeed = 5.0f;
+            float moveSpeed = 10.0f;
             const auto* inputState = e.world().get<InputActionState>();
 
             glm::vec3 forward = glm::vec3(
-                sin(glm::radians(orientation.yaw)),
-                0.0f,
-                cos(glm::radians(orientation.yaw))
+                cos(glm::radians(orientation.pitch)) * sin(glm::radians(orientation.yaw)),
+                0,
+                cos(glm::radians(orientation.pitch)) * cos(glm::radians(orientation.yaw))
             );
+
+            // Right vector is always horizontal
             glm::vec3 right = glm::vec3(
                 cos(glm::radians(orientation.yaw)),
                 0.0f,
@@ -111,13 +115,10 @@ RendererModule::RendererModule(flecs::world& ecs) {
                 velocity += glm::vec3(0.0f, 1.0f, 0.0f);
             if (inputState->is_action_active(ActionInputType::Down))
                 velocity -= glm::vec3(0.0f, 1.0f, 0.0f);
+
             if (glm::length(velocity) > 0.0f) {
-                velocity = glm::normalize(velocity) * moveSpeed;
-                pos += glm::vec3(
-                    velocity.x * cos(glm::radians(orientation.yaw)) - velocity.z * sin(glm::radians(orientation.yaw)),
-                    velocity.y,
-                    velocity.x * sin(glm::radians(orientation.yaw)) + velocity.z * cos(glm::radians(orientation.yaw))
-                ) * static_cast<float>(e.world().get<GameState>()->deltaTime);
+                velocity = glm::normalize(velocity) * moveSpeed * static_cast<float>(e.world().get<GameState>()->deltaTime);
+                pos += velocity;
             }
         });
 
@@ -126,7 +127,7 @@ RendererModule::RendererModule(flecs::world& ecs) {
     ecs.entity()
         .set<Position>({0.0f, 0.0f, 5.0f})
         .set<Camera3dParameters>({
-            .fov = 45.0f
+            .fov = 70.0f
         })
         .set<Orientation>({0.0f, 0.0f, 0.0f})
         .set<Camera3d>({});
@@ -171,6 +172,7 @@ void shutdown_renderer(flecs::world& ecs) {
         if (renderer->imguiManager) {
             renderer->imguiManager.reset();
         }
+        renderer->frameContext.commandList = nullptr;
         if (renderer->backend) {
             renderer->backend.reset();
         }

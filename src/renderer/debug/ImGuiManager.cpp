@@ -9,6 +9,7 @@
 #include "renderer/vulkan/VulkanBackend.h"
 
 ImGuiManager::~ImGuiManager() {
+    LOG_DEBUG("ImGuiManager", "Destroying ImGuiManager...");
     shutdown();
 }
 

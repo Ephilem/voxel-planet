@@ -8,6 +8,7 @@
 #include "imgui.h"
 #include "LogConsole.h"
 #include "VoxelBufferVisualizer.h"
+#include "WorldF3Info.h"
 #include "renderer/Renderer.h"
 #include <map>
 
@@ -52,6 +53,7 @@ void ImGuiDebugModuleManager::Register(flecs::world &ecs) {
     renderer->debugModuleManager->register_module<LogConsole>();
     renderer->debugModuleManager->register_module<FpsCounter>();
     renderer->debugModuleManager->register_module<VoxelBufferVisualizer>();
+    renderer->debugModuleManager->register_module<WorldF3Info>();
 
     renderer->debugModuleManager->register_all_ecs(ecs);
 

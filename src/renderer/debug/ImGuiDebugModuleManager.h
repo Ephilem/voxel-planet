@@ -4,12 +4,17 @@
 #include <memory>
 
 #include "IImGuiDebugModule.h"
+#include "core/log/Logger.h"
 
 class ImGuiDebugModuleManager {
     std::vector<std::unique_ptr<IImGuiDebugModule>> m_modules;
     bool m_menuBarVisible = true;
 
 public:
+    ~ImGuiDebugModuleManager() {
+        LOG_DEBUG("ImGuiDebugModuleManager", "Destroying ImGuiDebugModuleManager...");
+    }
+
     static void Register(flecs::world& ecs);
 
     void register_all_ecs(flecs::world& ecs);

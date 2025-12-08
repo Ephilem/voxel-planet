@@ -1,5 +1,8 @@
 #pragma once
 
+#include <vector>
+#include "render_types.h"
+
 struct Camera3dParameters {
     glm::float32 fov = 45.0f;
 };
