@@ -29,6 +29,7 @@ int main() {
             });
 
         ecs->app()
+          .target_fps(99999)
           .enable_stats()
           .enable_rest()
           .run();

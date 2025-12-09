@@ -26,6 +26,8 @@ RendererModule::RendererModule(flecs::world& ecs) {
         throw std::runtime_error("RendererModule: PlatformModule must be initialized before RendererModule");
     }
 
+    ecs.component<Renderer>();
+
     ecs.set<Renderer>({
         .backend = std::make_unique<VulkanBackend>(platform->window->window, RenderParameters{platform->window->width, platform->window->height}),
         .imguiManager = std::make_unique<ImGuiManager>(),

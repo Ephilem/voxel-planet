@@ -8,6 +8,7 @@
 #include "core/world/world_components.h"
 #include "nvrhi/nvrhi.h"
 
+struct Position;
 struct Camera3d;
 class VulkanBackend;
 struct Renderer;
@@ -49,7 +50,7 @@ private:
 
     bool build_voxel_chunk_mesh_system(
         const VoxelChunk &chunk,
-        VoxelChunkMesh &mesh);
+        VoxelChunkMesh &mesh, const Position& pos);
 
     bool upload_chunk_mesh_system(
         nvrhi::CommandListHandle cmd,

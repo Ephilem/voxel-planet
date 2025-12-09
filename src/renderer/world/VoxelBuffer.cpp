@@ -139,9 +139,11 @@ void VoxelBuffer::write(nvrhi::CommandListHandle cmd, VoxelChunkMesh &mesh) {
                      sizeof(uint32_t) * mesh.indexCount, indexByteOffset);
 
     // Write indirect draw command
-    uint64_t indirectOffset = mesh.indirectRegionIndex * INDIRECT_REGION_SIZE + INDIRECT_SECTION_OFFSET;
+    // Note: Commands must be packed at sizeof(DrawIndexedIndirectArguments) stride for multi-draw
+    uint64_t indirectOffset = mesh.indirectRegionIndex * sizeof(nvrhi::DrawIndexedIndirectArguments) + INDIRECT_SECTION_OFFSET;
 
-    uint32_t baseVertexLocation = mesh.vertexRegionStart * VERTICES_PER_REGION;
+    // Calculate baseVertexLocation from actual byte offset to handle region padding correctly
+    uint32_t baseVertexLocation = (mesh.vertexRegionStart * VERTEX_REGION_SIZE) / sizeof(Vertex3d);
     uint32_t startIndexLocation = mesh.indexRegionStart * (INDEX_REGION_SIZE / sizeof(uint32_t));
 
     nvrhi::DrawIndexedIndirectArguments indirectArgs;

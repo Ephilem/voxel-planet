@@ -8,8 +8,8 @@
 #include <glm/ext/matrix_transform.hpp>
 
 void Camera3dSystems::Register(flecs::world &ecs) {
-    // ecs.component<Camera3d>();
-    // ecs.component<Camera3dParameters>();
+    ecs.component<Camera3d>();
+    ecs.component<Camera3dParameters>();
 
     ecs.system<Camera3d, const Position, const Orientation>("UpdateCameraViewSystem")
         .kind(flecs::OnUpdate)

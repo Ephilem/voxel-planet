@@ -5,10 +5,10 @@
 #include "VoxelTerrainRenderer.h"
 
 #include <memory>
-#include <vulkan/vulkan.h>
 
 #include "../rendering_components.h"
 #include "core/GameState.h"
+#include "core/main_components.h"
 #include "core/log/Logger.h"
 #include "renderer/Renderer.h"
 #include "renderer/render_types.h"
@@ -132,11 +132,13 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
     auto *voxelRenderer = new VoxelTerrainRenderer(renderer->backend.get(), gameState->resourceSystem.get());
     renderer->voxelTerrainRenderer.reset(voxelRenderer);
 
-    ecs.system<const VoxelChunk, VoxelChunkMesh>("BuildVoxelChunkMeshSystem")
+    ecs.component<VoxelChunkMesh>();
+
+    ecs.system<const VoxelChunk, const Position, VoxelChunkMesh>("BuildVoxelChunkMeshSystem")
             .kind(flecs::PostUpdate)
             .with<Dirty>()
-            .each([voxelRenderer](flecs::entity e, const VoxelChunk &chunk, VoxelChunkMesh &mesh) {
-                voxelRenderer->build_voxel_chunk_mesh_system(chunk, mesh);
+            .each([voxelRenderer](flecs::entity e, const VoxelChunk &chunk, const Position &position, VoxelChunkMesh &mesh) {
+                voxelRenderer->build_voxel_chunk_mesh_system(chunk, mesh, position);
                 e.remove<Dirty>()
                         .add<DirtyGpu>();
             });
@@ -165,7 +167,7 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
             });
 }
 
-bool VoxelTerrainRenderer::build_voxel_chunk_mesh_system(const VoxelChunk &chunk, VoxelChunkMesh &mesh) {
+bool VoxelTerrainRenderer::build_voxel_chunk_mesh_system(const VoxelChunk &chunk, VoxelChunkMesh &mesh, const Position& pos) {
     // for each voxel
     for (int x = 0; x < CHUNK_SIZE; x++) {
         for (int y = 0; y < CHUNK_SIZE; y++) {
@@ -205,7 +207,7 @@ bool VoxelTerrainRenderer::build_voxel_chunk_mesh_system(const VoxelChunk &chunk
                     uint32_t baseIdx = mesh.vertices.size();
                     for (int i = 0; i < 4; i++) {
                         mesh.vertices.emplace_back(Vertex3d{
-                            .position = {verts[face][i][0], verts[face][i][1], verts[face][i][2]}
+                            .position = {verts[face][i][0] + pos.x, verts[face][i][1] + pos.y, verts[face][i][2] + pos.z}
                         });
                     }
 

@@ -15,11 +15,11 @@ static constexpr uint32_t INDIRECT_CMD_SIZE = sizeof(VkDrawIndexedIndirectComman
 static constexpr float INDEX_TO_VERTEX_RATIO = 1.5f;
 
 // Tailles des régions
-static constexpr uint32_t VERTEX_REGION_SIZE = 4 * 1024; // 4 KB
-static constexpr uint32_t VERTICES_PER_REGION = VERTEX_REGION_SIZE / VERTEX_SIZE; // 341
+static constexpr uint32_t VERTICES_PER_REGION = 341;
+static constexpr uint32_t VERTEX_REGION_SIZE = VERTICES_PER_REGION * VERTEX_SIZE;
 static constexpr uint32_t INDICES_PER_VERTEX_REGION = static_cast<uint32_t>(VERTICES_PER_REGION * INDEX_TO_VERTEX_RATIO); // 511
 static constexpr uint32_t INDEX_REGION_SIZE = ((INDICES_PER_VERTEX_REGION * INDEX_SIZE + 1023) / 1024) * 1024; // 2048 bytes
-static constexpr uint32_t INDIRECT_REGION_SIZE = ((INDIRECT_CMD_SIZE + 63) / 64) * 64; // 64 bytes
+static constexpr uint32_t INDIRECT_REGION_SIZE = INDIRECT_CMD_SIZE;
 
 // Sections optimales (63/32/5) - TOUS ALIGNÉS À 64 BYTES
 static constexpr uint64_t VERTEX_SECTION_SIZE = 42278528ULL;    // 40.32 MB (63%)
