@@ -4,6 +4,7 @@
 
 #include "VoxelBuffer.h"
 #include "../rendering_components.h"
+#include "core/log/Logger.h"
 
 VoxelBuffer::VoxelBuffer(VulkanBackend *backend) {
     this->m_backend = backend;
@@ -11,7 +12,7 @@ VoxelBuffer::VoxelBuffer(VulkanBackend *backend) {
 }
 
 VoxelBuffer::~VoxelBuffer() {
-    m_buffer = nullptr;
+    m_meshBuffer = nullptr;
 }
 
 
@@ -22,15 +23,34 @@ void VoxelBuffer::init() {
     m_freeIndexRegions.clear();
     m_freeIndexRegions.emplace_back(0, MAX_INDEX_REGION);
 
-    nvrhi::BufferDesc bufferDesc = {};
-    bufferDesc.byteSize = TOTAL_BUFFER_SIZE;
-    bufferDesc.debugName = "VoxelBuffer";
-    bufferDesc.isVertexBuffer = true;
-    bufferDesc.isIndexBuffer = true;
-    bufferDesc.isDrawIndirectArgs = false   ;
-    bufferDesc.initialState = nvrhi::ResourceStates::CopyDest;
-    bufferDesc.keepInitialState = true;
-    m_buffer = m_backend->device->createBuffer(bufferDesc);
+    m_freeDrawSlots.clear();
+    m_nextDrawSlot = 0;
+
+    auto meshDesc = nvrhi::BufferDesc()
+            .setByteSize(TOTAL_BUFFER_SIZE)
+            .setDebugName("VoxelBuffer Mesh Buffer")
+            .setIsVertexBuffer(true)
+            .setIsIndexBuffer(true)
+            .setInitialState(nvrhi::ResourceStates::CopyDest)
+            .setKeepInitialState(true);
+    m_meshBuffer = m_backend->device->createBuffer(meshDesc);
+
+    auto oubDesc = nvrhi::BufferDesc()
+            .setByteSize(8 * 1024 * 1024) // 8 MB
+            .setDebugName("VoxelBuffer OUB Buffer")
+            .setInitialState(nvrhi::ResourceStates::ShaderResource)
+            .setIsConstantBuffer(false) // structured buffer
+            .setStructStride(sizeof(TerrainOUB))
+            .setKeepInitialState(true);
+    m_oubBuffer = m_backend->device->createBuffer(oubDesc);
+
+    auto indirectDesc = nvrhi::BufferDesc()
+            .setByteSize(8 * 1024 * 1024 / sizeof(TerrainOUB) * sizeof(nvrhi::DrawIndexedIndirectArguments)) // 2.5 MB
+            .setDebugName("VoxelBuffer Indirect Buffer")
+            .setInitialState(nvrhi::ResourceStates::IndirectArgument)
+            .setIsDrawIndirectArgs(true)
+            .setKeepInitialState(true);
+    m_indirectBuffer = m_backend->device->createBuffer(indirectDesc);
 }
 
 bool VoxelBuffer::can_allocate(uint32_t vertexCount, uint32_t indexCount) {
@@ -55,12 +75,14 @@ bool VoxelBuffer::can_allocate(uint32_t vertexCount, uint32_t indexCount) {
         }
     }
 
-    // for (const auto& [start, count] : m_freeIndirectRegions) {
-    //     if (count >= 1) {
-    //         hasIndirectSpace = true;
-    //         break;
-    //     }
-    // }
+    if (!hasVertexSpace) {
+        LOG_DEBUG("VoxelBuffer", "Cannot allocate {} vertex regions (largest free block = {})",
+                  vertexRegionsNeeded, get_largest_free_vertex_block());
+    }
+    if (!hasIndexSpace) {
+        LOG_DEBUG("VoxelBuffer", "Cannot allocate {} index regions (largest free block = {})",
+                  indexRegionsNeeded, get_largest_free_index_block());
+    }
 
     return hasVertexSpace && hasIndexSpace;
 }
@@ -91,6 +113,7 @@ void VoxelBuffer::free_regions(std::vector<std::pair<uint32_t, uint32_t>>& freeL
 }
 
 bool VoxelBuffer::allocate(VoxelChunkMesh& mesh) {
+    /////// Allocate Mesh Regions ///////
     uint32_t vertexRegionsNeeded = (mesh.vertexCount + VERTICES_PER_REGION - 1) / VERTICES_PER_REGION;
     uint32_t indexRegionsNeeded = (mesh.indexCount + (INDEX_REGION_SIZE / INDEX_SIZE) - 1) / (INDEX_REGION_SIZE / INDEX_SIZE);
 
@@ -111,43 +134,55 @@ bool VoxelBuffer::allocate(VoxelChunkMesh& mesh) {
     mesh.indexRegionStart = indexStart;
     mesh.indexRegionCount = indexRegionsNeeded;
 
+
+    /////// Allocate Indirect Draw Slot ///////
+    uint32_t drawSlot;
+    // If there is a slot available, use it
+    if (!m_freeDrawSlots.empty()) {
+        drawSlot = m_freeDrawSlots.back();
+        m_freeDrawSlots.pop_back();
+    } else {
+        drawSlot = m_nextDrawSlot++;
+    }
+
+    mesh.drawSlotIndex = drawSlot;
+
     return true;
 }
 
-void VoxelBuffer::write(nvrhi::CommandListHandle cmd, VoxelChunkMesh &mesh) {
-    cmd->setBufferState(m_buffer, nvrhi::ResourceStates::CopyDest);
+void VoxelBuffer::write(nvrhi::CommandListHandle cmd, VoxelChunkMesh &mesh, const TerrainOUB &oub) {
+    if (!mesh.is_allocated()) {
+        LOG_ERROR("VoxelBuffer", "Cannot write unallocated mesh to buffer");
+        return;
+    }
+
+    cmd->setBufferState(m_meshBuffer, nvrhi::ResourceStates::CopyDest);
 
     // Write vertices
     uint64_t vertexByteOffset = mesh.vertexRegionStart * VERTEX_REGION_SIZE;
-    cmd->writeBuffer(m_buffer, mesh.vertices.data(),
-                     sizeof(Vertex3d) * mesh.vertexCount, vertexByteOffset);
+    cmd->writeBuffer(m_meshBuffer, mesh.vertices.data(),
+                     sizeof(TerrainVertex3d) * mesh.vertexCount, vertexByteOffset);
 
     // Write indices
     uint64_t indexByteOffset = mesh.indexRegionStart * INDEX_REGION_SIZE + INDEX_SECTION_OFFSET;
-    cmd->writeBuffer(m_buffer, mesh.indices.data(),
+    cmd->writeBuffer(m_meshBuffer, mesh.indices.data(),
                      sizeof(uint32_t) * mesh.indexCount, indexByteOffset);
 
-    // // Write indirect draw command
-    // // Note: Commands must be packed at sizeof(DrawIndexedIndirectArguments) stride for multi-draw
-    // uint64_t indirectOffset = mesh.indirectRegionIndex * sizeof(nvrhi::DrawIndexedIndirectArguments) + INDIRECT_SECTION_OFFSET;
-    //
-    // // Calculate baseVertexLocation from actual byte offset to handle region padding correctly
-    // uint32_t baseVertexLocation = (mesh.vertexRegionStart * VERTEX_REGION_SIZE) / sizeof(Vertex3d);
-    // uint32_t startIndexLocation = mesh.indexRegionStart * (INDEX_REGION_SIZE / sizeof(uint32_t));
-    //
-    // nvrhi::DrawIndexedIndirectArguments indirectArgs;
-    // indirectArgs.setIndexCount(mesh.indexCount)
-    //             .setInstanceCount(1)
-    //             .setStartIndexLocation(startIndexLocation)
-    //             .setBaseVertexLocation(baseVertexLocation)
-    //             .setStartInstanceLocation(0);
-    //
-    // cmd->writeBuffer(m_buffer, &indirectArgs, sizeof(indirectArgs), indirectOffset);
-    //
-    // cmd->setBufferState(m_buffer,
-    //                     nvrhi::ResourceStates::VertexBuffer |
-    //                     nvrhi::ResourceStates::IndexBuffer |
-    //                     nvrhi::ResourceStates::IndirectArgument);
+    cmd->setBufferState(m_meshBuffer, nvrhi::ResourceStates::VertexBuffer | nvrhi::ResourceStates::IndexBuffer);
+
+    // Write OUB
+    uint64_t oubByteOffset = mesh.drawSlotIndex * sizeof(TerrainOUB);
+    cmd->writeBuffer(m_oubBuffer, &oub, sizeof(TerrainOUB), oubByteOffset);
+
+    // Write Indirect Args
+    auto args = nvrhi::DrawIndexedIndirectArguments()
+        .setBaseVertexLocation(mesh.vertexRegionStart * VERTICES_PER_REGION)
+        .setIndexCount(mesh.indexCount)
+        .setStartIndexLocation(mesh.indexRegionStart * (INDEX_REGION_SIZE / INDEX_SIZE))
+        .setInstanceCount(1)
+        .setStartInstanceLocation(mesh.drawSlotIndex); // Use firstInstance as draw ID for gl_BaseInstance
+    uint64_t indirectByteOffset = mesh.drawSlotIndex * sizeof(nvrhi::DrawIndexedIndirectArguments);
+    cmd->writeBuffer(m_indirectBuffer, &args, sizeof(nvrhi::DrawIndexedIndirectArguments), indirectByteOffset);
 }
 
 

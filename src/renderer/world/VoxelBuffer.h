@@ -56,13 +56,14 @@ class VoxelBuffer {
     VulkanBackend* m_backend;
 
     // Single 64 MB buffer with all three usage flags
-    nvrhi::BufferHandle m_buffer;
+    nvrhi::BufferHandle m_meshBuffer;
 
     // Small buffer for indirect draw commands and OUB data
     nvrhi::BufferHandle m_oubBuffer;
     nvrhi::BufferHandle m_indirectBuffer;
     // Management of those buffers
-
+    std::vector<uint32_t> m_freeDrawSlots;
+    uint32_t m_nextDrawSlot = 0;
 
     // Separate free lists for each section (start region, count)
     std::vector<std::pair<uint32_t, uint32_t>> m_freeVertexRegions;
@@ -100,19 +101,15 @@ public:
      * Write data of an already allocated mesh to the buffer.
      * Warning: it will not check if allocate in this buffer or not
      * @param mesh Allocated mesh data to write in the buffer
+     * @param oub
      */
-    void write(nvrhi::CommandListHandle cmd, struct VoxelChunkMesh& mesh);
+    void write(nvrhi::CommandListHandle cmd, struct VoxelChunkMesh& mesh, const TerrainOUB &oub);
 
     /**
      * Free a previously allocated chunk
      * @param mesh The VoxelChunkMesh component with allocation data
      */
     void free(struct VoxelChunkMesh& mesh);
-
-    /**
-     * Get the underlying buffer handle
-     */
-    nvrhi::BufferHandle get_buffer() const { return m_buffer; }
 
     /**
      * Get byte offset for a vertex region
@@ -128,12 +125,24 @@ public:
         return INDEX_SECTION_OFFSET + (regionStart * INDEX_REGION_SIZE);
     }
 
+    nvrhi::BufferHandle get_mesh_buffer() const { return m_meshBuffer; }
+    nvrhi::BufferHandle get_oub_buffer() const { return m_oubBuffer; }
+    nvrhi::BufferHandle get_indirect_buffer() const { return m_indirectBuffer; }
+
     const std::vector<std::pair<uint32_t, uint32_t>>& get_free_vertex_regions() const { return m_freeVertexRegions; }
     const std::vector<std::pair<uint32_t, uint32_t>>& get_free_index_regions() const { return m_freeIndexRegions; }
+
+    const std::vector <uint32_t>& get_free_draw_slots() const { return m_freeDrawSlots; }
 
     uint32_t get_used_vertex_regions() const;
     uint32_t get_used_index_regions() const;
 
     uint32_t get_largest_free_vertex_block() const;
     uint32_t get_largest_free_index_block() const;
+
+    /**
+     * Return the number of registered draw commands in this buffer
+     * @return Number of draw commands
+     */
+    uint32_t get_draw_count() const { return m_nextDrawSlot - static_cast<uint32_t>(m_freeDrawSlots.size()); }
 };

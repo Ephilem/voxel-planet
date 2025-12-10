@@ -12,6 +12,7 @@
 #include "core/log/Logger.h"
 #include "renderer/Renderer.h"
 #include "renderer/render_types.h"
+#include <glm/glm.hpp>
 
 VoxelTerrainRenderer::VoxelTerrainRenderer(VulkanBackend *backend, ResourceSystem *resourceSystem) {
     m_resourceSystem = resourceSystem;
@@ -48,61 +49,33 @@ void VoxelTerrainRenderer::init() {
         nvrhi::ShaderDesc().setShaderType(nvrhi::ShaderType::Pixel),
         pixelRes->getData(), pixelRes->get_data_size());
 
-    //// Initialize UBO
-    // Buffer
     auto uboBufferDesc = nvrhi::BufferDesc()
             .setByteSize(sizeof(TerrainUBO))
             .setDebugName("TerrainUBO")
             .setInitialState(nvrhi::ResourceStates::ConstantBuffer)
             .setKeepInitialState(true)
             .setIsConstantBuffer(true)
-            .setIsVolatile(true) // view can change every frame or not
+            .setIsVolatile(true)
             .setMaxVersions(8);
     m_uboBuffer = m_backend->device->createBuffer(uboBufferDesc);
-    //
-    ////
 
-    //// Initialize UOB for chunk model matrices
-    ///
-    nvrhi::BufferDesc chunkOUBBufferDesc = nvrhi::BufferDesc()
-            .setByteSize(8 * 1024 * 1024) // 8 MB
-            .setDebugName("TerrainChunkOUBBuffer")
-            .setInitialState(nvrhi::ResourceStates::ConstantBuffer)
-            .setKeepInitialState(true)
-            .setStructStride(sizeof(TerrainOUB))
-            .setCanHaveUAVs(false);
-
-    m_chunkOUBBuffer = m_backend->device->createBuffer(chunkOUBBufferDesc);
-
-    // Binding
-    auto chunkOUBBindingLayoutDesc = nvrhi::BindingLayoutDesc()
+    // Set 0: Per-frame bindings (camera/view data)
+    auto frameBindingLayoutDesc = nvrhi::BindingLayoutDesc()
             .setVisibility(nvrhi::ShaderType::Vertex | nvrhi::ShaderType::Pixel)
-            .addItem(nvrhi::BindingLayoutItem::ConstantBuffer(0))
+            .addItem(nvrhi::BindingLayoutItem::VolatileConstantBuffer(0)) // UBO for view/projection matrices
             .setBindingOffsets(bindingOffsets);
+    m_frameBindingLayout = m_backend->device->createBindingLayout(frameBindingLayoutDesc);
 
-    ///
-    //// Initialize Indirect Buffer for draw commands
-    ///
-    nvrhi::BufferDesc indirectBufferDesc = nvrhi::BufferDesc()
-            .setByteSize(8 * 1024 * 1024 / sizeof(TerrainOUB) * sizeof(nvrhi::DrawIndexedIndirectArguments)) // 2.5 MB
-            .setDebugName("TerrainIndirectBuffer")
-            .setInitialState(nvrhi::ResourceStates::IndirectArgument)
-            .setKeepInitialState(true)
-            .setIsDrawIndirectArgs(true);
-
-    m_indirectBuffer = m_backend->device->createBuffer(indirectBufferDesc);
-    ///
-    ////
-
-    auto bindingLayoutDesc = nvrhi::BindingLayoutDesc()
-            .setVisibility(nvrhi::ShaderType::Vertex | nvrhi::ShaderType::Pixel)
-            .addItem(nvrhi::BindingLayoutItem::VolatileConstantBuffer(0))
-            .addItem(nvrhi::BindingLayoutItem::ConstantBuffer(0))
-            .setBindingOffsets(bindingOffsets);
-    m_bindingLayout = m_backend->device->createBindingLayout(bindingLayoutDesc);
-    auto bindingSetDesc = nvrhi::BindingSetDesc()
+    auto frameBindingSetDesc = nvrhi::BindingSetDesc()
             .addItem(nvrhi::BindingSetItem::ConstantBuffer(0, m_uboBuffer));
-    m_bindingSet = m_backend->device->createBindingSet(bindingSetDesc, m_bindingLayout);
+    m_frameBindingSet = m_backend->device->createBindingSet(frameBindingSetDesc, m_frameBindingLayout);
+
+    // Set 1: Per-buffer bindings (chunk data)
+    auto bufferBindingLayoutDesc = nvrhi::BindingLayoutDesc()
+            .setVisibility(nvrhi::ShaderType::Vertex | nvrhi::ShaderType::Pixel)
+            .addItem(nvrhi::BindingLayoutItem::StructuredBuffer_SRV(0)) // OUB buffer for per-chunk data
+            .setBindingOffsets(bindingOffsets);
+    m_bufferBindingLayout = m_backend->device->createBindingLayout(bufferBindingLayoutDesc);
 
 
     // Create Vertex Attribute Input
@@ -110,7 +83,7 @@ void VoxelTerrainRenderer::init() {
         nvrhi::VertexAttributeDesc()
         .setName("POSITION")
         .setFormat(nvrhi::Format::R10G10B10A2_UNORM)
-        .setOffset(offsetof(TerrainVertex3d, x))
+        .setOffset(0)
         .setElementStride(sizeof(TerrainVertex3d)),
     };
 
@@ -141,17 +114,26 @@ void VoxelTerrainRenderer::init() {
             .setPixelShader(m_pixelShader)
             .setPrimType(nvrhi::PrimitiveType::TriangleList)
             .setRenderState(renderState)
-            .addBindingLayout(m_bindingLayout);
+            .addBindingLayout(m_frameBindingLayout)  // Set 0
+            .addBindingLayout(m_bufferBindingLayout); // Set 1
     m_pipeline = m_backend->device->createGraphicsPipeline(pipelineDesc, framebufferInfo);
 
 
     // create initial chunk buffer
     m_chunkBuffers.emplace_back(m_backend);
+
+    // Create binding set for the initial chunk buffer (Set 1 only - structured buffer)
+    auto& initialBuffer = m_chunkBuffers.back();
+    auto initialBufferBindingSetDesc = nvrhi::BindingSetDesc()
+            .addItem(nvrhi::BindingSetItem::StructuredBuffer_SRV(0, initialBuffer.get_oub_buffer()));
+    m_chunkBufferBindingSets.push_back(
+        m_backend->device->createBindingSet(initialBufferBindingSetDesc, m_bufferBindingLayout));
 }
 
 void VoxelTerrainRenderer::destroy() {
     m_backend->device->waitForIdle();
     m_chunkBuffers.clear();
+    m_chunkBufferBindingSets.clear();
     m_pipeline = nullptr;
     m_pixelShader = nullptr;
     m_vertexShader = nullptr;
@@ -176,17 +158,17 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
                         .add<DirtyGpu>();
             });
 
-    ecs.system<VoxelChunkMesh>("UploadVoxelChunkMeshSystem")
+    ecs.system<VoxelChunkMesh, const Position>("UploadVoxelChunkMeshSystem")
             .kind(flecs::PreStore)
             .with<DirtyGpu>()
-            .each([voxelRenderer](flecs::entity e, VoxelChunkMesh &mesh) {
+            .each([voxelRenderer](flecs::entity e, VoxelChunkMesh &mesh, const Position& pos) {
                 const auto *renderer = e.world().get<Renderer>();
                 if (!renderer) {
                     LOG_ERROR("VoxelTerrainRenderer", "Can't upload chunk mesh, Renderer not found in ECS");
                     return;
                 }
                 auto &commandList = renderer->frameContext.commandList;
-                voxelRenderer->upload_chunk_mesh_system(commandList, mesh);
+                voxelRenderer->upload_chunk_mesh_system(commandList, mesh, pos);
                 e.remove<DirtyGpu>();
             });
 
@@ -239,12 +221,14 @@ bool VoxelTerrainRenderer::build_voxel_chunk_mesh_system(const VoxelChunk &chunk
 
                     uint32_t baseIdx = mesh.vertices.size();
                     for (int i = 0; i < 4; i++) {
-                        mesh.vertices.emplace_back(Vertex3d{
-                            .position = {verts[face][i][0] + pos.x, verts[face][i][1] + pos.y, verts[face][i][2] + pos.z}
-                        });
+                        TerrainVertex3d vertex;
+                        vertex.x = static_cast<uint32_t>(verts[face][i][0]);
+                        vertex.y = static_cast<uint32_t>(verts[face][i][1]);
+                        vertex.z = static_cast<uint32_t>(verts[face][i][2]);
+                        vertex.padding = 0;
+                        mesh.vertices.emplace_back(vertex);
                     }
 
-                    // Add two triangles (6 indices) for this quad face
                     mesh.indices.push_back(baseIdx);
                     mesh.indices.push_back(baseIdx + 1);
                     mesh.indices.push_back(baseIdx + 2);
@@ -261,7 +245,7 @@ bool VoxelTerrainRenderer::build_voxel_chunk_mesh_system(const VoxelChunk &chunk
     return true;
 }
 
-bool VoxelTerrainRenderer::upload_chunk_mesh_system(nvrhi::CommandListHandle cmd, VoxelChunkMesh &mesh) {
+bool VoxelTerrainRenderer::upload_chunk_mesh_system(nvrhi::CommandListHandle cmd, VoxelChunkMesh &mesh, const Position &pos) {
     // TODO use the buffer with the position
     auto& chunkBuffer = m_chunkBuffers.back();
 
@@ -277,7 +261,15 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(nvrhi::CommandListHandle cmd
         return false;
     }
 
-    chunkBuffer.write(cmd, mesh);
+    TerrainOUB oub = {
+        .model = {
+            1.0f, 0.0f, 0.0f, pos.x,
+            0.0f, 1.0f, 0.0f, pos.y,
+            0.0f, 0.0f, 1.0f, pos.z,
+            0.0f, 0.0f, 0.0f, 1.0f
+        }
+    };
+    chunkBuffer.write(cmd, mesh, oub);
 
     return true;
 }
@@ -297,29 +289,31 @@ void VoxelTerrainRenderer::render_terrain_system(Renderer &renderer, Camera3d &c
     auto extent = m_backend->get_swapchain_extent();
 
     auto& chunkBuffer = m_chunkBuffers.back(); // TODO select proper buffer
+    auto& bufferBindingSet = m_chunkBufferBindingSets.back();
 
     auto vertexBinding = nvrhi::VertexBufferBinding()
             .setSlot(0)
-            .setBuffer(chunkBuffer.get_buffer())
+            .setBuffer(chunkBuffer.get_mesh_buffer())
             .setOffset(0);
     auto indexBinding = nvrhi::IndexBufferBinding()
             .setOffset(INDEX_SECTION_OFFSET)
-            .setBuffer(chunkBuffer.get_buffer())
+            .setBuffer(chunkBuffer.get_mesh_buffer())
             .setFormat(nvrhi::Format::R32_UINT);
 
     auto graphicsState = nvrhi::GraphicsState()
             .setPipeline(m_pipeline)
             .setViewport(nvrhi::ViewportState().addViewportAndScissorRect(nvrhi::Viewport(extent.width, extent.height)))
             .setFramebuffer(m_backend->get_current_framebuffer())
-            .addBindingSet(m_bindingSet)
+            .addBindingSet(m_frameBindingSet)    // Set 0: Per-frame data (camera)
+            .addBindingSet(bufferBindingSet)     // Set 1: Per-buffer data (chunks)
             .addVertexBuffer(vertexBinding)
-            .setIndirectParams(chunkBuffer.get_buffer())
+            .setIndirectParams(chunkBuffer.get_indirect_buffer())
             .setIndexBuffer(indexBinding);
     commandList->setGraphicsState(graphicsState);
 
-    uint32_t drawCount = chunkBuffer.get_used_indirect_regions();
+    uint32_t drawCount = chunkBuffer.get_draw_count();
     if (drawCount > 0) {
-        commandList->drawIndexedIndirect(INDIRECT_SECTION_OFFSET, drawCount);
+        commandList->drawIndexedIndirect(0, drawCount);
     }
 
     commandList->clearState();

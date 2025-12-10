@@ -179,12 +179,24 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 
 foreach(SHADER ${SHADER_SOURCES})
     get_filename_component(SHADER_NAME ${SHADER} NAME)
+    get_filename_component(SHADER_EXT ${SHADER} LAST_EXT)
     set(SHADER_OUTPUT "${CMAKE_BINARY_DIR}/assets/shaders/${SHADER_NAME}.spv")
+
+    if(SHADER_EXT STREQUAL ".vert")
+        set(SHADER_STAGE "vert")
+    elseif(SHADER_EXT STREQUAL ".frag")
+        set(SHADER_STAGE "frag")
+    endif()
 
     add_custom_command(
             OUTPUT ${SHADER_OUTPUT}
             COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/shaders"
-            COMMAND Vulkan::glslc ${SHADER} -o ${SHADER_OUTPUT}
+            COMMAND Vulkan::glslc
+                --target-env=vulkan1.1
+                --target-spv=spv1.3
+                -fshader-stage=${SHADER_STAGE}
+                -g
+                ${SHADER} -o ${SHADER_OUTPUT}
             DEPENDS ${SHADER}
             COMMENT "Compiling shader ${SHADER_NAME}"
     )
