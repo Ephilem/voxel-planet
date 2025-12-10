@@ -25,6 +25,12 @@ VoxelTerrainRenderer::~VoxelTerrainRenderer() {
 }
 
 void VoxelTerrainRenderer::init() {
+    auto bindingOffsets = nvrhi::VulkanBindingOffsets()
+            .setShaderResourceOffset(0)
+            .setSamplerOffset(128)
+            .setConstantBufferOffset(0)
+            .setUnorderedAccessViewOffset(384);
+
     // Load shaders
     std::shared_ptr<ShaderResource> vertexRes, pixelRes;
     try {
@@ -53,32 +59,59 @@ void VoxelTerrainRenderer::init() {
             .setIsVolatile(true) // view can change every frame or not
             .setMaxVersions(8);
     m_uboBuffer = m_backend->device->createBuffer(uboBufferDesc);
+    //
+    ////
+
+    //// Initialize UOB for chunk model matrices
+    ///
+    nvrhi::BufferDesc chunkOUBBufferDesc = nvrhi::BufferDesc()
+            .setByteSize(8 * 1024 * 1024) // 8 MB
+            .setDebugName("TerrainChunkOUBBuffer")
+            .setInitialState(nvrhi::ResourceStates::ConstantBuffer)
+            .setKeepInitialState(true)
+            .setStructStride(sizeof(TerrainOUB))
+            .setCanHaveUAVs(false);
+
+    m_chunkOUBBuffer = m_backend->device->createBuffer(chunkOUBBufferDesc);
 
     // Binding
-    auto bindingOffsets = nvrhi::VulkanBindingOffsets()
-            .setShaderResourceOffset(0)
-            .setSamplerOffset(128)
-            .setConstantBufferOffset(0)
-            .setUnorderedAccessViewOffset(384);
+    auto chunkOUBBindingLayoutDesc = nvrhi::BindingLayoutDesc()
+            .setVisibility(nvrhi::ShaderType::Vertex | nvrhi::ShaderType::Pixel)
+            .addItem(nvrhi::BindingLayoutItem::ConstantBuffer(0))
+            .setBindingOffsets(bindingOffsets);
+
+    ///
+    //// Initialize Indirect Buffer for draw commands
+    ///
+    nvrhi::BufferDesc indirectBufferDesc = nvrhi::BufferDesc()
+            .setByteSize(8 * 1024 * 1024 / sizeof(TerrainOUB) * sizeof(nvrhi::DrawIndexedIndirectArguments)) // 2.5 MB
+            .setDebugName("TerrainIndirectBuffer")
+            .setInitialState(nvrhi::ResourceStates::IndirectArgument)
+            .setKeepInitialState(true)
+            .setIsDrawIndirectArgs(true);
+
+    m_indirectBuffer = m_backend->device->createBuffer(indirectBufferDesc);
+    ///
+    ////
 
     auto bindingLayoutDesc = nvrhi::BindingLayoutDesc()
             .setVisibility(nvrhi::ShaderType::Vertex | nvrhi::ShaderType::Pixel)
             .addItem(nvrhi::BindingLayoutItem::VolatileConstantBuffer(0))
+            .addItem(nvrhi::BindingLayoutItem::ConstantBuffer(0))
             .setBindingOffsets(bindingOffsets);
-    m_uboBindingLayout = m_backend->device->createBindingLayout(bindingLayoutDesc);
+    m_bindingLayout = m_backend->device->createBindingLayout(bindingLayoutDesc);
     auto bindingSetDesc = nvrhi::BindingSetDesc()
             .addItem(nvrhi::BindingSetItem::ConstantBuffer(0, m_uboBuffer));
-    m_uboBindingSet = m_backend->device->createBindingSet(bindingSetDesc, m_uboBindingLayout);
-    //
-    ////
+    m_bindingSet = m_backend->device->createBindingSet(bindingSetDesc, m_bindingLayout);
+
 
     // Create Vertex Attribute Input
     nvrhi::VertexAttributeDesc vertexAttrs[] = {
         nvrhi::VertexAttributeDesc()
         .setName("POSITION")
-        .setFormat(nvrhi::Format::RGB32_FLOAT)
-        .setOffset(offsetof(Vertex3d, position))
-        .setElementStride(sizeof(Vertex3d)),
+        .setFormat(nvrhi::Format::R10G10B10A2_UNORM)
+        .setOffset(offsetof(TerrainVertex3d, x))
+        .setElementStride(sizeof(TerrainVertex3d)),
     };
 
     nvrhi::InputLayoutHandle inputLayout = m_backend->device->createInputLayout(
@@ -108,7 +141,7 @@ void VoxelTerrainRenderer::init() {
             .setPixelShader(m_pixelShader)
             .setPrimType(nvrhi::PrimitiveType::TriangleList)
             .setRenderState(renderState)
-            .addBindingLayout(m_uboBindingLayout);
+            .addBindingLayout(m_bindingLayout);
     m_pipeline = m_backend->device->createGraphicsPipeline(pipelineDesc, framebufferInfo);
 
 
@@ -278,7 +311,7 @@ void VoxelTerrainRenderer::render_terrain_system(Renderer &renderer, Camera3d &c
             .setPipeline(m_pipeline)
             .setViewport(nvrhi::ViewportState().addViewportAndScissorRect(nvrhi::Viewport(extent.width, extent.height)))
             .setFramebuffer(m_backend->get_current_framebuffer())
-            .addBindingSet(m_uboBindingSet)
+            .addBindingSet(m_bindingSet)
             .addVertexBuffer(vertexBinding)
             .setIndirectParams(chunkBuffer.get_buffer())
             .setIndexBuffer(indexBinding);

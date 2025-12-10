@@ -26,7 +26,7 @@ struct VoxelChunkMesh {
     uint32_t indexRegionStart = UINT32_MAX;
     uint32_t indexRegionCount = 0;
 
-    uint32_t indirectRegionIndex = UINT32_MAX;
+    uint32_t drawBufferIndex = UINT32_MAX;
 
     // CPU side info
     std::vector<Vertex3d> vertices;
@@ -38,6 +38,6 @@ struct VoxelChunkMesh {
     bool is_allocated() const {
         return vertexRegionStart != UINT32_MAX &&
                indexRegionStart != UINT32_MAX &&
-               indirectRegionIndex != UINT32_MAX;
+               drawBufferIndex != UINT32_MAX;
     }
 };

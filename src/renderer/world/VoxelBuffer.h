@@ -5,46 +5,47 @@
 #include "renderer/vulkan/VulkanBackend.h"
 
 
-// ==================== CONFIGURATION OPTIMALE ====================
+struct alignas(16) TerrainOUB {
+    glm::mat4 model; // Model matrice
+};
+
+// Represent a draw to do
+struct ChunkDrawData {
+    nvrhi::DrawIndexedIndirectArguments drawCmd;
+    TerrainOUB oubData;
+};
+
 static constexpr uint64_t TOTAL_BUFFER_SIZE = 64 * 1024 * 1024; // 64 MB
 
-static constexpr uint32_t VERTEX_SIZE = sizeof(Vertex3d);
+static constexpr uint32_t VERTEX_SIZE = sizeof(TerrainVertex3d);
 static constexpr uint32_t INDEX_SIZE = sizeof(uint32_t);
-static constexpr uint32_t INDIRECT_CMD_SIZE = sizeof(VkDrawIndexedIndirectCommand);
 
 static constexpr float INDEX_TO_VERTEX_RATIO = 1.5f;
 
-// Tailles des régions
-static constexpr uint32_t VERTICES_PER_REGION = 341;
+static constexpr uint32_t VERTICES_PER_REGION = 300;
 static constexpr uint32_t VERTEX_REGION_SIZE = VERTICES_PER_REGION * VERTEX_SIZE;
-static constexpr uint32_t INDICES_PER_VERTEX_REGION = static_cast<uint32_t>(VERTICES_PER_REGION * INDEX_TO_VERTEX_RATIO); // 511
-static constexpr uint32_t INDEX_REGION_SIZE = ((INDICES_PER_VERTEX_REGION * INDEX_SIZE + 1023) / 1024) * 1024; // 2048 bytes
-static constexpr uint32_t INDIRECT_REGION_SIZE = INDIRECT_CMD_SIZE;
+static constexpr uint32_t INDICES_PER_VERTEX_REGION = static_cast<uint32_t>(VERTICES_PER_REGION * INDEX_TO_VERTEX_RATIO);
+static constexpr uint32_t INDEX_REGION_SIZE = ((INDICES_PER_VERTEX_REGION * INDEX_SIZE + 1023) / 1024) * 1024;
 
-// Sections optimales (63/32/5) - TOUS ALIGNÉS À 64 BYTES
-static constexpr uint64_t VERTEX_SECTION_SIZE = 42278528ULL;    // 40.32 MB (63%)
-static constexpr uint64_t INDEX_SECTION_SIZE = 21474816ULL;     // 20.48 MB (32%)
-static constexpr uint64_t INDIRECT_SECTION_SIZE = 3355520ULL;   // 3.20 MB (5%)
+static constexpr uint64_t VERTEX_SECTION_SIZE = 44287808ULL;
+static constexpr uint64_t INDEX_SECTION_SIZE = 22821056ULL;
 
-// Offsets des sections
 static constexpr uint64_t VERTEX_SECTION_OFFSET = 0;
-static constexpr uint64_t INDEX_SECTION_OFFSET = 42278528ULL;
-static constexpr uint64_t INDIRECT_SECTION_OFFSET = 63753344ULL;
+static constexpr uint64_t INDEX_SECTION_OFFSET = 44287808ULL;
 
-// Capacités maximales
-static constexpr uint32_t MAX_VERTEX_REGION = 10321;    // Vertex section / région
-static constexpr uint32_t MAX_INDEX_REGION = 10485;     // Index section / région
-static constexpr uint64_t MAX_INDIRECT_REGION = 52430;  // Indirect section / région
+static constexpr uint32_t MAX_VERTEX_REGION = 10811;
+static constexpr uint32_t MAX_INDEX_REGION = 11152;
 
-// Vérifications de compilation
-static_assert(VERTEX_SECTION_SIZE + INDEX_SECTION_SIZE + INDIRECT_SECTION_SIZE == TOTAL_BUFFER_SIZE,
+static_assert(VERTEX_SECTION_SIZE + INDEX_SECTION_SIZE == TOTAL_BUFFER_SIZE,
               "Sections must sum to total buffer size");
 static_assert(INDEX_SECTION_OFFSET % 4 == 0,
               "Index offset MUST be aligned to 4 bytes for VK_INDEX_TYPE_UINT32");
 static_assert(INDEX_SECTION_OFFSET % 64 == 0,
               "Index offset should be aligned to 64 bytes for cache efficiency");
-static_assert(INDIRECT_SECTION_OFFSET % 64 == 0,
-              "Indirect offset should be aligned to 64 bytes");
+static_assert(VERTEX_SECTION_SIZE % 64 == 0,
+              "Vertex section should be aligned to 64 bytes");
+static_assert(INDEX_SECTION_SIZE % 64 == 0,
+              "Index section should be aligned to 64 bytes");
 
 
 
@@ -57,10 +58,15 @@ class VoxelBuffer {
     // Single 64 MB buffer with all three usage flags
     nvrhi::BufferHandle m_buffer;
 
+    // Small buffer for indirect draw commands and OUB data
+    nvrhi::BufferHandle m_oubBuffer;
+    nvrhi::BufferHandle m_indirectBuffer;
+    // Management of those buffers
+
+
     // Separate free lists for each section (start region, count)
     std::vector<std::pair<uint32_t, uint32_t>> m_freeVertexRegions;
     std::vector<std::pair<uint32_t, uint32_t>> m_freeIndexRegions;
-    std::vector<std::pair<uint32_t, uint32_t>> m_freeIndirectRegions;
 
     void init();
 
@@ -122,22 +128,12 @@ public:
         return INDEX_SECTION_OFFSET + (regionStart * INDEX_REGION_SIZE);
     }
 
-    /**
-     * Get byte offset for an indirect region
-     */
-    uint64_t get_indirect_offset(uint32_t regionIndex) const {
-        return INDIRECT_SECTION_OFFSET + (regionIndex * INDIRECT_REGION_SIZE);
-    }
-
     const std::vector<std::pair<uint32_t, uint32_t>>& get_free_vertex_regions() const { return m_freeVertexRegions; }
     const std::vector<std::pair<uint32_t, uint32_t>>& get_free_index_regions() const { return m_freeIndexRegions; }
-    const std::vector<std::pair<uint32_t, uint32_t>>& get_free_indirect_regions() const { return m_freeIndirectRegions; }
 
     uint32_t get_used_vertex_regions() const;
     uint32_t get_used_index_regions() const;
-    uint32_t get_used_indirect_regions() const;
 
     uint32_t get_largest_free_vertex_block() const;
     uint32_t get_largest_free_index_block() const;
-    uint32_t get_largest_free_indirect_block() const;
 };

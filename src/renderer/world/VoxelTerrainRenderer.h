@@ -35,8 +35,13 @@ private:
     // UBO
     nvrhi::BufferHandle m_uboBuffer;
     TerrainUBO m_ubo; // CPU-side copy of the UBO. Will be use to know when to update the GPU UBO. (compare the camera entity value with this one)
-    nvrhi::BindingLayoutHandle m_uboBindingLayout;
-    nvrhi::BindingSetHandle m_uboBindingSet;
+
+    // Draw command and chunk additionnal data
+    nvrhi::BufferHandle m_chunkOUBBuffer; // 8Mb
+    nvrhi::BufferHandle m_indirectBuffer; // m_chunkOUBBuffer / sizeof(TerrainOUB) * sizeof(nvrhi::DrawIndexedIndirectArguments) = 2.5Mb
+
+    nvrhi::BindingLayoutHandle m_bindingLayout;
+    nvrhi::BindingSetHandle m_bindingSet;
 
     std::vector<VoxelBuffer> m_chunkBuffers;
 
@@ -47,6 +52,14 @@ private:
 
     void init();
     void destroy();
+
+    /**
+     * This will store in the indirect buffer a draw command for the given mesh.
+     * It will also prepare the model matrix and store it in the chunk OUB buffer.
+     * @param mesh The mesh to create the draw command for. The buffer index will be set in this struct
+     * @param pos Position of the chunk in world space
+     */
+    void add_draw_command(VoxelChunkMesh& mesh, const Position& pos);
 
     bool build_voxel_chunk_mesh_system(
         const VoxelChunk &chunk,
