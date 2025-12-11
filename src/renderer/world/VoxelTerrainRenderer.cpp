@@ -101,7 +101,7 @@ void VoxelTerrainRenderer::init() {
 
     // Configure render state
     nvrhi::RenderState renderState;
-    renderState.rasterState.cullMode = nvrhi::RasterCullMode::None;
+    renderState.rasterState.cullMode = nvrhi::RasterCullMode::Back;
     renderState.rasterState.fillMode = nvrhi::RasterFillMode::Fill;
     renderState.depthStencilState.depthTestEnable = true;
     renderState.depthStencilState.depthWriteEnable = true;

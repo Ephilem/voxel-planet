@@ -33,9 +33,9 @@ CoreModule::CoreModule(flecs::world& ecs) {
         }
     }
 
-    for (int x = 0; x < 10; ++x) {
+    for (int x = 0; x < 1; ++x) {
         for (int y = 0; y < 1; ++y) {
-            for (int z = 0; z < 10; ++z) {
+            for (int z = 0; z < 1; ++z) {
                 std::string entityName = "TestChunk_" + std::to_string(x) + "_" + std::to_string(y) + "_" + std::to_string(z);
                 ecs.entity(entityName.c_str())
                     .set<Position>({static_cast<float>(x * CHUNK_SIZE), static_cast<float>(y * CHUNK_SIZE), static_cast<float>(z * CHUNK_SIZE)})
