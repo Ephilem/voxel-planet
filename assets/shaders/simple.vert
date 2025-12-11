@@ -22,7 +22,7 @@ layout(set = 1, binding = 0, std430) readonly buffer object_uniform_buffer {
 } oub;
 
 void main() {
-    vec3 localPos = inPosition.xyz * 1024.0;
+    vec3 localPos = inPosition.xyz * 1024.0 / 64.0;
     mat4 model = oub.objects[gl_InstanceIndex].model;
 
     vec4 worldPos = model * vec4(localPos, 1.0);

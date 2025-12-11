@@ -19,23 +19,28 @@ CoreModule::CoreModule(flecs::world& ecs) {
         .lastTime = glfwGetTime()
     });
 
-    // test chunk
-    VoxelChunk chunk = {
-        .data = {0}
-    };
 
-    // generate a flat chunk
-    for (int x = 0; x < CHUNK_SIZE; ++x) {
-        for (int y = 0; y < CHUNK_SIZE; ++y) {
-            for (int z = 0; z < CHUNK_SIZE; ++z) {
-                chunk.data[x][y][z] = std::rand() % 2;
-            }
-        }
-    }
 
     for (int x = 0; x < 1; ++x) {
-        for (int y = 0; y < 1; ++y) {
+        for (int y = 0; y < 2; ++y) {
             for (int z = 0; z < 1; ++z) {
+                // test chunk
+                VoxelChunk chunk = {
+                    .data = {0}
+                };
+
+                for (int x1 = 0; x1 < CHUNK_SIZE; ++x1) {
+                    for (int y1 = 0; y1 < CHUNK_SIZE; ++y1) {
+                        for (int z1 = 0; z1 < CHUNK_SIZE; ++z1) {
+                            if (y1 == y) {
+                                chunk.data[x1][y1][z1] = 1;
+                            } else {
+                                chunk.data[x1][y1][z1] = 0;
+                            }
+                        }
+                    }
+                }
+
                 std::string entityName = "TestChunk_" + std::to_string(x) + "_" + std::to_string(y) + "_" + std::to_string(z);
                 ecs.entity(entityName.c_str())
                     .set<Position>({static_cast<float>(x * CHUNK_SIZE), static_cast<float>(y * CHUNK_SIZE), static_cast<float>(z * CHUNK_SIZE)})

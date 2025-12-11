@@ -222,9 +222,10 @@ bool VoxelTerrainRenderer::build_voxel_chunk_mesh_system(const VoxelChunk &chunk
                     uint32_t baseIdx = mesh.vertices.size();
                     for (int i = 0; i < 4; i++) {
                         TerrainVertex3d vertex;
-                        vertex.x = static_cast<uint32_t>(verts[face][i][0]);
-                        vertex.y = static_cast<uint32_t>(verts[face][i][1]);
-                        vertex.z = static_cast<uint32_t>(verts[face][i][2]);
+                        // store using full 10 bits per component (0-1023)
+                        vertex.x = static_cast<uint32_t>(verts[face][i][0]) * 1023 / (CHUNK_SIZE);
+                        vertex.y = static_cast<uint32_t>(verts[face][i][1]) * 1023 / (CHUNK_SIZE);
+                        vertex.z = static_cast<uint32_t>(verts[face][i][2]) * 1023 / (CHUNK_SIZE);
                         vertex.padding = 0;
                         mesh.vertices.emplace_back(vertex);
                     }
@@ -263,10 +264,10 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(nvrhi::CommandListHandle cmd
 
     TerrainOUB oub = {
         .model = {
-            1.0f, 0.0f, 0.0f, pos.x,
-            0.0f, 1.0f, 0.0f, pos.y,
-            0.0f, 0.0f, 1.0f, pos.z,
-            0.0f, 0.0f, 0.0f, 1.0f
+            1.0f, 0.0f, 0.0f, 0.0f,  // column 0
+            0.0f, 1.0f, 0.0f, 0.0f,  // column 1
+            0.0f, 0.0f, 1.0f, 0.0f,  // column 2
+            pos.x, pos.y, pos.z, 1.0f  // column 3 (translation)
         }
     };
     chunkBuffer.write(cmd, mesh, oub);
