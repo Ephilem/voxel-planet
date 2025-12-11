@@ -20,21 +20,26 @@ static constexpr uint64_t TOTAL_BUFFER_SIZE = 64 * 1024 * 1024; // 64 MB
 static constexpr uint32_t VERTEX_SIZE = sizeof(TerrainVertex3d);
 static constexpr uint32_t INDEX_SIZE = sizeof(uint32_t);
 
-static constexpr float INDEX_TO_VERTEX_RATIO = 1.5f;
+static constexpr float INDEX_TO_VERTEX_RATIO = 5.0f;
 
 static constexpr uint32_t VERTICES_PER_REGION = 300;
 static constexpr uint32_t VERTEX_REGION_SIZE = VERTICES_PER_REGION * VERTEX_SIZE;
 static constexpr uint32_t INDICES_PER_VERTEX_REGION = static_cast<uint32_t>(VERTICES_PER_REGION * INDEX_TO_VERTEX_RATIO);
 static constexpr uint32_t INDEX_REGION_SIZE = ((INDICES_PER_VERTEX_REGION * INDEX_SIZE + 1023) / 1024) * 1024;
 
-static constexpr uint64_t VERTEX_SECTION_SIZE = 44287808ULL;
-static constexpr uint64_t INDEX_SECTION_SIZE = 22821056ULL;
+static constexpr float VERTEX_TO_INDEX_BYTE_RATIO = 0.67f;
+
+static constexpr float VERTEX_FRACTION = VERTEX_TO_INDEX_BYTE_RATIO / (VERTEX_TO_INDEX_BYTE_RATIO + 1.0f);
+static constexpr float INDEX_FRACTION = 1.0f - VERTEX_FRACTION;
+
+static constexpr uint64_t VERTEX_SECTION_SIZE = ((static_cast<uint64_t>(TOTAL_BUFFER_SIZE * VERTEX_FRACTION) + 63) / 64) * 64;
+static constexpr uint64_t INDEX_SECTION_SIZE = TOTAL_BUFFER_SIZE - VERTEX_SECTION_SIZE;
 
 static constexpr uint64_t VERTEX_SECTION_OFFSET = 0;
-static constexpr uint64_t INDEX_SECTION_OFFSET = 44287808ULL;
+static constexpr uint64_t INDEX_SECTION_OFFSET = VERTEX_SECTION_SIZE;
 
-static constexpr uint32_t MAX_VERTEX_REGION = 10811;
-static constexpr uint32_t MAX_INDEX_REGION = 11152;
+static constexpr uint32_t MAX_VERTEX_REGION = VERTEX_SECTION_SIZE / VERTEX_REGION_SIZE;
+static constexpr uint32_t MAX_INDEX_REGION = INDEX_SECTION_SIZE / INDEX_REGION_SIZE;
 
 static_assert(VERTEX_SECTION_SIZE + INDEX_SECTION_SIZE == TOTAL_BUFFER_SIZE,
               "Sections must sum to total buffer size");

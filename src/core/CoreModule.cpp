@@ -21,9 +21,9 @@ CoreModule::CoreModule(flecs::world& ecs) {
 
 
 
-    for (int x = 0; x < 1; ++x) {
-        for (int y = 0; y < 2; ++y) {
-            for (int z = 0; z < 1; ++z) {
+    for (int x = 0; x < 10; ++x) {
+        for (int y = 0; y < 10; ++y) {
+            for (int z = 0; z < 10; ++z) {
                 // test chunk
                 VoxelChunk chunk = {
                     .data = {0}
@@ -32,11 +32,12 @@ CoreModule::CoreModule(flecs::world& ecs) {
                 for (int x1 = 0; x1 < CHUNK_SIZE; ++x1) {
                     for (int y1 = 0; y1 < CHUNK_SIZE; ++y1) {
                         for (int z1 = 0; z1 < CHUNK_SIZE; ++z1) {
-                            if (y1 == y) {
-                                chunk.data[x1][y1][z1] = 1;
-                            } else {
-                                chunk.data[x1][y1][z1] = 0;
-                            }
+                            // if (y1 == y) {
+                            //     chunk.data[x1][y1][z1] = 1;
+                            // } else {
+                            //     chunk.data[x1][y1][z1] = 0;
+                            // }
+                            chunk.data[x1][y1][z1] = std::rand() % 2;
                         }
                     }
                 }
