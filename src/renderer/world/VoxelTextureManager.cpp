@@ -24,8 +24,9 @@ uint16_t VoxelTextureManager::request_texture_slot(const AssetID &textureID) {
     }
 
     for (uint32_t i = 0; i < m_slots.size(); ++i) {
-        if (!m_slots[i].uploaded) {
+        if (m_slots[i].textureID == 0) {
             m_textures[textureID] = i;
+            m_slots[i].textureID = textureID;
             m_slots[i].uploaded = false;
             m_toUploadList.push_back(textureID);
             LOG_DEBUG("VoxelTextureManager", "Assigned texture ID {} to slot {}", textureID, i);

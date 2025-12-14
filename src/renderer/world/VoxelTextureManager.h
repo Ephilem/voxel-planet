@@ -11,6 +11,7 @@
 struct Renderer;
 
 struct VoxelTextureSlot {
+    AssetID textureID = 0; // used to track if this slot is used
     bool uploaded = false;
     nvrhi::TextureHandle handle = nullptr;
 };

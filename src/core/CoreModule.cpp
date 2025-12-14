@@ -30,6 +30,7 @@ CoreModule::CoreModule(flecs::world& ecs) {
                     .data = {0},
                     .textureIDs = {
                         {"voxelplanet:textures/grass"_asset, 1},
+                        {"voxelplanet:textures/cobblestone"_asset, 2}
                     }
                 };
 
@@ -41,7 +42,7 @@ CoreModule::CoreModule(flecs::world& ecs) {
                             // } else {
                             //     chunk.data[x1][y1][z1] = 0;
                             // }
-                            chunk.data[x1][y1][z1] = (y1 == 0) ? 1 : 0;
+                            chunk.data[x1][y1][z1] = (y1 == 0) ? std::rand()%2+1 : 0;
                         }
                     }
                 }

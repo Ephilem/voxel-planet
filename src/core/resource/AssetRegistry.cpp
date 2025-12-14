@@ -33,6 +33,9 @@ void AssetRegistry::scan_assets(const std::filesystem::path& assetDir, const std
             std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
 
             ResourceType type = get_type_from_extension(extension);
+            if (type == ResourceType::UNKNOWN) {
+                continue;
+            }
 
             std::filesystem::path relativePath = std::filesystem::relative(filePath, assetDir);
 
@@ -51,6 +54,8 @@ void AssetRegistry::scan_assets(const std::filesystem::path& assetDir, const std
             m_registry[assetID] = AssetMetadata(relativePathStr, filePath.string(), type, fileSize);
 
             m_debugNames[assetID] = assetName;
+            LOG_TRACE("AssetRegistry", "Registered asset: {} (ID: {}, Type: {}, Size: {} bytes)",
+                      assetName, assetID, static_cast<int>(type), fileSize);
 
             assetCount++;
         }
@@ -128,7 +133,7 @@ ResourceType AssetRegistry::get_type_from_extension(const std::string& extension
         return ResourceType::TEXT;
     }
 
-    return ResourceType::BINARY;
+    return ResourceType::UNKNOWN;
 }
 
 std::string AssetRegistry::build_asset_name(const std::string& relativePath, const std::string& namespaceName) {

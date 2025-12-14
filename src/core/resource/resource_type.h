@@ -5,6 +5,8 @@
 #include "asset_id.h"
 
 enum class ResourceType {
+    UNKNOWN,
+
     TEXT,
     BINARY,
     SHADER,
