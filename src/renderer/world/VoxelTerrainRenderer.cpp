@@ -84,20 +84,15 @@ void VoxelTerrainRenderer::init() {
     // Create Vertex Attribute Input
     nvrhi::VertexAttributeDesc vertexAttrs[] = {
         nvrhi::VertexAttributeDesc()
-        .setName("POSITION")
-        .setFormat(nvrhi::Format::R10G10B10A2_UNORM)
+        .setName("POSITION_UV")
+        .setFormat(nvrhi::Format::R32_UINT)
         .setOffset(0)
         .setElementStride(sizeof(TerrainVertex3d)),
         nvrhi::VertexAttributeDesc()
-        .setName("TEXTURESLOT")
+        .setName("TEXTURESLOT_FACEINDEX")
         .setFormat(nvrhi::Format::R16_UINT)
         .setOffset(4)
-        .setElementStride(sizeof(TerrainVertex3d)),
-        nvrhi::VertexAttributeDesc()
-        .setName("FACEINDEX")
-        .setFormat(nvrhi::Format::R16_UINT)
-        .setOffset(6)
-        .setElementStride(sizeof(TerrainVertex3d)),
+        .setElementStride(sizeof(TerrainVertex3d))
     };
 
     nvrhi::InputLayoutHandle inputLayout = m_backend->device->createInputLayout(
@@ -237,6 +232,13 @@ bool VoxelTerrainRenderer::build_voxel_chunk_mesh_system(const VoxelChunk &chunk
                     float fy = static_cast<float>(y);
                     float fz = static_cast<float>(z);
 
+                    static const uint8_t faceUVs[4][2] = {
+                        {0, 0},  // bottom-left
+                        {0, 1},  // top-left
+                        {1, 1},  // top-right
+                        {1, 0}   // bottom-right
+                    };
+
                     float verts[6][4][3] = {
                         // Face 0: -X (left)
                         {{fx, fy, fz}, {fx, fy+1.0f, fz}, {fx, fy+1.0f, fz+1.0f}, {fx, fy, fz+1.0f}},
@@ -253,12 +255,14 @@ bool VoxelTerrainRenderer::build_voxel_chunk_mesh_system(const VoxelChunk &chunk
                     };
 
                     uint32_t baseIdx = mesh.vertices.size();
+                    uint32_t uvRandomOffset = std::rand()+x + y + z;
                     for (int i = 0; i < 4; i++) {
                         TerrainVertex3d vertex;
-                        vertex.x = static_cast<uint32_t>(verts[face][i][0]) * 1023 / CHUNK_SIZE;
-                        vertex.y = static_cast<uint32_t>(verts[face][i][1]) * 1023 / CHUNK_SIZE;
-                        vertex.z = static_cast<uint32_t>(verts[face][i][2]) * 1023 / CHUNK_SIZE;
-                        vertex.padding = 0;
+                        vertex.x = static_cast<uint32_t>(std::round(verts[face][i][0] / CHUNK_SIZE * 1023.0f));
+                        vertex.y = static_cast<uint32_t>(std::round(verts[face][i][1] / CHUNK_SIZE * 1023.0f));
+                        vertex.z = static_cast<uint32_t>(std::round(verts[face][i][2] / CHUNK_SIZE * 1023.0f));
+                        vertex.u = faceUVs[(uvRandomOffset+i)%4][0];
+                        vertex.v = faceUVs[(uvRandomOffset+i)%4][1];
                         vertex.textureSlot = textureSlotMap[voxel];
                         vertex.faceIndex = face;  // 0-5 for -X, +X, -Y, +Y, -Z, +Z
                         mesh.vertices.emplace_back(vertex);

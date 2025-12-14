@@ -14,10 +14,7 @@ VoxelTextureManager::VoxelTextureManager(VulkanBackend* backend) {
 }
 
 VoxelTextureManager::~VoxelTextureManager() {
-    m_textureArray = nullptr;
-    m_sampler = nullptr;
-    m_bindingLayout = nullptr;
-    m_bindingSet = nullptr;
+    release_resources();
 }
 
 uint16_t VoxelTextureManager::request_texture_slot(const AssetID &textureID) {
@@ -61,7 +58,7 @@ void VoxelTextureManager::init() {
             .setWidth(32)
             .setHeight(32)
             .setArraySize(MAX_VOXEL_TEXTURE_SLOTS) // 1024 layers
-            .setMipLevels(6) // mipmaps: 32 -> 16 -> 8 -> 4 -> 2 -> 1
+            .setMipLevels(1)
             .setFormat(nvrhi::Format::RGBA8_UNORM)
             .setIsRenderTarget(false)
             .setIsTypeless(false)
@@ -73,7 +70,7 @@ void VoxelTextureManager::init() {
     auto samplerDesc = nvrhi::SamplerDesc()
             .setAllFilters(false) // nearest neighbors
             .setAllAddressModes(nvrhi::SamplerAddressMode::Repeat)
-            .setMipFilter(true);
+            .setMipFilter(false); // todo generate mipmaps later
     m_sampler = m_backend->device->createSampler(samplerDesc);
 
     auto bindingOffsets = nvrhi::VulkanBindingOffsets()

@@ -1,10 +1,8 @@
 #version 450
-#extension GL_ARB_shader_draw_parameters : require
 
 // vertex input
-layout(location = 0) in vec4 inPosition;
-layout(location = 1) in uint inTextureSlot;
-layout(location = 2) in uint inFaceIndex;
+layout(location = 0) in uint inPackedPositionUV;
+layout(location = 1) in uint inPackedTextureSlotFaceIndex;
 
 layout(location = 0) out vec3 fragWorldPos;
 layout(location = 1) out vec2 fragUV;
@@ -26,32 +24,33 @@ layout(set = 1, binding = 0, std430) readonly buffer object_uniform_buffer {
 } oub;
 
 void main() {
-    vec3 localPos = inPosition.xyz * 16.0;
-    mat4 model = oub.objects[gl_InstanceIndex].model;
+    // Unpack position and UV
+    vec3 inPosition;
+    inPosition.x = (inPackedPositionUV >> 0u) & 0x3FFu;
+    inPosition.y = (inPackedPositionUV >> 10u) & 0x3FFu;
+    inPosition.z = (inPackedPositionUV >> 20u) & 0x3FFu;
 
+    // UV one bit each (for 4 possible values)
+    fragUV.x = float((inPackedPositionUV >> 30u) & 0x1u);
+    fragUV.y = float((inPackedPositionUV >> 31u) & 0x1u);
+
+    uint textureSlot = (inPackedTextureSlotFaceIndex >> 0u) & 0x1FFFu;
+    uint faceIndex = (inPackedTextureSlotFaceIndex >> 13u) & 0x7u;
+
+    vec3 localPos = inPosition.xyz * (16.0 / 1023.0);
+
+    mat4 model = oub.objects[gl_InstanceIndex].model;
     vec4 worldPos = model * vec4(localPos, 1.0);
     fragWorldPos = worldPos.xyz;
-
-    // Face index: 0=-X, 1=+X, 2=-Y, 3=+Y, 4=-Z, 5=+Z
-    if (inFaceIndex == 0u || inFaceIndex == 1u) {
-        // Left/Right faces: use YZ
-        fragUV = fract(localPos.yz);
-    } else if (inFaceIndex == 2u || inFaceIndex == 3u) {
-        // Bottom/Top faces: use XZ
-        fragUV = fract(localPos.xz);
-    } else {
-        // Front/Back faces: use XY
-        fragUV = fract(localPos.xy);
-    }
 
     vec3 normals[6] = vec3[](
         vec3(-1, 0, 0), vec3(1, 0, 0),   // -X, +X
         vec3(0, -1, 0), vec3(0, 1, 0),   // -Y, +Y
         vec3(0, 0, -1), vec3(0, 0, 1)    // -Z, +Z
     );
-    fragNormal = normals[inFaceIndex];
+    fragNormal = normals[faceIndex];
 
-    fragTextureSlot = inTextureSlot;
+    fragTextureSlot = textureSlot;
 
     gl_Position = global_ubo.projection * global_ubo.view * worldPos;
 }

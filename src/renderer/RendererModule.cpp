@@ -127,11 +127,11 @@ RendererModule::RendererModule(flecs::world& ecs) {
 
     // create camera here for now
     ecs.entity()
-        .set<Position>({0.0f, 0.0f, 5.0f})
+        .set<Position>({8.0f, 20.0f, 8.0f})
         .set<Camera3dParameters>({
             .fov = 70.0f
         })
-        .set<Orientation>({0.0f, 0.0f, 0.0f})
+        .set<Orientation>({-89.0f, 0.0f, 0.0f})
         .set<Camera3d>({});
 
     ecs.system<Renderer>("EndFrameSystem")
@@ -167,6 +167,10 @@ void shutdown_renderer(flecs::world& ecs) {
     if (renderer) {
         if (renderer->voxelTerrainRenderer) {
             renderer->voxelTerrainRenderer.reset();
+        }
+        // TODO please find a better way to do this
+        if (auto* vtm = ecs.get_mut<VoxelTextureManager>()) {
+            vtm->release_resources();
         }
         if (renderer->debugModuleManager) {
             renderer->debugModuleManager.reset();

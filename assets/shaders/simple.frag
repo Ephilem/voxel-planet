@@ -21,7 +21,22 @@ void main() {
     float ambient = 0.3;
     float lighting = ambient + diffuse * 0.7;
 
-    vec3 finalColor = fragNormal * 0.5 + 0.5;
+    vec3 finalColor = texColor.rgb;
+
+
+//    vec3 debugColor = vec3(0.0);
+//    if (fragUV.x > 1.0 || fragUV.y > 1.0) {
+//        debugColor = vec3(1.0, 0.0, 1.0); // Magenta if out of range
+//    } else if (fragUV.x < 0.0 || fragUV.y < 0.0) {
+//        debugColor = vec3(0.0, 1.0, 1.0); // Cyan if negative
+//    } else {
+//        debugColor = vec3(fragUV, 0.0);
+//    }
+//
+//    fragColor = vec4(debugColor, 1.0);
 
     fragColor = vec4(finalColor, texColor.a);
+//    fragColor = vec4(fragUV/2, 0.0, 1.0);
+
+//    fragColor = vec4(debugLocalPos / 16.0, 1.0);
 }

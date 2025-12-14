@@ -38,6 +38,13 @@ public:
     nvrhi::BindingLayoutHandle get_binding_layout() const { return m_bindingLayout; }
     nvrhi::BindingSetHandle get_binding_set() const { return m_bindingSet; }
 
+    void release_resources() {
+        m_textureArray = nullptr;
+        m_bindingLayout = nullptr;
+        m_bindingSet = nullptr;
+        m_sampler = nullptr;
+    }
+
 private:
     void init();
 
