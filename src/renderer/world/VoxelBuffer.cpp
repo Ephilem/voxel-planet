@@ -184,8 +184,8 @@ void VoxelBuffer::write(nvrhi::CommandListHandle cmd, VoxelChunkMesh &mesh, cons
     uint64_t indirectByteOffset = mesh.drawSlotIndex * sizeof(nvrhi::DrawIndexedIndirectArguments);
     cmd->writeBuffer(m_indirectBuffer, &args, sizeof(nvrhi::DrawIndexedIndirectArguments), indirectByteOffset);
 
-    float avgVertexToIndexRatio = ((float)mesh.vertexCount / mesh.indexCount);
-    LOG_INFO("VoxelBuffer", "Vertex/Index ratio: {:.2f}", avgVertexToIndexRatio);
+    // float avgVertexToIndexRatio = ((float)mesh.vertexCount / mesh.indexCount);
+    // LOG_INFO("VoxelBuffer", "Vertex/Index ratio: {:.2f}", avgVertexToIndexRatio);
 }
 
 

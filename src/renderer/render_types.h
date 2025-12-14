@@ -11,4 +11,6 @@ struct TerrainVertex3d {
     uint32_t y : 10;
     uint32_t z : 10;
     uint32_t padding : 2;
+    uint16_t textureSlot;
+    uint16_t faceIndex;  // 0-5 for the 6 cube faces
 };

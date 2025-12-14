@@ -4,10 +4,10 @@
 #include "loaders/ShaderLoader.h"
 
 
-ResourceSystem::ResourceSystem() {
+ResourceSystem::ResourceSystem(AssetRegistry* assetRegistry) {
+    m_assetRegistry = assetRegistry;
     register_loader(ResourceType::IMAGE, std::make_unique<ImageLoader>());
     register_loader(ResourceType::SHADER, std::make_unique<ShaderLoader>());
-    // TODO Other loaders
 }
 
 ResourceSystem::~ResourceSystem() {

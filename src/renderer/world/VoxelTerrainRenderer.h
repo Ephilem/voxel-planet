@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "VoxelBuffer.h"
+#include "VoxelTextureManager.h"
 #include "core/resource/ResourceSystem.h"
 #include "core/world/world_components.h"
 #include "nvrhi/nvrhi.h"
@@ -22,7 +23,7 @@ struct alignas(16) TerrainUBO {
 
 class VoxelTerrainRenderer {
 public:
-    VoxelTerrainRenderer(VulkanBackend* backend, ResourceSystem* resourceSystem);
+    VoxelTerrainRenderer(VulkanBackend* backend, ResourceSystem* resourceSystem, VoxelTextureManager* textureManager);
     ~VoxelTerrainRenderer();
 
     // create instance and register components/systems in the ECS
@@ -31,6 +32,7 @@ public:
 private:
     VulkanBackend* m_backend;
     ResourceSystem* m_resourceSystem;
+    VoxelTextureManager* m_textureManager;
 
     // UBO
     nvrhi::BufferHandle m_uboBuffer;
@@ -55,7 +57,7 @@ private:
 
     bool build_voxel_chunk_mesh_system(
         const VoxelChunk &chunk,
-        VoxelChunkMesh &mesh, const Position& pos);
+        VoxelChunkMesh &mesh, const Position& pos, VoxelTextureManager* textureManager);
 
     bool upload_chunk_mesh_system(
         nvrhi::CommandListHandle cmd,

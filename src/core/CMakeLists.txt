@@ -7,6 +7,8 @@ add_library(VoxelPlanetCore STATIC
     log/Logger.h
     resource/asset_id.h
     resource/resource_type.h
+    resource/AssetRegistry.cpp
+    resource/AssetRegistry.h
     resource/loaders/ResourceLoader.h
     resource/loaders/ImageLoader.cpp
     resource/loaders/ImageLoader.h

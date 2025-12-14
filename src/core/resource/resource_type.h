@@ -23,8 +23,8 @@ public:
 };
 
 class ShaderResource : public IResource {
-    std::unique_ptr<uint8_t[]> _data{};
-    size_t _data_size{0};
+    std::unique_ptr<uint8_t[]> m_data{};
+    size_t m_data_size{0};
 
 public:
     AssetID id;
@@ -32,20 +32,20 @@ public:
 
     ShaderResource(std::string assetName, size_t dataSize,
                    std::unique_ptr<uint8_t[]> data)
-        : name(std::move(assetName)), _data_size(dataSize), _data(std::move(data))
+        : name(std::move(assetName)), m_data_size(dataSize), m_data(std::move(data))
     {
         id = hash_string_runtime(name.c_str());
     }
 
     AssetID get_id() const override { return id; }
     const std::string& get_name() const override { return name; }
-    size_t get_data_size() const override { return _data_size; }
+    size_t get_data_size() const override { return m_data_size; }
 
-    uint8_t* getData() const { return _data.get(); }
+    uint8_t* get_data() const { return m_data.get(); }
 };
 
 class ImageResource : public IResource {
-    std::unique_ptr<uint8_t[]> _data{};
+    std::unique_ptr<uint8_t[]> m_data{};
 
 public:
     AssetID id;
@@ -58,13 +58,13 @@ public:
 
     ImageResource(std::string assetName, uint32_t w, uint32_t h,
                   uint8_t channels, std::unique_ptr<uint8_t[]> data)
-        : _data(std::move(data)), name(std::move(assetName)), width(w), height(h), channel_count(channels)
+        : m_data(std::move(data)), name(std::move(assetName)), width(w), height(h), channel_count(channels)
     {
         id = hash_string_runtime(name.c_str());
 
         has_transparency = false;
         for (size_t i = 0; i < width * height; ++i) {
-            if (_data[i * channel_count + 3] < 255) {
+            if (m_data[i * channel_count + 3] < 255) {
                 has_transparency = true;
                 break;
             }
@@ -75,5 +75,5 @@ public:
     const std::string& get_name() const override { return name; }
     size_t get_data_size() const override { return width * height * channel_count; }
 
-    uint8_t* getData() const { return _data.get(); }
+    uint8_t* get_data() const { return m_data.get(); }
 };

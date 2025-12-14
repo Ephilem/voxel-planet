@@ -12,21 +12,25 @@ CoreModule::CoreModule(flecs::world& ecs) {
     ecs.component<VoxelChunk>();
     ecs.component<Position>();
 
+    auto assetRegistry = std::make_unique<AssetRegistry>();
+
     ecs.set<GameState>({
-        .resourceSystem = std::make_unique<ResourceSystem>(),
+        .resourceSystem = std::make_unique<ResourceSystem>(assetRegistry.get()),
+        .assetRegistry = std::move(assetRegistry),
         .isRunning = true,
         .deltaTime = 0.0,
         .lastTime = glfwGetTime()
     });
 
-
-
-    for (int x = 0; x < 10; ++x) {
-        for (int y = 0; y < 10; ++y) {
-            for (int z = 0; z < 10; ++z) {
+    for (int x = 0; x < 5; ++x) {
+        for (int y = 0; y < 1; ++y) {
+            for (int z = 0; z < 5; ++z) {
                 // test chunk
                 VoxelChunk chunk = {
-                    .data = {0}
+                    .data = {0},
+                    .textureIDs = {
+                        {"voxelplanet:textures/grass"_asset, 1},
+                    }
                 };
 
                 for (int x1 = 0; x1 < CHUNK_SIZE; ++x1) {
@@ -37,14 +41,16 @@ CoreModule::CoreModule(flecs::world& ecs) {
                             // } else {
                             //     chunk.data[x1][y1][z1] = 0;
                             // }
-                            chunk.data[x1][y1][z1] = std::rand() % 2;
+                            chunk.data[x1][y1][z1] = (y1 == 0) ? 1 : 0;
                         }
                     }
                 }
 
                 std::string entityName = "TestChunk_" + std::to_string(x) + "_" + std::to_string(y) + "_" + std::to_string(z);
                 ecs.entity(entityName.c_str())
-                    .set<Position>({static_cast<float>(x * CHUNK_SIZE), static_cast<float>(y * CHUNK_SIZE), static_cast<float>(z * CHUNK_SIZE)})
+                    .set<Position>({
+                        static_cast<float>(x * CHUNK_SIZE), static_cast<float>(y * CHUNK_SIZE), static_cast<float>(z * CHUNK_SIZE)
+                    })
                     .set<VoxelChunk>(chunk);
             }
         }

@@ -25,6 +25,8 @@ add_library(VoxelPlanetRenderer STATIC
         render_types.h
         Camera3dSystems.cpp
         Camera3dSystems.h
+        world/VoxelTextureManager.cpp
+        world/VoxelTextureManager.h
 )
 
 add_library(VoxelPlanet::Renderer ALIAS VoxelPlanetRenderer)
