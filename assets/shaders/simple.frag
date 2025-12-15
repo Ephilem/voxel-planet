@@ -23,6 +23,14 @@ void main() {
 
     vec3 finalColor = texColor.rgb;
 
+//    if (fragTextureSlot == 1u) {
+//        finalColor = vec3(0.1, 0.8, 0.1);
+//    } else if (fragTextureSlot == 2u) {
+//        finalColor = vec3(0.545, 0.271, 0.075);
+//    } else if (fragTextureSlot == 3u) {
+//        finalColor = vec3(0.5, 0.5, 0.5);
+//    }
+
 
 //    vec3 debugColor = vec3(0.0);
 //    if (fragUV.x > 1.0 || fragUV.y > 1.0) {

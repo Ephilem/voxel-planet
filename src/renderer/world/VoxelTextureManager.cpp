@@ -64,6 +64,7 @@ void VoxelTextureManager::init() {
             .setIsRenderTarget(false)
             .setIsTypeless(false)
             .setDebugName("VoxelTextureArray")
+            .setDimension(nvrhi::TextureDimension::Texture2DArray)
             .setInitialState(nvrhi::ResourceStates::ShaderResource)
             .setKeepInitialState(true);
     m_textureArray = m_backend->device->createTexture(textureDesc);
@@ -87,9 +88,16 @@ void VoxelTextureManager::init() {
             .setBindingOffsets(bindingOffsets);
     m_bindingLayout = m_backend->device->createBindingLayout(bindingLayoutDesc);
 
+    auto subresourceRange = nvrhi::TextureSubresourceSet()
+            .setBaseMipLevel(0)
+            .setNumMipLevels(1)
+            .setBaseArraySlice(0)
+            .setNumArraySlices(MAX_VOXEL_TEXTURE_SLOTS);
     auto bindingSetDesc = nvrhi::BindingSetDesc()
-            .addItem(nvrhi::BindingSetItem::Texture_SRV(0, m_textureArray, nvrhi::Format::UNKNOWN,
-                     nvrhi::AllSubresources, nvrhi::TextureDimension::Texture2DArray))
+            .addItem(nvrhi::BindingSetItem::Texture_SRV(0, m_textureArray,
+                     nvrhi::Format::UNKNOWN,
+                     subresourceRange,
+                     nvrhi::TextureDimension::Texture2DArray))
             .addItem(nvrhi::BindingSetItem::Sampler(1, m_sampler));
     m_bindingSet = m_backend->device->createBindingSet(bindingSetDesc, m_bindingLayout);
 }
