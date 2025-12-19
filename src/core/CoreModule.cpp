@@ -22,9 +22,9 @@ CoreModule::CoreModule(flecs::world& ecs) {
         .lastTime = glfwGetTime()
     });
 
-    for (int x = 0; x < 10; ++x) {
+    for (int x = 0; x < 30; ++x) {
         for (int y = 0; y < 1; ++y) {
-            for (int z = 0; z < 10; ++z) {
+            for (int z = 0; z < 30; ++z) {
                 // test chunk
                 VoxelChunk chunk = {
                     .data = {0},
@@ -43,6 +43,7 @@ CoreModule::CoreModule(flecs::world& ecs) {
                             //     chunk.data[x1][y1][z1] = 0;
                             // }
                             chunk.data[x1][y1][z1] = (y1 == 0) ? std::rand()%2+1 : 0;
+                            // chunk.data[x1][y1][z1] = (y1 == 0) ? 1 : 0;
                         }
                     }
                 }

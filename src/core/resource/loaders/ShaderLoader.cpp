@@ -13,6 +13,7 @@ std::shared_ptr<ShaderResource> ShaderLoader::load_typed(const std::string &name
     // load the file
     FILE* file = fopen(fullFilePath.c_str(), "rb");
     if (!file) {
+        LOG_FATAL("ShaderLoader", "Failed to open shader file '{}'", fullFilePath);
         throw std::runtime_error("Shader resource loader failed to open file '" + fullFilePath + "'");
     }
 
@@ -25,6 +26,7 @@ std::shared_ptr<ShaderResource> ShaderLoader::load_typed(const std::string &name
     std::unique_ptr<uint8_t[]> data(new uint8_t[size]);
     size_t bytesRead = fread(data.get(), 1, size, file);
     if (bytesRead != size) {
+        LOG_FATAL("ShaderLoader", "Failed to read shader file '{}': expected {} bytes, read {} bytes", fullFilePath, size, bytesRead);
         throw std::runtime_error("Shader resource loader failed to read file '" + fullFilePath + " the waited size is " + std::to_string(size) + " but read " + std::to_string(bytesRead) + " bytes");
     }
     fclose(file);

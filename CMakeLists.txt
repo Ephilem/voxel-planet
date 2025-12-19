@@ -167,6 +167,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 file(GLOB_RECURSE SHADER_SOURCES
         "${CMAKE_SOURCE_DIR}/assets/shaders/*.vert"
         "${CMAKE_SOURCE_DIR}/assets/shaders/*.frag"
+        "${CMAKE_SOURCE_DIR}/assets/shaders/*.comp"
 )
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
@@ -186,6 +187,10 @@ foreach(SHADER ${SHADER_SOURCES})
         set(SHADER_STAGE "vert")
     elseif(SHADER_EXT STREQUAL ".frag")
         set(SHADER_STAGE "frag")
+    elseif(SHADER_EXT STREQUAL ".comp")
+        set(SHADER_STAGE "comp")
+    else()
+        message(FATAL_ERROR "Unknown shader extension: ${SHADER_EXT}")
     endif()
 
     add_custom_command(

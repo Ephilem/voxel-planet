@@ -22,7 +22,7 @@ struct VoxelTextureSlot {
  */
 class VoxelTextureManager {
 public:
-    VoxelTextureManager(VulkanBackend* backend);
+    VoxelTextureManager(VulkanBackend* backend, ResourceSystem *resourceSystem);
     ~VoxelTextureManager();
 
     /**
@@ -44,10 +44,34 @@ public:
         m_bindingLayout = nullptr;
         m_bindingSet = nullptr;
         m_sampler = nullptr;
+
+        // Mipmap generator
+        m_mipmapGenerator.computeShader = nullptr;
+        m_mipmapGenerator.pipeline = nullptr;
+        m_mipmapGenerator.bindingLayout = nullptr;
+        m_mipmapGenerator.linearSampler = nullptr;
+        m_mipmapGenerator.initialized = false;
     }
 
 private:
+    struct MipmapGenerator {
+        nvrhi::ShaderHandle computeShader;
+        nvrhi::ComputePipelineHandle pipeline;
+        nvrhi::BindingLayoutHandle bindingLayout;
+        nvrhi::SamplerHandle linearSampler;
+        bool initialized = false;
+    } m_mipmapGenerator;
+    struct MipmapGeneratorPushConstants {
+        uint32_t srcMipLevel;
+        uint32_t arraySlice;
+        uint32_t dstMipWidth;
+        uint32_t dstMipHeight;
+    } m_mipmapPushConstants;
+
     void init();
+    void init_mipmap_generator();
+
+    void generate_mipmaps(nvrhi::CommandListHandle cmd, uint32_t textureSlot);
 
     /**
      * Will upload any pending textures to the GPU texture array
@@ -66,4 +90,5 @@ private:
     nvrhi::SamplerHandle m_sampler;
 
     VulkanBackend* m_backend;
+    ResourceSystem* m_resourceSystem;
 };
