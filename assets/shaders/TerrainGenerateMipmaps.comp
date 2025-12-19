@@ -22,8 +22,8 @@ void main() {
     vec2 uv = (vec2(gl_GlobalInvocationID.xy) + 0.5) / vec2(pc.dstWidth, pc.dstHeight);
 
     vec4 color = textureLod(sampler2DArray(srcMip, linearSampler),
-                            vec3(uv, float(pc.arraySlice)),
+                            vec3(uv, 0.0),
                             0.0);
 
-    imageStore(dstMip, ivec3(gl_GlobalInvocationID.xy, pc.arraySlice), color);
+    imageStore(dstMip, ivec3(gl_GlobalInvocationID.xy, 0.0), color);
 }

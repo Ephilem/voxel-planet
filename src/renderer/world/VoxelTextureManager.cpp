@@ -201,14 +201,14 @@ void VoxelTextureManager::generate_mipmaps(nvrhi::CommandListHandle cmd, uint32_
         cmd->dispatch(groupsX, groupsY, 1);
     }
 
-    auto sliceSubresource = nvrhi::TextureSubresourceSet()
-        .setBaseMipLevel(0)
-        .setNumMipLevels(6)
-        .setBaseArraySlice(textureSlot)
-        .setNumArraySlices(1);
-
-    cmd->setTextureState(m_textureArray, sliceSubresource,
-                         nvrhi::ResourceStates::ShaderResource);
+    // auto sliceSubresource = nvrhi::TextureSubresourceSet()
+    //     .setBaseMipLevel(0)
+    //     .setNumMipLevels(6)
+    //     .setBaseArraySlice(textureSlot)
+    //     .setNumArraySlices(1);
+    //
+    // cmd->setTextureState(m_textureArray, sliceSubresource,
+    //                      nvrhi::ResourceStates::ShaderResource);
 }
 
 void VoxelTextureManager::upload_pending_textures_system(Renderer &renderer, ResourceSystem* resourceSys) {
