@@ -2,6 +2,7 @@
 #include "core/GameState.h"
 #include "platform/PlatformModule.h"
 #include "renderer/RendererModule.h"
+#include "client/ClientModule.h"
 #include <flecs.h>
 #include <iostream>
 
@@ -12,6 +13,7 @@ int main() {
         ecs->import<CoreModule>();
         ecs->import<PlatformModule>();
         ecs->import<RendererModule>();
+        ecs->import<ClientModule>();
         ecs->import<flecs::stats>();
         ecs->set<flecs::Rest>({});
 
@@ -21,6 +23,7 @@ int main() {
                 flecs::world world = it.world();
                 auto* gameState = world.get<GameState>();
                 if (gameState && !gameState->isRunning) {
+                    shutdown_client(world);
                     shutdown_renderer(world);
                     shutdown_platform(world);
                     shutdown_core(world);

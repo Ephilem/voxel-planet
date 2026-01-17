@@ -138,6 +138,7 @@ set(CMAKE_CXX_FLAGS ${ORIGINAL_FLAGS})
 add_subdirectory(src/core)
 add_subdirectory(src/platform)
 add_subdirectory(src/renderer)
+add_subdirectory(src/client)
 
 add_executable(${PROJECT_NAME}
         src/main.cpp
@@ -151,6 +152,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         VoxelPlanet::Renderer
         VoxelPlanet::Platform
         VoxelPlanet::Core
+        VoxelPlanet::Client
         nvrhi_vk
         nvrhi
         Vulkan::Vulkan
@@ -219,8 +221,3 @@ install(TARGETS ${PROJECT_NAME}
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/assets
         DESTINATION bin
 )
-#
-#install(DIRECTORY ${CMAKE_BINARY_DIR}/assets/shaders
-#        DESTINATION bin
-#)
-
