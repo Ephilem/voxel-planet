@@ -67,6 +67,8 @@ private:
         Renderer &renderer,
         Camera3d &camera);
 
+    VoxelBuffer &create_buffer();
+
 public:
     // Debug accessor for buffer visualization
     const std::vector<VoxelBuffer>& get_voxel_buffers() const { return m_chunkBuffers; }

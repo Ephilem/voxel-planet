@@ -17,6 +17,10 @@ InputStateManager::InputStateManager() {
     bind_action(ActionInputType::Right, GLFW_KEY_D);
     bind_action(ActionInputType::Up, GLFW_KEY_SPACE);
     bind_action(ActionInputType::Down, GLFW_KEY_LEFT_SHIFT);
+
+    bind_action(ActionInputType::Debug1, GLFW_KEY_F1);
+    bind_action(ActionInputType::Debug2, GLFW_KEY_F2);
+    bind_action(ActionInputType::Debug3, GLFW_KEY_F3);
 }
 
 InputStateManager::~InputStateManager() {

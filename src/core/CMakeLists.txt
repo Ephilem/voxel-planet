@@ -16,8 +16,12 @@ add_library(VoxelPlanetCore STATIC
     resource/ResourceSystem.h
     resource/loaders/ShaderLoader.cpp
     resource/loaders/ShaderLoader.h
-        world/world_components.h
-        main_components.h
+    world/world_components.h
+    world/WorldGenerator.cpp
+    world/WorldGenerator.h
+    main_components.h
+        world/ChunkManager.cpp
+        world/ChunkManager.h
 )
 
 add_library(VoxelPlanet::Core ALIAS VoxelPlanetCore)
@@ -33,6 +37,7 @@ target_link_libraries(VoxelPlanetCore
         stb
         flecs::flecs_static
         fmt::fmt
+        FastNoise2
     PRIVATE
-        glfw  # For glfwGetTime()
+        glfw
 )

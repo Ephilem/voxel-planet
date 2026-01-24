@@ -8,6 +8,7 @@
 #include "core/GameState.h"
 #include "core/main_components.h"
 #include "core/log/Logger.h"
+#include "core/world/world_components.h"
 #include "platform/inputs/input_state.h"
 #include "renderer/rendering_components.h"
 
@@ -33,7 +34,7 @@ ClientModule::ClientModule(flecs::world &ecs) {
         .kind(flecs::OnUpdate)
         .with<Camera3d>()
         .each([](flecs::entity e, Position& pos, const Orientation& orientation) {
-            float moveSpeed = 10.0f;
+            float moveSpeed = 50.0f;
             const auto* inputState = e.world().get<InputActionState>();
 
             glm::vec3 forward = glm::vec3(
@@ -70,10 +71,14 @@ ClientModule::ClientModule(flecs::world &ecs) {
             }
         });
 
-    ecs.entity()
-        .set<Position>({8.0f, 20.0f, 8.0f})
+    ecs.entity("Player")
+        .set<Position>({8.0f, 120.0f, 8.0f})
         .set<Camera3dParameters>({
-            .fov = 70.0f
+            .fov = 80.0f
+        })
+        .set<ChunkLoader>({
+            .loadRadius = 10,
+            .unloadRadius = 12
         })
         .set<Orientation>({-89.0f, 0.0f, 0.0f})
         .set<Camera3d>({});

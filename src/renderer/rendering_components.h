@@ -20,6 +20,8 @@ struct DirtyGpu {};
 
 struct VoxelChunkMesh {
     // GPU side info
+    uint32_t bufferIndex = UINT32_MAX;
+
     uint32_t vertexRegionStart = UINT32_MAX;
     uint32_t vertexRegionCount = 0;
 
@@ -38,6 +40,7 @@ struct VoxelChunkMesh {
     bool is_allocated() const {
         return vertexRegionStart != UINT32_MAX &&
                indexRegionStart != UINT32_MAX &&
-               drawSlotIndex != UINT32_MAX;
+               drawSlotIndex != UINT32_MAX &&
+               bufferIndex != UINT32_MAX;
     }
 };

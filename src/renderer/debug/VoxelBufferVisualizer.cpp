@@ -51,80 +51,107 @@ void VoxelBufferVisualizer::draw(VoxelTerrainRenderer* voxelRenderer) {
 }
 
 void VoxelBufferVisualizer::draw_memory_map(VoxelTerrainRenderer* voxelRenderer, float width, float height) {
-    const auto& buffers = voxelRenderer->get_voxel_buffers();
+      const auto& buffers = voxelRenderer->get_voxel_buffers();
 
-    ImDrawList* draw_list = ImGui::GetWindowDrawList();
-    ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
-    ImVec2 canvas_size(width, height);
+      ImDrawList* draw_list = ImGui::GetWindowDrawList();
+      ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
 
-    draw_list->AddRectFilled(canvas_pos,
-        ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y),
-        IM_COL32(40, 40, 40, 255));
+      float bufferHeight = height / std::max(1.0f, static_cast<float>(buffers.size()));
+      float spacing = 2.0f;
 
-    float vertexSectionWidth = static_cast<float>(VERTEX_SECTION_SIZE) / TOTAL_BUFFER_SIZE * width;
-    float indexSectionWidth = static_cast<float>(INDEX_SECTION_SIZE) / TOTAL_BUFFER_SIZE * width;
+      float vertexSectionWidth = static_cast<float>(VERTEX_SECTION_SIZE) / TOTAL_BUFFER_SIZE * width;
+      float indexSectionWidth = static_cast<float>(INDEX_SECTION_SIZE) / TOTAL_BUFFER_SIZE * width;
 
-    float currentX = canvas_pos.x;
+      for (size_t bufIdx = 0; bufIdx < buffers.size(); bufIdx++) {
+          const auto& buffer = buffers[bufIdx];
+          float yOffset = canvas_pos.y + bufIdx * bufferHeight;
+          float sectionHeight = bufferHeight - spacing;
 
-    ImVec2 sectionMin(currentX, canvas_pos.y);
-    ImVec2 sectionMax(currentX + vertexSectionWidth, canvas_pos.y + canvas_size.y);
+          char label[32];
+          snprintf(label, sizeof(label), "Buffer %zu", bufIdx);
+          draw_list->AddText(ImVec2(canvas_pos.x - 60, yOffset + sectionHeight * 0.3f),
+                            IM_COL32(200, 200, 200, 255), label);
 
-    draw_list->AddRectFilled(sectionMin, sectionMax, IM_COL32(50, 100, 150, 255));
+          float vxStart = canvas_pos.x;
+          float vxEnd = canvas_pos.x + vertexSectionWidth;
 
-    for (const auto& buffer : buffers) {
-        uint32_t usedRegions = buffer.get_used_vertex_regions();
-        if (usedRegions > 0) {
-            float usedPercentage = static_cast<float>(usedRegions) / MAX_VERTEX_REGION;
-            float usedWidth = vertexSectionWidth * usedPercentage;
+          draw_list->AddRectFilled(
+              ImVec2(vxStart, yOffset),
+              ImVec2(vxEnd, yOffset + sectionHeight),
+              IM_COL32(80, 140, 200, 255));
 
-            draw_list->AddRectFilled(
-                ImVec2(currentX, canvas_pos.y),
-                ImVec2(currentX + usedWidth, canvas_pos.y + canvas_size.y),
-                IM_COL32(100, 180, 255, 255));
-        }
-    }
+          const auto& freeVertexRegions = buffer.get_free_vertex_regions();
+          for (const auto& [regionStart, regionCount] : freeVertexRegions) {
+              float blockStart = vxStart + (static_cast<float>(regionStart) / MAX_VERTEX_REGION) * vertexSectionWidth;
+              float blockWidth = (static_cast<float>(regionCount) / MAX_VERTEX_REGION) * vertexSectionWidth;
 
-    draw_list->AddRect(sectionMin, sectionMax, IM_COL32(255, 255, 255, 128), 0.0f, 0, 2.0f);
+              draw_list->AddRectFilled(
+                  ImVec2(blockStart, yOffset),
+                  ImVec2(blockStart + blockWidth, yOffset + sectionHeight),
+                  IM_COL32(60, 60, 60, 255));
 
-    ImVec2 labelPos(currentX + vertexSectionWidth * 0.5f - 30, canvas_pos.y + canvas_size.y * 0.5f);
-    draw_list->AddText(labelPos, IM_COL32(255, 255, 255, 255), "VERTEX");
+              draw_list->AddRect(
+                  ImVec2(blockStart, yOffset),
+                  ImVec2(blockStart + blockWidth, yOffset + sectionHeight),
+                  IM_COL32(100, 100, 100, 200), 0.0f, 0, 1.0f);
+          }
 
-    currentX += vertexSectionWidth;
+          draw_list->AddRect(
+              ImVec2(vxStart, yOffset),
+              ImVec2(vxEnd, yOffset + sectionHeight),
+              IM_COL32(255, 255, 255, 128), 0.0f, 0, 1.0f);
 
-    sectionMin = ImVec2(currentX, canvas_pos.y);
-    sectionMax = ImVec2(currentX + indexSectionWidth, canvas_pos.y + canvas_size.y);
+          float ixStart = canvas_pos.x + vertexSectionWidth;
+          float ixEnd = ixStart + indexSectionWidth;
 
-    draw_list->AddRectFilled(sectionMin, sectionMax, IM_COL32(100, 150, 50, 255));
+          draw_list->AddRectFilled(
+              ImVec2(ixStart, yOffset),
+              ImVec2(ixEnd, yOffset + sectionHeight),
+              IM_COL32(100, 180, 80, 255));
 
-    for (const auto& buffer : buffers) {
-        uint32_t usedRegions = buffer.get_used_index_regions();
-        if (usedRegions > 0) {
-            float usedPercentage = static_cast<float>(usedRegions) / MAX_INDEX_REGION;
-            float usedWidth = indexSectionWidth * usedPercentage;
+          const auto& freeIndexRegions = buffer.get_free_index_regions();
+          for (const auto& [regionStart, regionCount] : freeIndexRegions) {
+              float blockStart = ixStart + (static_cast<float>(regionStart) / MAX_INDEX_REGION) * indexSectionWidth;
+              float blockWidth = (static_cast<float>(regionCount) / MAX_INDEX_REGION) * indexSectionWidth;
 
-            draw_list->AddRectFilled(
-                ImVec2(currentX, canvas_pos.y),
-                ImVec2(currentX + usedWidth, canvas_pos.y + canvas_size.y),
-                IM_COL32(180, 255, 100, 255));
-        }
-    }
+              draw_list->AddRectFilled(
+                  ImVec2(blockStart, yOffset),
+                  ImVec2(blockStart + blockWidth, yOffset + sectionHeight),
+                  IM_COL32(60, 60, 60, 255));
 
-    draw_list->AddRect(sectionMin, sectionMax, IM_COL32(255, 255, 255, 128), 0.0f, 0, 2.0f);
+              draw_list->AddRect(
+                  ImVec2(blockStart, yOffset),
+                  ImVec2(blockStart + blockWidth, yOffset + sectionHeight),
+                  IM_COL32(100, 100, 100, 200), 0.0f, 0, 1.0f);
+          }
 
-    labelPos = ImVec2(currentX + indexSectionWidth * 0.5f - 20, canvas_pos.y + canvas_size.y * 0.5f);
-    draw_list->AddText(labelPos, IM_COL32(255, 255, 255, 255), "INDEX");
+          draw_list->AddRect(
+              ImVec2(ixStart, yOffset),
+              ImVec2(ixEnd, yOffset + sectionHeight),
+              IM_COL32(255, 255, 255, 128), 0.0f, 0, 1.0f);
+      }
 
-    ImGui::Dummy(canvas_size);
+      draw_list->AddText(
+          ImVec2(canvas_pos.x + vertexSectionWidth * 0.5f - 25, canvas_pos.y - 18),
+          IM_COL32(255, 255, 255, 255), "VERTEX");
+      draw_list->AddText(
+          ImVec2(canvas_pos.x + vertexSectionWidth + indexSectionWidth * 0.5f - 20, canvas_pos.y - 18),
+          IM_COL32(255, 255, 255, 255), "INDEX");
 
-    ImGui::Spacing();
-    ImGui::Text("Legend:");
-    ImGui::SameLine();
-    ImGui::TextColored(ImVec4(0.2f, 0.4f, 0.6f, 1.0f), "■"); ImGui::SameLine();
-    ImGui::Text("Free");
-    ImGui::SameLine();
-    ImGui::TextColored(ImVec4(0.4f, 0.7f, 1.0f, 1.0f), "■"); ImGui::SameLine();
-    ImGui::Text("Allocated");
-}
+      ImGui::Dummy(ImVec2(width, height));
+
+      ImGui::Spacing();
+      ImGui::Text("Legend:");
+      ImGui::SameLine();
+      ImGui::TextColored(ImVec4(0.31f, 0.55f, 0.78f, 1.0f), "■"); ImGui::SameLine();
+      ImGui::Text("Vertex Used");
+      ImGui::SameLine();
+      ImGui::TextColored(ImVec4(0.39f, 0.70f, 0.31f, 1.0f), "■"); ImGui::SameLine();
+      ImGui::Text("Index Used");
+      ImGui::SameLine();
+      ImGui::TextColored(ImVec4(0.24f, 0.24f, 0.24f, 1.0f), "■"); ImGui::SameLine();
+      ImGui::Text("Free (fragmentation)");
+  }
 
 void VoxelBufferVisualizer::draw_statistics(VoxelTerrainRenderer* voxelRenderer) {
     const auto& buffers = voxelRenderer->get_voxel_buffers();

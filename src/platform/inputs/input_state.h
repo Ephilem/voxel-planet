@@ -12,6 +12,10 @@ enum class ActionInputType {
     Up,
     Down,
 
+    Debug1,
+    Debug2,
+    Debug3,
+
     Last,
 };
 

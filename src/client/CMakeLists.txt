@@ -1,6 +1,7 @@
 add_library(VoxelPlanetClient STATIC
         ClientModule.cpp
-        ClientModule.h)
+        ClientModule.h
+)
 
 add_library(VoxelPlanet::Client ALIAS VoxelPlanetClient)
 

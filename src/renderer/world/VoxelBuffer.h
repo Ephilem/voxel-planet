@@ -27,7 +27,8 @@ static constexpr uint32_t VERTEX_REGION_SIZE = VERTICES_PER_REGION * VERTEX_SIZE
 static constexpr uint32_t INDICES_PER_VERTEX_REGION = static_cast<uint32_t>(VERTICES_PER_REGION * INDEX_TO_VERTEX_RATIO);
 static constexpr uint32_t INDEX_REGION_SIZE = ((INDICES_PER_VERTEX_REGION * INDEX_SIZE + 1023) / 1024) * 1024;
 
-static constexpr float VERTEX_TO_INDEX_BYTE_RATIO = 0.67f;
+// static constexpr float VERTEX_TO_INDEX_BYTE_RATIO = 0.67f;
+static constexpr float VERTEX_TO_INDEX_BYTE_RATIO = 1.0f;
 
 static constexpr float VERTEX_FRACTION = VERTEX_TO_INDEX_BYTE_RATIO / (VERTEX_TO_INDEX_BYTE_RATIO + 1.0f);
 static constexpr float INDEX_FRACTION = 1.0f - VERTEX_FRACTION;
@@ -74,6 +75,9 @@ class VoxelBuffer {
     std::vector<std::pair<uint32_t, uint32_t>> m_freeVertexRegions;
     std::vector<std::pair<uint32_t, uint32_t>> m_freeIndexRegions;
 
+    // List of freed draw slot to desactivate to be sure that he doesnt draw
+    std::vector<uint32_t> m_freedPendingDrawSlots;
+
     void init();
 
     // Helper methods for region management
@@ -109,6 +113,13 @@ public:
      * @param oub
      */
     void write(nvrhi::CommandListHandle cmd, struct VoxelChunkMesh& mesh, const TerrainOUB &oub);
+
+    /**
+     * List of freed draw slots to reset the draw command to be sure they are not drawn anymore
+     * it will set the indexCount to 0 in the indirect draw command (and so it will skip the draw)
+     * @param cmd Command list to record the cleanup commands
+     */
+    void cleanup_freed_draw_slots(nvrhi::CommandListHandle cmd);
 
     /**
      * Free a previously allocated chunk

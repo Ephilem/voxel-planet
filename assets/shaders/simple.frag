@@ -4,6 +4,7 @@ layout(location = 0) in vec3 fragWorldPos;
 layout(location = 1) in vec2 fragUV;
 layout(location = 2) flat in uint fragTextureSlot;
 layout(location = 3) flat in vec3 fragNormal;
+layout(location = 4) flat in vec3 debugFragLocalPos;
 
 layout(location = 0) out vec4 fragColor;
 
@@ -21,30 +22,14 @@ void main() {
     float ambient = 0.3;
     float lighting = ambient + diffuse * 0.7;
 
-    vec3 finalColor = texColor.rgb;
+    vec3 finalColor = texColor.rgb * lighting;
 
-//    if (fragTextureSlot == 1u) {
-//        finalColor = vec3(0.1, 0.8, 0.1);
-//    } else if (fragTextureSlot == 2u) {
-//        finalColor = vec3(0.545, 0.271, 0.075);
-//    } else if (fragTextureSlot == 3u) {
-//        finalColor = vec3(0.5, 0.5, 0.5);
+    // debug: if localpos is a the edge of the chunk, tint the color red
+//    if (debugFragLocalPos.x == 0.0 || debugFragLocalPos.x == 15.0 ||
+//        debugFragLocalPos.y == 0.0 || debugFragLocalPos.y == 15.0 ||
+//        debugFragLocalPos.z == 0.0 || debugFragLocalPos.z == 15.0) {
+//        finalColor = vec3(1.0, 0.0, 0.0);
 //    }
-
-
-//    vec3 debugColor = vec3(0.0);
-//    if (fragUV.x > 1.0 || fragUV.y > 1.0) {
-//        debugColor = vec3(1.0, 0.0, 1.0); // Magenta if out of range
-//    } else if (fragUV.x < 0.0 || fragUV.y < 0.0) {
-//        debugColor = vec3(0.0, 1.0, 1.0); // Cyan if negative
-//    } else {
-//        debugColor = vec3(fragUV, 0.0);
-//    }
-//
-//    fragColor = vec4(debugColor, 1.0);
 
     fragColor = vec4(finalColor, texColor.a);
-//    fragColor = vec4(fragUV/2, 0.0, 1.0);
-
-//    fragColor = vec4(debugLocalPos / 16.0, 1.0);
 }

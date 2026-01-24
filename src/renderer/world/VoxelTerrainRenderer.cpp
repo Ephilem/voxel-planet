@@ -126,17 +126,6 @@ void VoxelTerrainRenderer::init() {
             .addBindingLayout(m_bufferBindingLayout) // Set 1
             .addBindingLayout(m_textureManager->get_binding_layout()); // Set 2 - texture array
     m_pipeline = m_backend->device->createGraphicsPipeline(pipelineDesc, framebufferInfo);
-
-
-    // create initial chunk buffer
-    m_chunkBuffers.emplace_back(m_backend);
-
-    // Create binding set for the initial chunk buffer (Set 1 only - structured buffer)
-    auto& initialBuffer = m_chunkBuffers.back();
-    auto initialBufferBindingSetDesc = nvrhi::BindingSetDesc()
-            .addItem(nvrhi::BindingSetItem::StructuredBuffer_SRV(0, initialBuffer.get_oub_buffer()));
-    m_chunkBufferBindingSets.push_back(
-        m_backend->device->createBindingSet(initialBufferBindingSetDesc, m_bufferBindingLayout));
 }
 
 void VoxelTerrainRenderer::destroy() {
@@ -146,6 +135,19 @@ void VoxelTerrainRenderer::destroy() {
     m_pipeline = nullptr;
     m_pixelShader = nullptr;
     m_vertexShader = nullptr;
+}
+
+VoxelBuffer& VoxelTerrainRenderer::create_buffer() {
+    // create initial chunk buffer
+    VoxelBuffer& buffer = m_chunkBuffers.emplace_back(m_backend);
+
+    auto initialBufferBindingSetDesc = nvrhi::BindingSetDesc()
+            .addItem(nvrhi::BindingSetItem::StructuredBuffer_SRV(0, buffer.get_oub_buffer()));
+    m_chunkBufferBindingSets.push_back(
+        m_backend->device->createBindingSet(initialBufferBindingSetDesc, m_bufferBindingLayout));
+
+    // return index of the created buffer
+    return buffer;
 }
 
 // --- ECS ---
@@ -201,6 +203,17 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
                     voxelRenderer->render_terrain_system(renderer, camera);
                 });
             });
+
+
+    ecs.observer<VoxelChunkMesh>("CleanupVoxelChunkMeshSystem")
+            .event(flecs::OnRemove)
+            .each([voxelRenderer](flecs::entity e, VoxelChunkMesh &mesh) {
+                if (mesh.is_allocated() && !voxelRenderer->m_chunkBuffers.empty()) {
+                    int bufferIndex = mesh.bufferIndex;
+                    voxelRenderer->m_chunkBuffers[bufferIndex].free(mesh);
+                }
+            });
+
 }
 
 bool VoxelTerrainRenderer::build_voxel_chunk_mesh_system(const VoxelChunk &chunk, VoxelChunkMesh &mesh, const Position& pos, VoxelTextureManager* textureManager) {
@@ -215,7 +228,7 @@ bool VoxelTerrainRenderer::build_voxel_chunk_mesh_system(const VoxelChunk &chunk
     for (int x = 0; x < CHUNK_SIZE; x++) {
         for (int y = 0; y < CHUNK_SIZE; y++) {
             for (int z = 0; z < CHUNK_SIZE; z++) {
-                uint8_t voxel = chunk.data[x][y][z];
+                uint8_t voxel = chunk.at(x, y, z);
                 if (voxel == 0) continue; // 0 is always air
 
                 for (int face = 0; face < 6; face++) {
@@ -225,7 +238,7 @@ bool VoxelTerrainRenderer::build_voxel_chunk_mesh_system(const VoxelChunk &chunk
                     bool isVisible = (nx < 0 || nx >= CHUNK_SIZE ||
                                       ny < 0 || ny >= CHUNK_SIZE ||
                                       nz < 0 || nz >= CHUNK_SIZE ||
-                                      chunk.data[nx][ny][nz] == 0);
+                                      chunk.at(nx, ny, nz) == 0);
                     if (!isVisible) continue;
 
                     float fx = static_cast<float>(x);
@@ -286,29 +299,44 @@ bool VoxelTerrainRenderer::build_voxel_chunk_mesh_system(const VoxelChunk &chunk
 
 bool VoxelTerrainRenderer::upload_chunk_mesh_system(nvrhi::CommandListHandle cmd, VoxelChunkMesh &mesh, const Position &pos) {
     // TODO use the buffer with the position
-    auto& chunkBuffer = m_chunkBuffers.back();
-
-    if (!chunkBuffer.can_allocate(mesh.vertexCount, mesh.indexCount)) {
-        LOG_ERROR("VoxelTerrainRenderer", "Cannot allocate space for a chunk (vertices = {} | indices = {})",
-                  mesh.vertexCount, mesh.indexCount);
-        return false;
+    bool uploaded = false;
+    if (m_chunkBuffers.empty()) {
+        create_buffer();
     }
 
-    if (!chunkBuffer.allocate(mesh)) {
-        LOG_ERROR("VoxelTerrainRenderer", "Failed to allocate the chunk (vertices = {} | indices = {})",
-                  mesh.vertexCount, mesh.indexCount);
-        return false;
-    }
+    for (size_t i = 0; i < m_chunkBuffers.size() && !uploaded; i++) {
+        VoxelBuffer& buffer = m_chunkBuffers[i];
 
-    TerrainOUB oub = {
-        .model = {
-            1.0f, 0.0f, 0.0f, 0.0f,  // column 0
-            0.0f, 1.0f, 0.0f, 0.0f,  // column 1
-            0.0f, 0.0f, 1.0f, 0.0f,  // column 2
-            pos.x, pos.y, pos.z, 1.0f  // column 3 (translation)
+        if (!buffer.can_allocate(mesh.vertexCount, mesh.indexCount)) {
+            LOG_ERROR("VoxelTerrainRenderer", "Cannot allocate space for a chunk (vertices = {} | indices = {})",
+                      mesh.vertexCount, mesh.indexCount);
+            continue;
         }
-    };
-    chunkBuffer.write(cmd, mesh, oub);
+
+        if (!buffer.allocate(mesh)) {
+            LOG_ERROR("VoxelTerrainRenderer", "Failed to allocate the chunk (vertices = {} | indices = {})",
+                      mesh.vertexCount, mesh.indexCount);
+            continue;
+        }
+        mesh.bufferIndex = i;
+
+        TerrainOUB oub = {
+            .model = {
+                1.0f, 0.0f, 0.0f, 0.0f,  // column 0
+                0.0f, 1.0f, 0.0f, 0.0f,  // column 1
+                0.0f, 0.0f, 1.0f, 0.0f,  // column 2
+                pos.x, pos.y, pos.z, 1.0f  // column 3 (translation)
+            }
+        };
+        buffer.write(cmd, mesh, oub);
+        uploaded = true;
+    }
+
+    if (!uploaded) {
+        LOG_WARN("VoxelTerrainRenderer", "Can't upload chunk mesh, creating new buffer");
+        create_buffer();
+        upload_chunk_mesh_system(cmd, mesh, pos);
+    }
 
     return true;
 }
@@ -316,10 +344,17 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(nvrhi::CommandListHandle cmd
 void VoxelTerrainRenderer::render_terrain_system(Renderer &renderer, Camera3d &camera) {
     auto &commandList = renderer.frameContext.commandList;
 
+
     if (camera.viewMatrix != m_ubo.view)
         m_ubo.view = camera.viewMatrix;
     if (camera.projectionMatrix != m_ubo.projection)
         m_ubo.projection = camera.projectionMatrix;
+
+
+    // Before rendering, clean up freed draw slots
+    for (auto& chunkBuffer : m_chunkBuffers) {
+        chunkBuffer.cleanup_freed_draw_slots(commandList);
+    }
 
     commandList->writeBuffer(
         m_uboBuffer,
@@ -327,33 +362,36 @@ void VoxelTerrainRenderer::render_terrain_system(Renderer &renderer, Camera3d &c
 
     auto extent = m_backend->get_swapchain_extent();
 
-    auto& chunkBuffer = m_chunkBuffers.back(); // TODO select proper buffer
-    auto& bufferBindingSet = m_chunkBufferBindingSets.back();
+    int i = 0;
+    for (auto& chunkBuffer : m_chunkBuffers) {
+        auto& bufferBindingSet = m_chunkBufferBindingSets[i];
 
-    auto vertexBinding = nvrhi::VertexBufferBinding()
-            .setSlot(0)
-            .setBuffer(chunkBuffer.get_mesh_buffer())
-            .setOffset(0);
-    auto indexBinding = nvrhi::IndexBufferBinding()
-            .setOffset(INDEX_SECTION_OFFSET)
-            .setBuffer(chunkBuffer.get_mesh_buffer())
-            .setFormat(nvrhi::Format::R32_UINT);
+        auto vertexBinding = nvrhi::VertexBufferBinding()
+                .setSlot(0)
+                .setBuffer(chunkBuffer.get_mesh_buffer())
+                .setOffset(0);
+        auto indexBinding = nvrhi::IndexBufferBinding()
+                .setOffset(INDEX_SECTION_OFFSET)
+                .setBuffer(chunkBuffer.get_mesh_buffer())
+                .setFormat(nvrhi::Format::R32_UINT);
 
-    auto graphicsState = nvrhi::GraphicsState()
-            .setPipeline(m_pipeline)
-            .setViewport(nvrhi::ViewportState().addViewportAndScissorRect(nvrhi::Viewport(extent.width, extent.height)))
-            .setFramebuffer(m_backend->get_current_framebuffer())
-            .addBindingSet(m_frameBindingSet)    // Set 0: Per-frame data (camera)
-            .addBindingSet(bufferBindingSet)     // Set 1: Per-buffer data (chunks)
-            .addBindingSet(m_textureManager->get_binding_set()) // Set 2: texture array
-            .addVertexBuffer(vertexBinding)
-            .setIndirectParams(chunkBuffer.get_indirect_buffer())
-            .setIndexBuffer(indexBinding);
-    commandList->setGraphicsState(graphicsState);
+        auto graphicsState = nvrhi::GraphicsState()
+                .setPipeline(m_pipeline)
+                .setViewport(nvrhi::ViewportState().addViewportAndScissorRect(nvrhi::Viewport(extent.width, extent.height)))
+                .setFramebuffer(m_backend->get_current_framebuffer())
+                .addBindingSet(m_frameBindingSet)    // Set 0: Per-frame data (camera)
+                .addBindingSet(bufferBindingSet)     // Set 1: Per-buffer data (chunks)
+                .addBindingSet(m_textureManager->get_binding_set()) // Set 2: texture array
+                .addVertexBuffer(vertexBinding)
+                .setIndirectParams(chunkBuffer.get_indirect_buffer())
+                .setIndexBuffer(indexBinding);
+        commandList->setGraphicsState(graphicsState);
 
-    uint32_t drawCount = chunkBuffer.get_draw_count();
-    if (drawCount > 0) {
-        commandList->drawIndexedIndirect(0, drawCount);
+        uint32_t drawCount = chunkBuffer.get_draw_count();
+        if (drawCount > 0) {
+            commandList->drawIndexedIndirect(0, drawCount);
+        }
+        i++;
     }
 
     commandList->clearState();

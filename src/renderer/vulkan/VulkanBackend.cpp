@@ -218,7 +218,7 @@ void VulkanBackend::create_swapchain() {
     vkb::SwapchainBuilder builder{ vkDevice.physical_device, vkDevice.device, surface };
     auto swapchain_ret = builder
         .set_desired_format({ VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR })
-        .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
+        .set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR)
         .set_desired_extent(renderParameters.width, renderParameters.height)
         .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
         .build();

@@ -1,5 +1,5 @@
 #pragma once
-#include <cstdint>
+#include <string>
 
 constexpr uint64_t hash_fnv1a(const char* str) {
     uint64_t hash = 14695981039346656037ull;
