@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 4.0)
+cmake_minimum_required(VERSION 3.25)
 project(VoxelPlanet VERSION 0.1.0 LANGUAGES CXX)
 
 add_compile_definitions(VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1)
