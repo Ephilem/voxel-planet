@@ -25,7 +25,7 @@ private:
     std::unordered_set<glm::ivec3, IVec3Hash> m_emptyChunks;
     std::unordered_set<glm::ivec3, IVec3Hash> m_loadingChunks;
 
-    static constexpr int MAX_CHUNKS_PER_FRAME = 20;
+    static constexpr int MAX_CHUNKS_PER_FRAME = 10;
     static constexpr int MAX_UNLOADS_PER_FRAME = 50;
 
     // Ecs systems

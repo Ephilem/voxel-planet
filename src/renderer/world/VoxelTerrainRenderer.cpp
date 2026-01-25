@@ -174,7 +174,7 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
 
     ecs.component<VoxelChunkMesh>();
 
-    ecs.system<VoxelChunkMesh, const Position>("UploadVoxelChunkMeshSystem")
+    ecs.system<VoxelChunkMesh, const Position>("VoxelTerrainRenderer-UploadVoxelChunkMesh")
             .kind(flecs::PreStore)
             .with<VoxelChunkMeshState, voxel_chunk_mesh_state::ReadyForUpload>()
             .each([voxelRenderer](flecs::entity e, VoxelChunkMesh &mesh, const Position& pos) {
@@ -188,7 +188,7 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
                 e.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Clean>();
             });
 
-    ecs.system<Renderer>("RenderTerrainSystem")
+    ecs.system<Renderer>("VoxelTerrainRenderer-RenderTerrain")
             .kind(flecs::OnStore)
             .each([voxelRenderer](flecs::entity e, Renderer &renderer) {
                 if (!renderer.frameContext.frameActive) return;
@@ -198,7 +198,7 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
             });
 
 
-    ecs.observer<VoxelChunkMesh>("CleanupVoxelChunkMeshSystem")
+    ecs.observer<VoxelChunkMesh>("VoxelTerrainRenderer-CleanupVoxelChunkMesh")
             .event(flecs::OnRemove)
             .each([voxelRenderer](flecs::entity e, VoxelChunkMesh &mesh) {
                 if (mesh.is_allocated() && !voxelRenderer->m_chunkBuffers.empty()) {
