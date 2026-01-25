@@ -1,0 +1,179 @@
+name: Build
+
+on:
+  push:
+    branches: [develop, main]
+    tags: ['v*']
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  check-commit:
+    runs-on: ubuntu-latest
+    outputs:
+      should_artifact: ${{ steps.check.outputs.should_artifact }}
+      commit_type: ${{ steps.check.outputs.commit_type }}
+    steps:
+      - name: Check commit message
+        id: check
+        run: |
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+
+          # Always create artifacts for tags
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "should_artifact=true" >> $GITHUB_OUTPUT
+            echo "commit_type=release" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Check for conventional commit prefixes
+          if [[ "$COMMIT_MSG" =~ ^(feat|fix|bug|perf|build|release|hotfix): ]]; then
+            echo "should_artifact=true" >> $GITHUB_OUTPUT
+            # Extract the prefix (feat, fix, etc.)
+            TYPE=$(echo "$COMMIT_MSG" | grep -oP '^(feat|fix|bug|perf|build|release|hotfix|ci)')
+            echo "commit_type=${TYPE}" >> $GITHUB_OUTPUT
+          else
+            echo "should_artifact=false" >> $GITHUB_OUTPUT
+            echo "commit_type=none" >> $GITHUB_OUTPUT
+          fi
+
+  build-windows:
+    needs: check-commit
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Vulkan SDK
+        uses: humbletim/setup-vulkan-sdk@v1.2.0
+        with:
+          vulkan-query-version: 1.3.290.0
+          vulkan-components: Vulkan-Headers, Vulkan-Loader, SPIRV-Tools, Glslang
+
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Generate version string
+        id: version
+        if: needs.check-commit.outputs.should_artifact == 'true'
+        shell: bash
+        run: |
+          # Extract version from CMakeLists.txt
+          VERSION=$(grep -oP 'project\s*\(\s*VoxelPlanet\s+VERSION\s+\K[0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt)
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          COMMIT_TYPE="${{ needs.check-commit.outputs.commit_type }}"
+
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            # Tagged release: use tag name
+            echo "artifact_name=VoxelPlanet-Windows-${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            # Development build: version-type-buildN-sha
+            echo "artifact_name=VoxelPlanet-Windows-${VERSION}-${COMMIT_TYPE}-build${{ github.run_number }}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Package
+        if: needs.check-commit.outputs.should_artifact == 'true'
+        shell: bash
+        run: |
+          mkdir -p package
+          cp build/Release/VoxelPlanet.exe package/
+          cp -r build/Release/assets package/ 2>/dev/null || cp -r build/assets package/
+
+      - name: Upload Artifact
+        if: needs.check-commit.outputs.should_artifact == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.artifact_name }}
+          path: package/
+          retention-days: 30
+
+  build-linux:
+    needs: check-commit
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libvulkan-dev \
+            glslang-tools \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libxkbcommon-dev \
+            libwayland-dev
+
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Generate version string
+        id: version
+        if: needs.check-commit.outputs.should_artifact == 'true'
+        run: |
+          # Extract version from CMakeLists.txt
+          VERSION=$(grep -oP 'project\s*\(\s*VoxelPlanet\s+VERSION\s+\K[0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt)
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          COMMIT_TYPE="${{ needs.check-commit.outputs.commit_type }}"
+
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "artifact_name=VoxelPlanet-Linux-${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "artifact_name=VoxelPlanet-Linux-${VERSION}-${COMMIT_TYPE}-build${{ github.run_number }}-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Package
+        if: needs.check-commit.outputs.should_artifact == 'true'
+        run: |
+          mkdir -p package
+          cp build/VoxelPlanet package/
+          cp -r build/assets package/
+
+      - name: Upload Artifact
+        if: needs.check-commit.outputs.should_artifact == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.artifact_name }}
+          path: package/
+          retention-days: 30
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create archives
+        run: |
+          cd artifacts
+          for dir in */; do
+            name="${dir%/}"
+            if [[ "$name" == *"Windows"* ]]; then
+              zip -r "../${name}.zip" "$dir"
+            else
+              tar -czvf "../${name}.tar.gz" "$dir"
+            fi
+          done
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            *.zip
+            *.tar.gz
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') }}
