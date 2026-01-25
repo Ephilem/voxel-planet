@@ -76,14 +76,14 @@ bool VoxelBuffer::can_allocate(uint32_t vertexCount, uint32_t indexCount) {
         }
     }
 
-    if (!hasVertexSpace) {
-        LOG_DEBUG("VoxelBuffer", "Cannot allocate {} vertex regions (largest free block = {})",
-                  vertexRegionsNeeded, get_largest_free_vertex_block());
-    }
-    if (!hasIndexSpace) {
-        LOG_DEBUG("VoxelBuffer", "Cannot allocate {} index regions (largest free block = {})",
-                  indexRegionsNeeded, get_largest_free_index_block());
-    }
+    // if (!hasVertexSpace) {
+    //     LOG_DEBUG("VoxelBuffer", "Cannot allocate {} vertex regions (largest free block = {})",
+    //               vertexRegionsNeeded, get_largest_free_vertex_block());
+    // }
+    // if (!hasIndexSpace) {
+    //     LOG_DEBUG("VoxelBuffer", "Cannot allocate {} index regions (largest free block = {})",
+    //               indexRegionsNeeded, get_largest_free_index_block());
+    // }
 
     return hasVertexSpace && hasIndexSpace;
 }

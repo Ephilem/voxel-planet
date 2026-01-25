@@ -57,7 +57,7 @@ RendererModule::RendererModule(flecs::world& ecs) {
         .without<VoxelChunkMesh>()
         .each([](flecs::entity e, const VoxelChunk& chunk) {
             e.set<VoxelChunkMesh>({})
-             .add<Dirty>();
+             .add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
         });
 
     VoxelTerrainRenderer::Register(ecs);

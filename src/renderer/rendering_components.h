@@ -15,8 +15,13 @@ struct Camera3d {
     glm::float32 aspect_ratio = 16.0f / 9.0f;
 };
 
-struct Dirty {};
-struct DirtyGpu {};
+namespace voxel_chunk_mesh_state {
+    struct Clean {};
+    struct Dirty {};
+    struct Meshing {};
+    struct ReadyForUpload {};
+}
+struct VoxelChunkMeshState {};
 
 struct VoxelChunkMesh {
     // GPU side info

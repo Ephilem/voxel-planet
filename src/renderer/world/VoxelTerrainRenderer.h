@@ -55,10 +55,6 @@ private:
     void init();
     void destroy();
 
-    bool build_voxel_chunk_mesh_system(
-        const VoxelChunk &chunk,
-        VoxelChunkMesh &mesh, const Position& pos, VoxelTextureManager* textureManager);
-
     bool upload_chunk_mesh_system(
         nvrhi::CommandListHandle cmd,
         VoxelChunkMesh &mesh, const Position &pos);

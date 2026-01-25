@@ -1,12 +1,15 @@
 #pragma once
+#include <memory>
 #include <glm/glm.hpp>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <array>
 
 #include "core/resource/asset_id.h"
 
 #define CHUNK_SIZE 32
+#define CHUNK_VOLUME (CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE)
 
 struct IVec3Hash {
     std::size_t operator()(const glm::ivec3& v) const {
@@ -36,17 +39,30 @@ struct ChunkLoader {
 struct LoadedBy {};
 
 struct VoxelChunk {
-    std::vector<uint8_t> data;
+    std::shared_ptr<std::array<uint8_t, CHUNK_VOLUME>> voxels;
     std::unordered_map<AssetID, uint8_t> textureIDs;
 
-    VoxelChunk() : data(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE, 0) {}
+    VoxelChunk() : voxels(std::make_shared<std::array<uint8_t, CHUNK_VOLUME>>()) {
+        voxels->fill(0);
+    }
+
+    void ensure_unique() {
+        if (voxels.use_count() > 1) {
+            voxels = std::make_shared<std::array<uint8_t, CHUNK_VOLUME>>(*voxels);
+        }
+    }
+
+    void set(int x, int y, int z, uint8_t value) {
+        ensure_unique();
+        (*voxels)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = value;
+    }
 
     uint8_t& at(int x, int y, int z) {
-        return data[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE];
+        return voxels->at(x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE);
     }
 
     uint8_t at(int x, int y, int z) const {
-        return data[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE];
+        return voxels->at(x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE);
     }
 };
 

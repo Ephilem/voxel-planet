@@ -14,6 +14,7 @@
 #include "renderer/render_types.h"
 #include <glm/glm.hpp>
 
+#include "VoxelChunkMesher.h"
 #include "VoxelTextureManager.h"
 
 VoxelTerrainRenderer::VoxelTerrainRenderer(VulkanBackend *backend, ResourceSystem *resourceSystem, VoxelTextureManager* textureManager) {
@@ -161,6 +162,7 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
         return;
     }
 
+    VoxelChunkMesher::Register(ecs);
     VoxelTextureManager::Register(ecs);
 
     renderer->voxelTerrainRenderer = std::make_unique<VoxelTerrainRenderer>(
@@ -172,18 +174,9 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
 
     ecs.component<VoxelChunkMesh>();
 
-    ecs.system<const VoxelChunk, const Position, VoxelChunkMesh>("BuildVoxelChunkMeshSystem")
-            .kind(flecs::PostUpdate)
-            .with<Dirty>()
-            .each([voxelRenderer](flecs::entity e, const VoxelChunk &chunk, const Position &position, VoxelChunkMesh &mesh) {
-                auto* textureManager = e.world().get_mut<VoxelTextureManager>();
-                voxelRenderer->build_voxel_chunk_mesh_system(chunk, mesh, position, textureManager);
-                e.remove<Dirty>().add<DirtyGpu>();
-            });
-
     ecs.system<VoxelChunkMesh, const Position>("UploadVoxelChunkMeshSystem")
             .kind(flecs::PreStore)
-            .with<DirtyGpu>()
+            .with<VoxelChunkMeshState, voxel_chunk_mesh_state::ReadyForUpload>()
             .each([voxelRenderer](flecs::entity e, VoxelChunkMesh &mesh, const Position& pos) {
                 const auto *renderer = e.world().get<Renderer>();
                 if (!renderer) {
@@ -192,7 +185,7 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
                 }
                 auto &commandList = renderer->frameContext.commandList;
                 voxelRenderer->upload_chunk_mesh_system(commandList, mesh, pos);
-                e.remove<DirtyGpu>();
+                e.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Clean>();
             });
 
     ecs.system<Renderer>("RenderTerrainSystem")
@@ -216,87 +209,6 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
 
 }
 
-bool VoxelTerrainRenderer::build_voxel_chunk_mesh_system(const VoxelChunk &chunk, VoxelChunkMesh &mesh, const Position& pos, VoxelTextureManager* textureManager) {
-    // first, allocate needed textures
-    std::unordered_map<uint8_t, uint32_t> textureSlotMap; // Map from voxel ID to texture slot index
-    for (const auto& [textureID, voxelID] : chunk.textureIDs) {
-        uint32_t slotIndex = textureManager->request_texture_slot(textureID);
-        textureSlotMap[voxelID] = slotIndex;
-    }
-
-    // for each voxel
-    for (int x = 0; x < CHUNK_SIZE; x++) {
-        for (int y = 0; y < CHUNK_SIZE; y++) {
-            for (int z = 0; z < CHUNK_SIZE; z++) {
-                uint8_t voxel = chunk.at(x, y, z);
-                if (voxel == 0) continue; // 0 is always air
-
-                for (int face = 0; face < 6; face++) {
-                    int nx = x + ((face == 0) ? -1 : (face == 1) ? 1 : 0);
-                    int ny = y + ((face == 2) ? -1 : (face == 3) ? 1 : 0);
-                    int nz = z + ((face == 4) ? -1 : (face == 5) ? 1 : 0);
-                    bool isVisible = (nx < 0 || nx >= CHUNK_SIZE ||
-                                      ny < 0 || ny >= CHUNK_SIZE ||
-                                      nz < 0 || nz >= CHUNK_SIZE ||
-                                      chunk.at(nx, ny, nz) == 0);
-                    if (!isVisible) continue;
-
-                    float fx = static_cast<float>(x);
-                    float fy = static_cast<float>(y);
-                    float fz = static_cast<float>(z);
-
-                    static const uint8_t faceUVs[4][2] = {
-                        {0, 0},  // bottom-left
-                        {0, 1},  // top-left
-                        {1, 1},  // top-right
-                        {1, 0}   // bottom-right
-                    };
-
-                    float verts[6][4][3] = {
-                        // Face 0: -X (left)
-                        {{fx, fy, fz}, {fx, fy+1.0f, fz}, {fx, fy+1.0f, fz+1.0f}, {fx, fy, fz+1.0f}},
-                        // Face 1: +X (right)
-                        {{fx+1.0f, fy, fz}, {fx+1.0f, fy, fz+1.0f}, {fx+1.0f, fy+1.0f, fz+1.0f}, {fx+1.0f, fy+1.0f, fz}},
-                        // Face 2: -Y (bottom)
-                        {{fx, fy, fz}, {fx, fy, fz+1.0f}, {fx+1.0f, fy, fz+1.0f}, {fx+1.0f, fy, fz}},
-                        // Face 3: +Y (top)
-                        {{fx, fy+1.0f, fz}, {fx+1.0f, fy+1.0f, fz}, {fx+1.0f, fy+1.0f, fz+1.0f}, {fx, fy+1.0f, fz+1.0f}},
-                        // Face 4: -Z (back)
-                        {{fx, fy, fz}, {fx+1.0f, fy, fz}, {fx+1.0f, fy+1.0f, fz}, {fx, fy+1.0f, fz}},
-                        // Face 5: +Z (front)
-                        {{fx, fy, fz+1.0f}, {fx, fy+1.0f, fz+1.0f}, {fx+1.0f, fy+1.0f, fz+1.0f}, {fx+1.0f, fy, fz+1.0f}}
-                    };
-
-                    uint32_t baseIdx = mesh.vertices.size();
-                    uint32_t uvRandomOffset = std::rand()+x + y + z;
-                    for (int i = 0; i < 4; i++) {
-                        TerrainVertex3d vertex;
-                        vertex.x = static_cast<uint32_t>(std::round(verts[face][i][0] / CHUNK_SIZE * 1023.0f));
-                        vertex.y = static_cast<uint32_t>(std::round(verts[face][i][1] / CHUNK_SIZE * 1023.0f));
-                        vertex.z = static_cast<uint32_t>(std::round(verts[face][i][2] / CHUNK_SIZE * 1023.0f));
-                        vertex.u = faceUVs[(uvRandomOffset+i)%4][0];
-                        vertex.v = faceUVs[(uvRandomOffset+i)%4][1];
-                        vertex.textureSlot = textureSlotMap[voxel];
-                        vertex.faceIndex = face;  // 0-5 for -X, +X, -Y, +Y, -Z, +Z
-                        mesh.vertices.emplace_back(vertex);
-                    }
-
-                    mesh.indices.push_back(baseIdx);
-                    mesh.indices.push_back(baseIdx + 1);
-                    mesh.indices.push_back(baseIdx + 2);
-                    mesh.indices.push_back(baseIdx);
-                    mesh.indices.push_back(baseIdx + 2);
-                    mesh.indices.push_back(baseIdx + 3);
-                }
-            }
-        }
-    }
-
-    mesh.vertexCount = mesh.vertices.size();
-    mesh.indexCount = mesh.indices.size();
-    return true;
-}
-
 bool VoxelTerrainRenderer::upload_chunk_mesh_system(nvrhi::CommandListHandle cmd, VoxelChunkMesh &mesh, const Position &pos) {
     // TODO use the buffer with the position
     bool uploaded = false;
@@ -308,14 +220,14 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(nvrhi::CommandListHandle cmd
         VoxelBuffer& buffer = m_chunkBuffers[i];
 
         if (!buffer.can_allocate(mesh.vertexCount, mesh.indexCount)) {
-            LOG_ERROR("VoxelTerrainRenderer", "Cannot allocate space for a chunk (vertices = {} | indices = {})",
-                      mesh.vertexCount, mesh.indexCount);
+            // LOG_ERROR("VoxelTerrainRenderer", "Cannot allocate space for a chunk (vertices = {} | indices = {})",
+                      // mesh.vertexCount, mesh.indexCount);
             continue;
         }
 
         if (!buffer.allocate(mesh)) {
-            LOG_ERROR("VoxelTerrainRenderer", "Failed to allocate the chunk (vertices = {} | indices = {})",
-                      mesh.vertexCount, mesh.indexCount);
+            // LOG_ERROR("VoxelTerrainRenderer", "Failed to allocate the chunk (vertices = {} | indices = {})",
+                      // mesh.vertexCount, mesh.indexCount);
             continue;
         }
         mesh.bufferIndex = i;
