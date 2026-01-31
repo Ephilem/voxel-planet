@@ -34,7 +34,7 @@ void VoxelBufferVisualizer::draw(VoxelTerrainRenderer* voxelRenderer) {
         ImGui::Spacing();
         ImGui::Separator();
 
-        ImGui::Text("64MB Face Buffer Memory Map");
+        ImGui::Text("Face Buffer Memory Map");
         ImGui::Spacing();
 
         float availWidth = ImGui::GetContentRegionAvail().x;

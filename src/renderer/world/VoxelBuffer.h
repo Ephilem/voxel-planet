@@ -8,7 +8,7 @@ struct alignas(16) TerrainOUB {
     glm::mat4 model;
 };
 
-static constexpr uint64_t TOTAL_BUFFER_SIZE = 64 * 1024 * 1024; // 64 MB
+static constexpr uint64_t TOTAL_BUFFER_SIZE = 128 * 1024 * 1024;
 static constexpr uint64_t FACES_BUFFER_SIZE = TOTAL_BUFFER_SIZE;
 
 static constexpr uint32_t FACES_PER_REGION = 1000;

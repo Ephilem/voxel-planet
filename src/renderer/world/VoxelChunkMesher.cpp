@@ -42,7 +42,6 @@ void VoxelChunkMesher::enqueue(TaskMeshingInput &&taskInput) {
 
 std::vector<TaskMeshingOutput> VoxelChunkMesher::poll_results(size_t maxResults) {
     std::vector<TaskMeshingOutput> results = {};
-    results.reserve(maxResults);
 
     std::lock_guard<std::mutex> lock(m_taskMutex);
     while (!m_resultQueue.empty() && results.size() < maxResults) {
@@ -104,7 +103,7 @@ void VoxelChunkMesher::enqueue_meshing_system(flecs::entity e, const VoxelChunk 
 }
 
 void VoxelChunkMesher::poll_meshing_results_system(flecs::iter &it) {
-    auto results = poll_results(16);
+    auto results = poll_results(256);
 
     auto query = it.world().query_builder<VoxelChunkMesh, const ChunkCoordinate>()
             .with<VoxelChunkMeshState, voxel_chunk_mesh_state::Meshing>()
@@ -123,8 +122,6 @@ void VoxelChunkMesher::poll_meshing_results_system(flecs::iter &it) {
 }
 
 void VoxelChunkMesher::worker_loop(size_t id) {
-    LOG_DEBUG("VoxelChunkMesher", "Worker thread {} started", id);
-
     while (true) {
         TaskMeshingInput input;
         {
@@ -134,7 +131,6 @@ void VoxelChunkMesher::worker_loop(size_t id) {
             });
 
             if (m_stop && m_taskQueue.empty()) {
-                LOG_DEBUG("VoxelChunkMesher", "Worker thread {} stopping", id);
                 return;
             }
 

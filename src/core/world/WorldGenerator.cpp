@@ -15,6 +15,14 @@ WorldGenerator::WorldGenerator(const int64_t seed) : m_seed(seed) {
 WorldGenerator::~WorldGenerator() = default;
 
 bool WorldGenerator::generate_chunk(VoxelChunk &chunk, glm::ivec3 chunkPosition) {
+    // chunk.textureIDs = {
+    //         {"voxelplanet:textures/grass"_asset, 1},
+    //         {"voxelplanet:textures/cobblestone"_asset, 2}
+    // };
+    //
+    // chunk.at(0,0,0) = 1;
+    // return true;
+
     constexpr float frequency = 0.01f;
     constexpr int baseHeight = 100;
     constexpr int heightAmplitude = 32;

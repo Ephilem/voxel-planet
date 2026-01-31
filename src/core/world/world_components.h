@@ -38,6 +38,12 @@ struct ChunkLoader {
 
 struct LoadedBy {};
 
+namespace voxel_chunk_state {
+    struct Clean {};
+    struct Dirty {};
+}
+struct VoxelChunkState {};
+
 struct VoxelChunk {
     std::shared_ptr<std::array<uint8_t, CHUNK_VOLUME>> voxels;
     std::unordered_map<AssetID, uint8_t> textureIDs;
