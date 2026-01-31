@@ -2,6 +2,7 @@
 
 #include "VoxelTextureManager.h"
 #include "core/log/Logger.h"
+#include "core/world/ChunkManager.h"
 #include "renderer/rendering_components.h"
 
 
@@ -87,6 +88,10 @@ void VoxelChunkMesher::Register(flecs::world &ecs) {
 
 void VoxelChunkMesher::enqueue_meshing_system(flecs::entity e, const VoxelChunk &chunk, const ChunkCoordinate &pos) {
     auto* textureManager = e.world().get_mut<VoxelTextureManager>();
+    auto* chunkManager = e.world().get_mut<ChunkManager>();
+
+    // Check if we can mesh this chunk optimally
+    if (!chunkManager->can_mesh(pos)) return;
 
     TaskMeshingInput input;
     input.chunkCoord = pos;
@@ -98,11 +103,29 @@ void VoxelChunkMesher::enqueue_meshing_system(flecs::entity e, const VoxelChunk 
             textureManager->request_texture_slot(textureID);
     }
 
+
+    std::vector<std::shared_ptr<const std::array<uint8_t, CHUNK_VOLUME>>> neighborVoxels(6, nullptr);
+    std::vector<flecs::entity> neighborChunkEntities = chunkManager->get_neighboring_chunks(pos);
+
+    int neighborIndex = 0;
+    for (const auto& neighborEntity : neighborChunkEntities) {
+        if (neighborEntity != flecs::entity::null()) {
+            auto* neighborChunk = neighborEntity.get_mut<VoxelChunk>();
+            if (neighborChunk != nullptr) {
+                neighborVoxels[neighborIndex] = neighborChunk->voxels;
+            }
+        }
+        neighborIndex++;
+    }
+
+    input.neighborVoxels = std::move(neighborVoxels);
+
     enqueue(std::move(input));
     e.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Meshing>();
 }
 
 void VoxelChunkMesher::poll_meshing_results_system(flecs::iter &it) {
+    const auto* chunkManager = it.world().get<ChunkManager>();
     auto results = poll_results(256);
 
     auto query = it.world().query_builder<VoxelChunkMesh, const ChunkCoordinate>()
@@ -110,13 +133,12 @@ void VoxelChunkMesher::poll_meshing_results_system(flecs::iter &it) {
             .build();
 
     for (auto& result : results) {
-        query.each([&result](flecs::entity e, VoxelChunkMesh &mesh, const ChunkCoordinate &coord) {
-            if (coord == result.chunkCoord) {
-                mesh.faces = std::move(result.faces);
-                mesh.faceCount = static_cast<uint32_t>(mesh.faces.size());
-                e.add<VoxelChunkMeshState, voxel_chunk_mesh_state::ReadyForUpload>();
-            }
-        });
+        flecs::entity chunk = chunkManager->get_chunk_entity(result.chunkCoord);
+        if (chunk == flecs::entity::null() || !chunk.has<VoxelChunkMesh>()) continue;
+        auto mesh = chunk.get_mut<VoxelChunkMesh>();
+        mesh->faces = std::move(result.faces);
+        mesh->faceCount = static_cast<uint32_t>(mesh->faces.size());
+        chunk.add<VoxelChunkMeshState, voxel_chunk_mesh_state::ReadyForUpload>();
     }
 
 }
@@ -153,14 +175,45 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
     result.chunkCoord = input.chunkCoord;
     result.success = true;
 
-    // Lambda to get voxel at (x, y, z) with bounds checking
     auto at = [&input](int x, int y, int z) -> uint8_t {
-        if (x < 0 || x >= CHUNK_SIZE ||
-            y < 0 || y >= CHUNK_SIZE ||
-            z < 0 || z >= CHUNK_SIZE) {
-            return 0;
+        if (0 <= x && x < CHUNK_SIZE &&
+            0 <= y && y < CHUNK_SIZE &&
+            0 <= z && z < CHUNK_SIZE) {
+            return (*input.voxels)[x + CHUNK_SIZE * (y + CHUNK_SIZE * z)];
         }
-        return (*input.voxels)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE];
+
+        // Neighbor indices match ChunkManager
+        // 0: +X, 1: -X, 2: +Y, 3: -Y, 4: +Z, 5: -Z
+        int nx = x, ny = y, nz = z;
+        int neighborIndex = -1;
+
+        if (nx < 0) {
+            neighborIndex = 1;  // -X
+            nx += CHUNK_SIZE;
+        } else if (nx >= CHUNK_SIZE) {
+            neighborIndex = 0;  // +X
+            nx -= CHUNK_SIZE;
+        } else if (ny < 0) {
+            neighborIndex = 3;  // -Y
+            ny += CHUNK_SIZE;
+        } else if (ny >= CHUNK_SIZE) {
+            neighborIndex = 2;  // +Y
+            ny -= CHUNK_SIZE;
+        } else if (nz < 0) {
+            neighborIndex = 5;  // -Z
+            nz += CHUNK_SIZE;
+        } else if (nz >= CHUNK_SIZE) {
+            neighborIndex = 4;  // +Z
+            nz -= CHUNK_SIZE;
+        }
+
+        if (neighborIndex >= 0 && neighborIndex < static_cast<int>(input.neighborVoxels.size())) {
+            if (const auto& neighborVoxels = input.neighborVoxels[neighborIndex]) {
+                return (*neighborVoxels)[nx + CHUNK_SIZE * (ny + CHUNK_SIZE * nz)];
+            }
+        }
+
+        return 0;
     };
 
     for (int x = 0; x < CHUNK_SIZE; x++) {
@@ -174,7 +227,7 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
                     int ny = y + ((faceIdx == 2) ? -1 : (faceIdx == 3) ? 1 : 0);
                     int nz = z + ((faceIdx == 4) ? -1 : (faceIdx == 5) ? 1 : 0);
 
-                    bool isVisible = (at(nx, ny, nz) == 0);
+                    bool isVisible = at(nx, ny, nz) == 0;
                     if (!isVisible) continue;
 
                     uint32_t textureSlot = 0;

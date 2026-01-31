@@ -180,7 +180,6 @@ void VoxelBuffer::write(nvrhi::CommandListHandle cmd, VoxelChunkMesh& mesh, cons
     }
 
     if (mesh.faceCount == 0) {
-        LOG_WARN("VoxelBuffer", "Skipping write for mesh with 0 faces");
         return;
     }
 

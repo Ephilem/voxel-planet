@@ -42,8 +42,14 @@ void ChunkManager::init(flecs::world &ecs) {
                 const auto* inputState = e.world().get<InputActionState>();
                 auto* generator = e.world().get_mut<WorldGenerator>();
                 if (inputState->is_action_pressed(ActionInputType::Debug1)) {
-                    this->load_chunks_at_radius({0, 0, 0}, 8, generator);
+                    this->load_chunks_at_radius({0, 0, 0}, 16, generator);
                 }
+            });
+
+    ecs.system("ChunkManager-ProcessLoadQueue")
+            .kind(flecs::OnStore)
+            .run([this](flecs::iter &it) {
+                this->process_load_queue_system(it);
 
                 ImGui::Begin("Chunk Debug");
                 ImGui::Text("Load Queue: %zu", m_loadQueue.size());
@@ -52,19 +58,12 @@ void ChunkManager::init(flecs::world &ecs) {
                 ImGui::Text("Empty: %zu", m_emptyChunks.size());
                 ImGui::Text("Unload Queue: %zu", m_unloadQueue.size());
 
-                // For generation queue, you need the mutex (or add an atomic counter)
                 {
                     std::lock_guard<std::mutex> lock(m_generationMutex);
                     ImGui::Text("Generation Queue: %zu", m_generationQueue.size());
                     ImGui::Text("Results Pending: %zu", m_generationResultsQueue.size());
                 }
                 ImGui::End();
-            });
-
-    ecs.system("ChunkManager-ProcessLoadQueue")
-            .kind(flecs::OnStore)
-            .run([this](flecs::iter &it) {
-                this->process_load_queue_system(it);
             });
 
     ecs.system("ChunkManager-PollGenerationResults")
@@ -229,8 +228,69 @@ void ChunkManager::Register(flecs::world &ecs) {
     ecs.get_mut<ChunkManager>()->init(ecs);
 }
 
+std::vector<flecs::entity> ChunkManager::get_neighboring_chunks(const glm::ivec3 &chunkPos) const {
+    std::vector<flecs::entity> neighbors;
+
+    std::vector<glm::ivec3> neighborOffsets = {
+        // +X
+        {1, 0, 0},
+        // -X
+        {-1, 0, 0},
+        // +Y
+        {0, 1, 0},
+        // -Y
+        {0, -1, 0},
+        // +Z
+        {0, 0, 1},
+        // -Z
+        {0, 0, -1}
+    };
+    for (const auto &offset: neighborOffsets) {
+        glm::ivec3 neighborPos = chunkPos + offset;
+        auto it = m_loadedChunks.find(neighborPos);
+        if (it != m_loadedChunks.end()) {
+            neighbors.push_back(it->second);
+        } else {
+            neighbors.push_back(flecs::entity::null());
+        }
+    }
+
+    return neighbors;
+}
+
+flecs::entity ChunkManager::get_chunk_entity(const glm::ivec3 &chunkPos) const {
+    auto it = m_loadedChunks.find(chunkPos);
+    if (it != m_loadedChunks.end()) {
+        return it->second;
+    }
+    return flecs::entity::null();
+}
+
+bool ChunkManager::can_mesh(const glm::ivec3 &chunkPos) const {
+    // Check if the chunk is loaded
+    if (!m_loadedChunks.contains(chunkPos)) {
+        return false;
+    }
+
+    // Check if any neighbor is loading
+    static const std::vector<glm::ivec3> neighborOffsets = {
+        {1, 0, 0}, {-1, 0, 0},
+        {0, 1, 0}, {0, -1, 0},
+        {0, 0, 1}, {0, 0, -1}
+    };
+
+    for (const auto &offset: neighborOffsets) {
+        glm::ivec3 neighborPos = chunkPos + offset;
+        if (m_loadingChunks.contains(neighborPos)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void ChunkManager::poll_generation_results_system(flecs::iter &it) {
-    auto results = poll_generation_results(30);
+    auto results = poll_generation_results(500);
 
     for (auto &result: results) {
         m_loadingChunks.erase(result.chunkCoord);

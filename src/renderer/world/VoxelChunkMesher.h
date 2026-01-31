@@ -8,7 +8,6 @@
 #include <thread>
 #include <unordered_map>
 
-#include "core/main_components.h"
 #include "core/resource/asset_id.h"
 #include "core/world/world_components.h"
 #include "renderer/rendering_components.h"
@@ -16,6 +15,7 @@
 struct TaskMeshingInput {
     glm::ivec3 chunkCoord;
     std::shared_ptr<const std::array<uint8_t, CHUNK_VOLUME>> voxels;
+    std::vector<std::shared_ptr<const std::array<uint8_t, CHUNK_VOLUME>>> neighborVoxels; // size 6
     std::unordered_map<AssetID, uint8_t> textureIDs;
 };
 

@@ -38,11 +38,20 @@ public:
     void init(flecs::world& ecs);
     void static Register(flecs::world& ecs);
 
+    // public API for fast chunk entity lookup
+    std::vector<flecs::entity> get_neighboring_chunks(const glm::ivec3& chunkPos) const;
+
+    flecs::entity get_chunk_entity(const glm::ivec3& chunkPos) const;
+
+    // Check if a chunk can be meshed in a optimal way : is loaded, and its neighbors are not in loading state (to avoid non optimal meshing)
+    bool can_mesh(const glm::ivec3& chunkPos) const;
+
 private:
     std::deque<glm::ivec3> m_loadQueue;
     std::deque<glm::ivec3> m_unloadQueue;
 
     std::unordered_map<glm::ivec3, flecs::entity, IVec3Hash> m_loadedChunks;
+
     std::unordered_set<glm::ivec3, IVec3Hash> m_emptyChunks;
     std::unordered_set<glm::ivec3, IVec3Hash> m_loadingChunks;
 
