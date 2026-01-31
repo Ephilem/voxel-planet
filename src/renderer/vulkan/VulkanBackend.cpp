@@ -166,6 +166,10 @@ void VulkanBackend::init_nvrhi() {
     dynamicRenderingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
     dynamicRenderingFeatures.dynamicRendering = VK_TRUE;
 
+    VkPhysicalDeviceSynchronization2Features synchronization2Features{};
+    synchronization2Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
+    synchronization2Features.synchronization2 = VK_TRUE;
+
     VkPhysicalDeviceFeatures2 features{};
     features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     features.features.multiDrawIndirect = VK_TRUE;
@@ -174,6 +178,7 @@ void VulkanBackend::init_nvrhi() {
     auto device_ret = deviceBuilder
         .add_pNext(&timelineFeatures)
         .add_pNext(&dynamicRenderingFeatures)
+        .add_pNext(&synchronization2Features)
         .add_pNext(&features)
         .build();
 

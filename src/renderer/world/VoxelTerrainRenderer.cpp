@@ -11,7 +11,6 @@
 #include "core/main_components.h"
 #include "core/log/Logger.h"
 #include "renderer/Renderer.h"
-#include "renderer/render_types.h"
 #include <glm/glm.hpp>
 
 #include "VoxelChunkMesher.h"
@@ -81,23 +80,12 @@ void VoxelTerrainRenderer::init() {
             .setBindingOffsets(bindingOffsets);
     m_bufferBindingLayout = m_backend->device->createBindingLayout(bufferBindingLayoutDesc);
 
-
-    // Create Vertex Attribute Input
-    nvrhi::VertexAttributeDesc vertexAttrs[] = {
-        nvrhi::VertexAttributeDesc()
-        .setName("POSITION_UV")
-        .setFormat(nvrhi::Format::R32_UINT)
-        .setOffset(0)
-        .setElementStride(sizeof(TerrainVertex3d)),
-        nvrhi::VertexAttributeDesc()
-        .setName("TEXTURESLOT_FACEINDEX")
-        .setFormat(nvrhi::Format::R16_UINT)
-        .setOffset(4)
-        .setElementStride(sizeof(TerrainVertex3d))
-    };
-
-    nvrhi::InputLayoutHandle inputLayout = m_backend->device->createInputLayout(
-        vertexAttrs, std::size(vertexAttrs), m_vertexShader);
+    // Set 2: Face buffer
+    auto faceBindingLayoutDesc = nvrhi::BindingLayoutDesc()
+            .setVisibility(nvrhi::ShaderType::Vertex)
+            .addItem(nvrhi::BindingLayoutItem::StructuredBuffer_SRV(0))
+            .setBindingOffsets(bindingOffsets);
+    m_faceBufferBindingLayout = m_backend->device->createBindingLayout(faceBindingLayoutDesc);
 
     nvrhi::Format swapchainNvrhiFormat = m_backend->swapchainFormat == VK_FORMAT_B8G8R8A8_UNORM
                                              ? nvrhi::Format::BGRA8_UNORM
@@ -118,14 +106,14 @@ void VoxelTerrainRenderer::init() {
     renderState.depthStencilState.stencilEnable = false;
 
     auto pipelineDesc = nvrhi::GraphicsPipelineDesc()
-            .setInputLayout(inputLayout)
             .setVertexShader(m_vertexShader)
             .setPixelShader(m_pixelShader)
             .setPrimType(nvrhi::PrimitiveType::TriangleList)
             .setRenderState(renderState)
             .addBindingLayout(m_frameBindingLayout)  // Set 0
             .addBindingLayout(m_bufferBindingLayout) // Set 1
-            .addBindingLayout(m_textureManager->get_binding_layout()); // Set 2 - texture array
+            .addBindingLayout(m_faceBufferBindingLayout) // Set 2 - face buffer
+            .addBindingLayout(m_textureManager->get_binding_layout()); // Set 3 - texture array
     m_pipeline = m_backend->device->createGraphicsPipeline(pipelineDesc, framebufferInfo);
 }
 
@@ -146,6 +134,12 @@ VoxelBuffer& VoxelTerrainRenderer::create_buffer() {
             .addItem(nvrhi::BindingSetItem::StructuredBuffer_SRV(0, buffer.get_oub_buffer()));
     m_chunkBufferBindingSets.push_back(
         m_backend->device->createBindingSet(initialBufferBindingSetDesc, m_bufferBindingLayout));
+
+    auto faceBindingSetDesc = nvrhi::BindingSetDesc()
+            .addItem(nvrhi::BindingSetItem::StructuredBuffer_SRV(0, buffer.get_faces_buffer()));
+    m_chunkFaceBindingSets.push_back(
+        m_backend->device->createBindingSet(faceBindingSetDesc, m_faceBufferBindingLayout));
+
 
     // return index of the created buffer
     return buffer;
@@ -219,15 +213,7 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(nvrhi::CommandListHandle cmd
     for (size_t i = 0; i < m_chunkBuffers.size() && !uploaded; i++) {
         VoxelBuffer& buffer = m_chunkBuffers[i];
 
-        if (!buffer.can_allocate(mesh.vertexCount, mesh.indexCount)) {
-            // LOG_ERROR("VoxelTerrainRenderer", "Cannot allocate space for a chunk (vertices = {} | indices = {})",
-                      // mesh.vertexCount, mesh.indexCount);
-            continue;
-        }
-
         if (!buffer.allocate(mesh)) {
-            // LOG_ERROR("VoxelTerrainRenderer", "Failed to allocate the chunk (vertices = {} | indices = {})",
-                      // mesh.vertexCount, mesh.indexCount);
             continue;
         }
         mesh.bufferIndex = i;
@@ -278,30 +264,20 @@ void VoxelTerrainRenderer::render_terrain_system(Renderer &renderer, Camera3d &c
     for (auto& chunkBuffer : m_chunkBuffers) {
         auto& bufferBindingSet = m_chunkBufferBindingSets[i];
 
-        auto vertexBinding = nvrhi::VertexBufferBinding()
-                .setSlot(0)
-                .setBuffer(chunkBuffer.get_mesh_buffer())
-                .setOffset(0);
-        auto indexBinding = nvrhi::IndexBufferBinding()
-                .setOffset(INDEX_SECTION_OFFSET)
-                .setBuffer(chunkBuffer.get_mesh_buffer())
-                .setFormat(nvrhi::Format::R32_UINT);
-
         auto graphicsState = nvrhi::GraphicsState()
                 .setPipeline(m_pipeline)
                 .setViewport(nvrhi::ViewportState().addViewportAndScissorRect(nvrhi::Viewport(extent.width, extent.height)))
                 .setFramebuffer(m_backend->get_current_framebuffer())
                 .addBindingSet(m_frameBindingSet)    // Set 0: Per-frame data (camera)
                 .addBindingSet(bufferBindingSet)     // Set 1: Per-buffer data (chunks)
-                .addBindingSet(m_textureManager->get_binding_set()) // Set 2: texture array
-                .addVertexBuffer(vertexBinding)
-                .setIndirectParams(chunkBuffer.get_indirect_buffer())
-                .setIndexBuffer(indexBinding);
+                .addBindingSet(m_chunkFaceBindingSets[i]) // Set 2: face buffer
+                .addBindingSet(m_textureManager->get_binding_set()) // Set 3: texture array
+                .setIndirectParams(chunkBuffer.get_indirect_buffer());
         commandList->setGraphicsState(graphicsState);
 
         uint32_t drawCount = chunkBuffer.get_draw_count();
         if (drawCount > 0) {
-            commandList->drawIndexedIndirect(0, drawCount);
+            commandList->drawIndirect(0, drawCount);
         }
         i++;
     }

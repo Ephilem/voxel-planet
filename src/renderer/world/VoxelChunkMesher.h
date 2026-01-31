@@ -23,8 +23,7 @@ struct TaskMeshingOutput {
     glm::ivec3 chunkCoord;
 
     // moved ownership to not copy large data
-    std::vector<TerrainVertex3d> vertices;
-    std::vector<uint32_t> indices;
+    std::vector<TerrainFace3d> faces;
 
     bool success = false;
 };

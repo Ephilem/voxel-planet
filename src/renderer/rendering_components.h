@@ -27,24 +27,18 @@ struct VoxelChunkMesh {
     // GPU side info
     uint32_t bufferIndex = UINT32_MAX;
 
-    uint32_t vertexRegionStart = UINT32_MAX;
-    uint32_t vertexRegionCount = 0;
-
-    uint32_t indexRegionStart = UINT32_MAX;
-    uint32_t indexRegionCount = 0;
+    uint32_t faceRegionStart = UINT32_MAX;
+    uint32_t faceRegionCount = 0;
 
     uint32_t drawSlotIndex = UINT32_MAX;
 
     // CPU side info
-    std::vector<TerrainVertex3d> vertices;
-    std::vector<uint32_t> indices;
+    std::vector<TerrainFace3d> faces;
 
-    uint32_t indexCount = 0;
-    uint32_t vertexCount = 0;
+    uint32_t faceCount = 0;
 
     bool is_allocated() const {
-        return vertexRegionStart != UINT32_MAX &&
-               indexRegionStart != UINT32_MAX &&
+        return faceRegionStart != UINT32_MAX &&
                drawSlotIndex != UINT32_MAX &&
                bufferIndex != UINT32_MAX;
     }

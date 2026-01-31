@@ -8,8 +8,8 @@ layout(location = 4) flat in vec3 debugFragLocalPos;
 
 layout(location = 0) out vec4 fragColor;
 
-layout(set = 2, binding = 0) uniform texture2DArray voxelTextures;
-layout(set = 2, binding = 1) uniform sampler voxelSampler;
+layout(set = 3, binding = 0) uniform texture2DArray voxelTextures;
+layout(set = 3, binding = 1) uniform sampler voxelSampler;
 
 void main() {
     vec3 texCoord = vec3(fragUV, float(fragTextureSlot));
@@ -32,4 +32,7 @@ void main() {
 //    }
 
     fragColor = vec4(finalColor, texColor.a);
+
+    // fragcolor depend of the normal direction
+//    fragColor = vec4(normal * 0.5 + 0.5, 1.0);
 }

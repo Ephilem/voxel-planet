@@ -47,6 +47,10 @@ private:
     std::vector<VoxelBuffer> m_chunkBuffers;
     std::vector<nvrhi::BindingSetHandle> m_chunkBufferBindingSets; // One binding set per VoxelBuffer
 
+    // Set 2: Face information buffer (mesh data for chunks)
+    nvrhi::BindingLayoutHandle m_faceBufferBindingLayout;
+    std::vector<nvrhi::BindingSetHandle> m_chunkFaceBindingSets; // One binding set per VoxelBuffer
+
     nvrhi::ShaderHandle m_vertexShader;
     nvrhi::ShaderHandle m_pixelShader;
 

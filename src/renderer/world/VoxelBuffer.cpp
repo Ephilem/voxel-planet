@@ -12,40 +12,82 @@ VoxelBuffer::VoxelBuffer(VulkanBackend* backend) {
 }
 
 VoxelBuffer::~VoxelBuffer() {
-    m_meshBuffer = nullptr;
+    m_facesBuffer = nullptr;
+    m_globalIndexBuffer = nullptr;
 }
 
+// void VoxelBuffer::create_global_index_buffer() {
+//     m_maxQuadsSupported = MAX_FACES_REGIONS * FACES_PER_REGION;
+//
+//     std::vector<uint32_t> indices;
+//     indices.reserve(m_maxQuadsSupported * INDICES_PER_QUAD);
+//
+//     for (uint32_t quad = 0; quad < m_maxQuadsSupported; ++quad) {
+//         uint32_t baseVertex = quad * VERTICES_PER_QUAD;
+//         // Triangle 1: 0,1,2
+//         indices.push_back(baseVertex + 0);
+//         indices.push_back(baseVertex + 1);
+//         indices.push_back(baseVertex + 2);
+//         // Triangle 2: 0,2,3
+//         indices.push_back(baseVertex + 0);
+//         indices.push_back(baseVertex + 2);
+//         indices.push_back(baseVertex + 3);
+//     }
+//
+//     auto indexDesc = nvrhi::BufferDesc()
+//             .setByteSize(indices.size() * sizeof(uint32_t))
+//             .setDebugName("VoxelBuffer Global Index Buffer")
+//             .setIsIndexBuffer(true)
+//             .setInitialState(nvrhi::ResourceStates::CopyDest)
+//             .setKeepInitialState(true);
+//     m_globalIndexBuffer = m_backend->device->createBuffer(indexDesc);
+//
+//     auto cmd = m_backend->device->createCommandList();
+//     cmd->open();
+//     cmd->writeBuffer(m_globalIndexBuffer, indices.data(),
+//                      sizeof(uint32_t) * indices.size(), 0);
+//     cmd->setBufferState(m_globalIndexBuffer, nvrhi::ResourceStates::IndexBuffer);
+//     cmd->close();
+//     m_backend->device->executeCommandList(cmd);
+//
+//     LOG_INFO("VoxelBuffer", "Created global index buffer for {} quads ({:.2f} MB)",
+//              m_maxQuadsSupported, (indices.size() * sizeof(uint32_t)) / (1024.0f * 1024.0f));
+//
+//     m_indexBufferWritten = true;
+// }
 
 void VoxelBuffer::init() {
-    m_freeVertexRegions.clear();
-    m_freeVertexRegions.emplace_back(0, MAX_VERTEX_REGION);
-
-    m_freeIndexRegions.clear();
-    m_freeIndexRegions.emplace_back(0, MAX_INDEX_REGION);
+    m_freeFaceRegions.clear();
+    m_freeFaceRegions.emplace_back(0, MAX_FACES_REGIONS);
 
     m_freeDrawSlots.clear();
     m_nextDrawSlot = 0;
 
-    auto meshDesc = nvrhi::BufferDesc()
-            .setByteSize(TOTAL_BUFFER_SIZE)
-            .setDebugName("VoxelBuffer Mesh Buffer")
-            .setIsVertexBuffer(true)
-            .setIsIndexBuffer(true)
-            .setInitialState(nvrhi::ResourceStates::CopyDest)
+    // Face buffer
+    auto facesDesc = nvrhi::BufferDesc()
+            .setByteSize(FACES_BUFFER_SIZE)
+            .setDebugName("VoxelBuffer Faces Buffer")
+            .setIsConstantBuffer(false)
+            .setStructStride(sizeof(TerrainFace3d))
+            .setInitialState(nvrhi::ResourceStates::ShaderResource)
             .setKeepInitialState(true);
-    m_meshBuffer = m_backend->device->createBuffer(meshDesc);
+    m_facesBuffer = m_backend->device->createBuffer(facesDesc);
 
+    // create_global_index_buffer();
+
+    // OUB buffer
     auto oubDesc = nvrhi::BufferDesc()
             .setByteSize(8 * 1024 * 1024) // 8 MB
             .setDebugName("VoxelBuffer OUB Buffer")
             .setInitialState(nvrhi::ResourceStates::ShaderResource)
-            .setIsConstantBuffer(false) // structured buffer
+            .setIsConstantBuffer(false)
             .setStructStride(sizeof(TerrainOUB))
             .setKeepInitialState(true);
     m_oubBuffer = m_backend->device->createBuffer(oubDesc);
 
+    // Indirect buffer
     auto indirectDesc = nvrhi::BufferDesc()
-            .setByteSize(8 * 1024 * 1024 / sizeof(TerrainOUB) * sizeof(nvrhi::DrawIndexedIndirectArguments)) // 2.5 MB
+            .setByteSize(8 * 1024 * 1024 / sizeof(TerrainOUB) * sizeof(nvrhi::DrawIndexedIndirectArguments))
             .setDebugName("VoxelBuffer Indirect Buffer")
             .setInitialState(nvrhi::ResourceStates::IndirectArgument)
             .setIsDrawIndirectArgs(true)
@@ -53,49 +95,22 @@ void VoxelBuffer::init() {
     m_indirectBuffer = m_backend->device->createBuffer(indirectDesc);
 }
 
-bool VoxelBuffer::can_allocate(uint32_t vertexCount, uint32_t indexCount) {
-    uint32_t vertexRegionsNeeded = (vertexCount + VERTICES_PER_REGION - 1) / VERTICES_PER_REGION;
-    uint32_t indexRegionsNeeded = (indexCount + (INDEX_REGION_SIZE / INDEX_SIZE) - 1) / (
-                                      INDEX_REGION_SIZE / INDEX_SIZE);
+bool VoxelBuffer::can_allocate(uint32_t faceCount) {
+    uint32_t faceRegionsNeeded = (faceCount + FACES_PER_REGION - 1) / FACES_PER_REGION;
 
-    bool hasVertexSpace = false;
-    bool hasIndexSpace = false;
-    // bool hasIndirectSpace = false;
-
-    for (const auto &[start, count]: m_freeVertexRegions) {
-        if (count >= vertexRegionsNeeded) {
-            hasVertexSpace = true;
-            break;
+    for (const auto& [start, count] : m_freeFaceRegions) {
+        if (count >= faceRegionsNeeded) {
+            return true;
         }
     }
-
-    for (const auto &[start, count]: m_freeIndexRegions) {
-        if (count >= indexRegionsNeeded) {
-            hasIndexSpace = true;
-            break;
-        }
-    }
-
-    // if (!hasVertexSpace) {
-    //     LOG_DEBUG("VoxelBuffer", "Cannot allocate {} vertex regions (largest free block = {})",
-    //               vertexRegionsNeeded, get_largest_free_vertex_block());
-    // }
-    // if (!hasIndexSpace) {
-    //     LOG_DEBUG("VoxelBuffer", "Cannot allocate {} index regions (largest free block = {})",
-    //               indexRegionsNeeded, get_largest_free_index_block());
-    // }
-
-    return hasVertexSpace && hasIndexSpace;
+    return false;
 }
 
-bool VoxelBuffer::allocate_regions(std::vector<std::pair<uint32_t, uint32_t> > &freeList,
-                                   uint32_t regionCount, uint32_t &outStart) {
-    // Find first fit
+bool VoxelBuffer::allocate_regions(std::vector<std::pair<uint32_t, uint32_t>>& freeList,
+                                   uint32_t regionCount, uint32_t& outStart) {
     for (auto it = freeList.begin(); it != freeList.end(); ++it) {
         if (it->second >= regionCount) {
             outStart = it->first;
-
-            // Reduce or remove this free block
             if (it->second == regionCount) {
                 freeList.erase(it);
             } else {
@@ -108,19 +123,17 @@ bool VoxelBuffer::allocate_regions(std::vector<std::pair<uint32_t, uint32_t> > &
     return false;
 }
 
-void VoxelBuffer::free_regions(std::vector<std::pair<uint32_t, uint32_t> > &freeList,
+void VoxelBuffer::free_regions(std::vector<std::pair<uint32_t, uint32_t>>& freeList,
                                uint32_t start, uint32_t count) {
     if (count == 0) return;
 
     uint32_t newStart = start;
     uint32_t newEnd = start + count;
 
-    // Search for adjacent blocks to merge
     for (auto it = freeList.begin(); it != freeList.end();) {
         uint32_t blockStart = it->first;
         uint32_t blockEnd = blockStart + it->second;
 
-        // If adjacent, merge
         if (blockEnd == newStart) {
             newStart = blockStart;
             it = freeList.erase(it);
@@ -135,33 +148,19 @@ void VoxelBuffer::free_regions(std::vector<std::pair<uint32_t, uint32_t> > &free
     freeList.emplace_back(newStart, newEnd - newStart);
 }
 
-bool VoxelBuffer::allocate(VoxelChunkMesh &mesh) {
-    /////// Allocate Mesh Regions ///////
-    uint32_t vertexRegionsNeeded = (mesh.vertexCount + VERTICES_PER_REGION - 1) / VERTICES_PER_REGION;
-    uint32_t indexRegionsNeeded = (mesh.indexCount + (INDEX_REGION_SIZE / INDEX_SIZE) - 1) / (
-                                      INDEX_REGION_SIZE / INDEX_SIZE);
+bool VoxelBuffer::allocate(VoxelChunkMesh& mesh) {
+    uint32_t faceRegionsNeeded = (mesh.faceCount + FACES_PER_REGION - 1) / FACES_PER_REGION;
 
-    uint32_t vertexStart, indexStart, indirectStart;
-
-    if (!allocate_regions(m_freeVertexRegions, vertexRegionsNeeded, vertexStart)) {
+    uint32_t faceStart;
+    if (!allocate_regions(m_freeFaceRegions, faceRegionsNeeded, faceStart)) {
         return false;
     }
 
-    if (!allocate_regions(m_freeIndexRegions, indexRegionsNeeded, indexStart)) {
-        // Rollback vertex allocation
-        free_regions(m_freeVertexRegions, vertexStart, vertexRegionsNeeded);
-        return false;
-    }
+    mesh.faceRegionStart = faceStart;
+    mesh.faceRegionCount = faceRegionsNeeded;
 
-    mesh.vertexRegionStart = vertexStart;
-    mesh.vertexRegionCount = vertexRegionsNeeded;
-    mesh.indexRegionStart = indexStart;
-    mesh.indexRegionCount = indexRegionsNeeded;
-
-
-    /////// Allocate Indirect Draw Slot ///////
+    // Allocate draw slot
     uint32_t drawSlot;
-    // If there is a slot available, use it
     if (!m_freeDrawSlots.empty()) {
         drawSlot = m_freeDrawSlots.back();
         m_freeDrawSlots.pop_back();
@@ -174,104 +173,82 @@ bool VoxelBuffer::allocate(VoxelChunkMesh &mesh) {
     return true;
 }
 
-void VoxelBuffer::write(nvrhi::CommandListHandle cmd, VoxelChunkMesh &mesh, const TerrainOUB &oub) {
+void VoxelBuffer::write(nvrhi::CommandListHandle cmd, VoxelChunkMesh& mesh, const TerrainOUB& oub) {
     if (!mesh.is_allocated()) {
         LOG_ERROR("VoxelBuffer", "Cannot write unallocated mesh to buffer");
         return;
     }
 
-    cmd->setBufferState(m_meshBuffer, nvrhi::ResourceStates::CopyDest);
+    if (mesh.faceCount == 0) {
+        LOG_WARN("VoxelBuffer", "Skipping write for mesh with 0 faces");
+        return;
+    }
 
-    // Write vertices
-    uint64_t vertexByteOffset = mesh.vertexRegionStart * VERTEX_REGION_SIZE;
-    cmd->writeBuffer(m_meshBuffer, mesh.vertices.data(),
-                     sizeof(TerrainVertex3d) * mesh.vertexCount, vertexByteOffset);
+    cmd->setBufferState(m_facesBuffer, nvrhi::ResourceStates::CopyDest);
 
-    // Write indices
-    uint64_t indexByteOffset = mesh.indexRegionStart * INDEX_REGION_SIZE + INDEX_SECTION_OFFSET;
-    cmd->writeBuffer(m_meshBuffer, mesh.indices.data(),
-                     sizeof(uint32_t) * mesh.indexCount, indexByteOffset);
+    // Write faces
+    uint64_t faceByteOffset = mesh.faceRegionStart * FACES_REGION_SIZE;
+    cmd->writeBuffer(m_facesBuffer, mesh.faces.data(),
+                     sizeof(TerrainFace3d) * mesh.faceCount, faceByteOffset);
 
-    cmd->setBufferState(m_meshBuffer, nvrhi::ResourceStates::VertexBuffer | nvrhi::ResourceStates::IndexBuffer);
+    cmd->setBufferState(m_facesBuffer, nvrhi::ResourceStates::ShaderResource);
 
     // Write OUB
     uint64_t oubByteOffset = mesh.drawSlotIndex * sizeof(TerrainOUB);
     cmd->writeBuffer(m_oubBuffer, &oub, sizeof(TerrainOUB), oubByteOffset);
 
     // Write Indirect Args
-    auto args = nvrhi::DrawIndexedIndirectArguments()
-            .setBaseVertexLocation(mesh.vertexRegionStart * VERTICES_PER_REGION)
-            .setIndexCount(mesh.indexCount)
-            .setStartIndexLocation(mesh.indexRegionStart * (INDEX_REGION_SIZE / INDEX_SIZE))
+    auto args = nvrhi::DrawIndirectArguments()
+            // .setIndexCount(mesh.faceCount * INDICES_PER_QUAD)
+            // .setStartIndexLocation(0)
+            .setVertexCount(mesh.faceCount * VERTICES_PER_QUAD)
+            .setStartVertexLocation(mesh.faceRegionStart * FACES_PER_REGION * VERTICES_PER_QUAD)
             .setInstanceCount(1)
-            .setStartInstanceLocation(mesh.drawSlotIndex); // Use firstInstance as draw ID for gl_BaseInstance
-    uint64_t indirectByteOffset = mesh.drawSlotIndex * sizeof(nvrhi::DrawIndexedIndirectArguments);
-    cmd->writeBuffer(m_indirectBuffer, &args, sizeof(nvrhi::DrawIndexedIndirectArguments), indirectByteOffset);
+            .setStartInstanceLocation(mesh.drawSlotIndex);  // Draw ID for gl_BaseInstance
 
-    // float avgVertexToIndexRatio = ((float)mesh.vertexCount / mesh.indexCount);
-    // LOG_INFO("VoxelBuffer", "Vertex/Index ratio: {:.2f}", avgVertexToIndexRatio);
+    uint64_t indirectByteOffset = mesh.drawSlotIndex * sizeof(nvrhi::DrawIndirectArguments);
+    cmd->writeBuffer(m_indirectBuffer, &args, sizeof(nvrhi::DrawIndirectArguments), indirectByteOffset);
 }
 
 void VoxelBuffer::cleanup_freed_draw_slots(nvrhi::CommandListHandle cmd) {
-    for (uint32_t drawSlot: m_freedPendingDrawSlots) {
-        auto args = nvrhi::DrawIndexedIndirectArguments()
-                .setBaseVertexLocation(0)
-                .setIndexCount(0)
-                .setStartIndexLocation(0)
+    for (uint32_t drawSlot : m_freedPendingDrawSlots) {
+        auto args = nvrhi::DrawIndirectArguments()
+                // .setBaseVertexLocation(0)
+                // .setIndexCount(0)
+                // .setStartIndexLocation(0)
                 .setInstanceCount(0)
                 .setStartInstanceLocation(0);
-        uint64_t indirectByteOffset = drawSlot * sizeof(nvrhi::DrawIndexedIndirectArguments);
-        cmd->writeBuffer(m_indirectBuffer, &args, sizeof(nvrhi::DrawIndexedIndirectArguments), indirectByteOffset);
+        uint64_t indirectByteOffset = drawSlot * sizeof(nvrhi::DrawIndirectArguments);
+        cmd->writeBuffer(m_indirectBuffer, &args, sizeof(nvrhi::DrawIndirectArguments), indirectByteOffset);
     }
     m_freedPendingDrawSlots.clear();
 }
 
-void VoxelBuffer::free(VoxelChunkMesh &mesh) {
+void VoxelBuffer::free(VoxelChunkMesh& mesh) {
     if (!mesh.is_allocated()) {
         return;
     }
 
-    free_regions(m_freeVertexRegions, mesh.vertexRegionStart, mesh.vertexRegionCount);
-    free_regions(m_freeIndexRegions, mesh.indexRegionStart, mesh.indexRegionCount);
+    free_regions(m_freeFaceRegions, mesh.faceRegionStart, mesh.faceRegionCount);
 
     m_freeDrawSlots.push_back(mesh.drawSlotIndex);
-    m_freedPendingDrawSlots.push_back(mesh.drawSlotIndex); // Mark for cleanup after GPU is done
+    m_freedPendingDrawSlots.push_back(mesh.drawSlotIndex);
 
-    mesh.vertexRegionStart = UINT32_MAX;
-    mesh.vertexRegionCount = 0;
-    mesh.indexRegionStart = UINT32_MAX;
-    mesh.indexRegionCount = 0;
+    mesh.faceRegionStart = UINT32_MAX;
+    mesh.faceRegionCount = 0;
 }
 
-uint32_t VoxelBuffer::get_used_vertex_regions() const {
+uint32_t VoxelBuffer::get_used_face_regions() const {
     uint32_t totalFree = 0;
-    for (const auto &[start, count]: m_freeVertexRegions) {
+    for (const auto& [start, count] : m_freeFaceRegions) {
         totalFree += count;
     }
-    return MAX_VERTEX_REGION - totalFree;
+    return MAX_FACES_REGIONS - totalFree;
 }
 
-uint32_t VoxelBuffer::get_used_index_regions() const {
-    uint32_t totalFree = 0;
-    for (const auto &[start, count]: m_freeIndexRegions) {
-        totalFree += count;
-    }
-    return MAX_INDEX_REGION - totalFree;
-}
-
-uint32_t VoxelBuffer::get_largest_free_vertex_block() const {
+uint32_t VoxelBuffer::get_largest_free_face_block() const {
     uint32_t largest = 0;
-    for (const auto &[start, count]: m_freeVertexRegions) {
-        if (count > largest) {
-            largest = count;
-        }
-    }
-    return largest;
-}
-
-uint32_t VoxelBuffer::get_largest_free_index_block() const {
-    uint32_t largest = 0;
-    for (const auto &[start, count]: m_freeIndexRegions) {
+    for (const auto& [start, count] : m_freeFaceRegions) {
         if (count > largest) {
             largest = count;
         }

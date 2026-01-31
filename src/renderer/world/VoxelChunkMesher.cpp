@@ -113,10 +113,8 @@ void VoxelChunkMesher::poll_meshing_results_system(flecs::iter &it) {
     for (auto& result : results) {
         query.each([&result](flecs::entity e, VoxelChunkMesh &mesh, const ChunkCoordinate &coord) {
             if (coord == result.chunkCoord) {
-                mesh.vertices = std::move(result.vertices);
-                mesh.indices = std::move(result.indices);
-                mesh.vertexCount = mesh.vertices.size();
-                mesh.indexCount = mesh.indices.size();
+                mesh.faces = std::move(result.faces);
+                mesh.faceCount = static_cast<uint32_t>(mesh.faces.size());
                 e.add<VoxelChunkMeshState, voxel_chunk_mesh_state::ReadyForUpload>();
             }
         });
@@ -175,32 +173,13 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
                 uint8_t voxel = at(x, y, z);
                 if (voxel == 0) continue;  // Air
 
-                for (int face = 0; face < 6; face++) {
-                    int nx = x + ((face == 0) ? -1 : (face == 1) ? 1 : 0);
-                    int ny = y + ((face == 2) ? -1 : (face == 3) ? 1 : 0);
-                    int nz = z + ((face == 4) ? -1 : (face == 5) ? 1 : 0);
+                for (int faceIdx = 0; faceIdx < 6; faceIdx++) {
+                    int nx = x + ((faceIdx == 0) ? -1 : (faceIdx == 1) ? 1 : 0);
+                    int ny = y + ((faceIdx == 2) ? -1 : (faceIdx == 3) ? 1 : 0);
+                    int nz = z + ((faceIdx == 4) ? -1 : (faceIdx == 5) ? 1 : 0);
 
                     bool isVisible = (at(nx, ny, nz) == 0);
                     if (!isVisible) continue;
-
-                    static const float verts[6][4][3] = {
-                        // Face 0: -X
-                        {{0, 0, 0}, {0, 1, 0}, {0, 1, 1}, {0, 0, 1}},
-                        // Face 1: +X
-                        {{1, 0, 0}, {1, 0, 1}, {1, 1, 1}, {1, 1, 0}},
-                        // Face 2: -Y
-                        {{0, 0, 0}, {0, 0, 1}, {1, 0, 1}, {1, 0, 0}},
-                        // Face 3: +Y
-                        {{0, 1, 0}, {1, 1, 0}, {1, 1, 1}, {0, 1, 1}},
-                        // Face 4: -Z
-                        {{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}},
-                        // Face 5: +Z
-                        {{0, 0, 1}, {0, 1, 1}, {1, 1, 1}, {1, 0, 1}}
-                    };
-
-                    static const uint8_t faceUVs[4][2] = {
-                        {0, 0}, {0, 1}, {1, 1}, {1, 0}
-                    };
 
                     uint32_t textureSlot = 0;
                     auto it = input.textureIDs.find(voxel);
@@ -208,41 +187,14 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
                         textureSlot = it->second;
                     }
 
-                    uint32_t uvOffset = (x * 73856093) ^ (y * 19349663) ^ (z * 83492791);
-                    uvOffset = uvOffset % 4;
+                    TerrainFace3d face;
+                    face.x = static_cast<uint32_t>(x);
+                    face.y = static_cast<uint32_t>(y);
+                    face.z = static_cast<uint32_t>(z);
+                    face.faceIndex = static_cast<uint32_t>(faceIdx);
+                    face.textureSlot = static_cast<uint16_t>(textureSlot);
 
-                    uint32_t baseIdx = result.vertices.size();
-                    float fx = static_cast<float>(x);
-                    float fy = static_cast<float>(y);
-                    float fz = static_cast<float>(z);
-
-                    for (int i = 0; i < 4; i++) {
-                        TerrainVertex3d vertex;
-
-                        vertex.x = static_cast<uint32_t>(
-                            std::round((fx + verts[face][i][0]) / CHUNK_SIZE * 1023.0f));
-                        vertex.y = static_cast<uint32_t>(
-                            std::round((fy + verts[face][i][1]) / CHUNK_SIZE * 1023.0f));
-                        vertex.z = static_cast<uint32_t>(
-                            std::round((fz + verts[face][i][2]) / CHUNK_SIZE * 1023.0f));
-
-                        int uvIdx = (uvOffset + i) % 4;
-                        vertex.u = faceUVs[uvIdx][0];
-                        vertex.v = faceUVs[uvIdx][1];
-
-                        vertex.textureSlot = textureSlot;
-                        vertex.faceIndex = face;
-
-                        result.vertices.push_back(vertex);
-                    }
-
-                    result.indices.push_back(baseIdx + 0);
-                    result.indices.push_back(baseIdx + 1);
-                    result.indices.push_back(baseIdx + 2);
-
-                    result.indices.push_back(baseIdx + 0);
-                    result.indices.push_back(baseIdx + 2);
-                    result.indices.push_back(baseIdx + 3);
+                    result.faces.push_back(face);
                 }
             }
         }
