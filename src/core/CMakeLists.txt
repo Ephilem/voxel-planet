@@ -40,4 +40,5 @@ target_link_libraries(VoxelPlanetCore
         FastNoise2
     PRIVATE
         glfw
+        imgui
 )

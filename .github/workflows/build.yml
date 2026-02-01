@@ -76,12 +76,31 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Vulkan SDK
-        uses: humbletim/setup-vulkan-sdk@v1.2.0
+      - name: Cache Vulkan SDK
+        id: cache-vulkan
+        uses: actions/cache@v4
         with:
-          vulkan-query-version: ${{ env.VULKAN_SDK_VERSION }}
-          vulkan-components: Vulkan-Headers, Vulkan-Loader, Glslang, SPIRV-Tools
-          vulkan-use-cache: true
+          path: C:\VulkanSDK
+          key: vulkan-sdk-${{ env.VULKAN_SDK_VERSION }}-windows
+
+      - name: Install Vulkan SDK
+        if: steps.cache-vulkan.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $ver = "${{ env.VULKAN_SDK_VERSION }}"
+          $url = "https://sdk.lunarg.com/sdk/download/${ver}/windows/VulkanSDK-${ver}-Installer.exe"
+          Write-Host "Downloading Vulkan SDK from $url"
+          Invoke-WebRequest -Uri $url -OutFile VulkanSDK-Installer.exe
+          Write-Host "Installing Vulkan SDK..."
+          Start-Process -FilePath .\VulkanSDK-Installer.exe -ArgumentList "--root C:\VulkanSDK\${ver} --accept-licenses --default-answer --confirm-command install" -Wait
+          Remove-Item VulkanSDK-Installer.exe
+
+      - name: Set Vulkan SDK environment
+        shell: pwsh
+        run: |
+          $ver = "${{ env.VULKAN_SDK_VERSION }}"
+          echo "VULKAN_SDK=C:\VulkanSDK\${ver}" >> $env:GITHUB_ENV
+          echo "C:\VulkanSDK\${ver}\Bin" >> $env:GITHUB_PATH
 
       - name: Configure CMake
         run: |

@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "WorldGenerator.h"
-#include "../../../cmake-build-debug/_deps/imgui-src/imgui.h"
+#include <imgui.h>
 #include "core/log/Logger.h"
 #include "platform/inputs/input_state.h"
 
