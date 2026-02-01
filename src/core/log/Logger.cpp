@@ -4,6 +4,8 @@
 #include <chrono>
 #include <iomanip>
 
+namespace vp {
+
 // Static member initialization
 std::map<std::string, size_t> Logger::maxLengths = {
     {"LEVEL", 5},
@@ -13,7 +15,7 @@ std::map<std::string, size_t> Logger::maxLengths = {
 std::map<std::string, std::unique_ptr<Logger>> Logger::loggers;
 std::map<Logger::SinkId, Logger::SinkCallback> Logger::sinks;
 Logger::SinkId Logger::nextSinkId = 0;
-Logger::Level Logger::globalMinLevel = Logger::Level::TRACE;
+Logger::Level Logger::globalMinLevel = Level::TRACE;
 bool Logger::globalUseColors = true;
 bool Logger::globalShowTimestamp = true;
 
@@ -88,7 +90,7 @@ void Logger::log(Level level, const std::string& message) {
     std::stringstream ss;
 
     if (m_showTimestamp) {
-        ss << Logger::Colors::GRAY << "[" << getCurrentTime() << "] " << Logger::Colors::RESET;
+        ss << Colors::GRAY << "[" << getCurrentTime() << "] " << Colors::RESET;
     }
 
     const char* levelStr = levelToString(level);
@@ -172,4 +174,6 @@ std::string Logger::formatMessage(const std::string& message) {
     formatted << "\n";
 
     return formatted.str();
+}
+
 }

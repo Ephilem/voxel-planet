@@ -1,5 +1,6 @@
 #include "VoxelChunkMesher.h"
 
+#include <bit>
 #include <imgui.h>
 
 #include "core/TracyIntegration.h"
@@ -325,10 +326,10 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
 
                     for (int v = 0; v < CHUNK_SIZE; v++) {
                         while (mask[v]) {
-                            int u = __builtin_ctz(mask[v]);
+                            int u = std::countr_zero(mask[v]);
                             uint32_t shifted = mask[v] >> u;
                             uint32_t inverted = ~shifted;
-                            int w = inverted ? __builtin_ctz(inverted) : (32 - u);
+                            int w = inverted ? std::countr_zero(inverted) : (32 - u);
                             uint32_t runMask = static_cast<uint32_t>(((1ull << w) - 1ull) << u);
 
                             int h = 1;

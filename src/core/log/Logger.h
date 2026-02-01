@@ -9,6 +9,8 @@
 #include <chrono>
 #include <fmt/format.h>
 
+namespace vp {
+
 class Logger {
 public:
     enum class Level {
@@ -121,12 +123,14 @@ private:
     bool m_showTimestamp;
 };
 
+}
+
 // Macros for easy logging anywhere
 // Usage: LOG_INFO("MyComponent", "Player {} joined", playerName);
 
-#define LOG_TRACE(component, ...) ::Logger::get(component).trace(__VA_ARGS__)
-#define LOG_DEBUG(component, ...) ::Logger::get(component).debug(__VA_ARGS__)
-#define LOG_INFO(component, ...)  ::Logger::get(component).info(__VA_ARGS__)
-#define LOG_WARN(component, ...)  ::Logger::get(component).warning(__VA_ARGS__)
-#define LOG_ERROR(component, ...) ::Logger::get(component).error(__VA_ARGS__)
-#define LOG_FATAL(component, ...) ::Logger::get(component).fatal(__VA_ARGS__)
+#define LOG_TRACE(component, ...) ::vp::Logger::get(component).trace(__VA_ARGS__)
+#define LOG_DEBUG(component, ...) ::vp::Logger::get(component).debug(__VA_ARGS__)
+#define LOG_INFO(component, ...)  ::vp::Logger::get(component).info(__VA_ARGS__)
+#define LOG_WARN(component, ...)  ::vp::Logger::get(component).warning(__VA_ARGS__)
+#define LOG_ERROR(component, ...) ::vp::Logger::get(component).error(__VA_ARGS__)
+#define LOG_FATAL(component, ...) ::vp::Logger::get(component).fatal(__VA_ARGS__)
