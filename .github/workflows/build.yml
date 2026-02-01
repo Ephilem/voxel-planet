@@ -9,7 +9,7 @@ on:
 
 env:
   BUILD_TYPE: Release
-  VULKAN_SDK_VERSION: "1.3.290.0"
+  VULKAN_SDK_VERSION: "1.4.328.1"
 
 jobs:
   build-linux:
