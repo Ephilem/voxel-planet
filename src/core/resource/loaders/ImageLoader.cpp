@@ -6,6 +6,7 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <cstring>
+#include <stdexcept>
 #include <stb_image.h>
 
 std::shared_ptr<ImageResource> ImageLoader::load_typed(const std::string &name) {
