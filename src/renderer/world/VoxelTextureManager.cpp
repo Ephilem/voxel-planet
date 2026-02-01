@@ -5,6 +5,7 @@
 #include "VoxelTextureManager.h"
 
 #include "../../../cmake-build-debug/_deps/nvrhi-src/src/vulkan/vulkan-backend.h"
+#include <nvrhi/vulkan.h>
 #include "core/GameState.h"
 #include "core/log/Logger.h"
 #include "renderer/Renderer.h"
