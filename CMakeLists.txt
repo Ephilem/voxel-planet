@@ -1,6 +1,57 @@
 cmake_minimum_required(VERSION 3.25)
 project(VoxelPlanet VERSION 0.1.0 LANGUAGES CXX)
 
+######
+###### Versioning: MAJOR.MINOR.PATCH+build.NUMBER.HASH
+######
+
+execute_process(
+    COMMAND git rev-parse --short=8 HEAD
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_COMMIT_HASH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+
+execute_process(
+    COMMAND git rev-parse --abbrev-ref HEAD
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_BRANCH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+
+execute_process(
+    COMMAND git diff --quiet HEAD
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    RESULT_VARIABLE GIT_DIRTY
+)
+
+if(NOT DEFINED BUILD_NUMBER)
+    set(BUILD_NUMBER "0")
+endif()
+
+if(NOT GIT_COMMIT_HASH)
+    set(GIT_COMMIT_HASH "unknown")
+endif()
+
+if(NOT GIT_BRANCH)
+    set(GIT_BRANCH "unknown")
+endif()
+
+if(GIT_DIRTY)
+    set(GIT_DIRTY_SUFFIX "-dirty")
+else()
+    set(GIT_DIRTY_SUFFIX "")
+endif()
+
+set(VOXELPLANET_VERSION_FULL "${PROJECT_VERSION}+build.${BUILD_NUMBER}.${GIT_COMMIT_HASH}${GIT_DIRTY_SUFFIX}")
+
+set(VOXELPLANET_VERSION_SHORT "${PROJECT_VERSION}-${GIT_COMMIT_HASH}${GIT_DIRTY_SUFFIX}")
+
+message(STATUS "VoxelPlanet Version: ${VOXELPLANET_VERSION_FULL}")
+message(STATUS "Git Branch: ${GIT_BRANCH}")
+
 add_compile_definitions(VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -115,7 +166,7 @@ target_link_libraries(imgui PUBLIC glfw Vulkan::Vulkan)
 FetchContent_Declare(
         nvrhi
         GIT_REPOSITORY https://github.com/NVIDIA-RTX/NVRHI.git
-        GIT_TAG main
+        GIT_TAG 2ac4b58c355f53827c2e1d0740849ce4d09d5dd6
 )
 set(NVRHI_WITH_VULKAN ON CACHE BOOL "" FORCE)
 set(NVRHI_WITH_DX11 OFF CACHE BOOL "" FORCE)
@@ -135,7 +186,7 @@ FetchContent_MakeAvailable(fastnoise2)
 FetchContent_Declare(
         stb
         GIT_REPOSITORY https://github.com/nothings/stb.git
-        GIT_TAG master
+        GIT_TAG f1c79c02822848a9bed4315b12c8c8f3761e1296
 )
 FetchContent_MakeAvailable(stb)
 
@@ -191,6 +242,19 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         imgui
         FastNoise2
         stb
+)
+
+# Version definitions accessible in C++ code
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+        VOXELPLANET_VERSION="${PROJECT_VERSION}"
+        VOXELPLANET_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+        VOXELPLANET_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+        VOXELPLANET_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+        VOXELPLANET_VERSION_FULL="${VOXELPLANET_VERSION_FULL}"
+        VOXELPLANET_VERSION_SHORT="${VOXELPLANET_VERSION_SHORT}"
+        VOXELPLANET_BUILD_NUMBER=${BUILD_NUMBER}
+        VOXELPLANET_GIT_HASH="${GIT_COMMIT_HASH}"
+        VOXELPLANET_GIT_BRANCH="${GIT_BRANCH}"
 )
 
 file(GLOB_RECURSE SHADER_SOURCES
