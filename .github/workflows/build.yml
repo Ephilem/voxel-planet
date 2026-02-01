@@ -37,12 +37,27 @@ jobs:
             libxkbcommon-dev \
             libegl1-mesa-dev
 
+      - name: Cache Vulkan SDK
+        id: cache-vulkan
+        uses: actions/cache@v4
+        with:
+          path: ~/vulkan-sdk
+          key: vulkan-sdk-${{ env.VULKAN_SDK_VERSION }}-linux
+
       - name: Install Vulkan SDK
+        if: steps.cache-vulkan.outputs.cache-hit != 'true'
         run: |
-          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc
-          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-noble.list https://packages.lunarg.com/vulkan/lunarg-vulkan-noble.list
-          sudo apt-get update
-          sudo apt-get install -y vulkan-sdk
+          mkdir -p ~/vulkan-sdk
+          cd ~/vulkan-sdk
+          wget -q https://sdk.lunarg.com/sdk/download/${{ env.VULKAN_SDK_VERSION }}/linux/vulkansdk-linux-x86_64-${{ env.VULKAN_SDK_VERSION }}.tar.xz
+          tar -xf vulkansdk-linux-x86_64-${{ env.VULKAN_SDK_VERSION }}.tar.xz
+          rm vulkansdk-linux-x86_64-${{ env.VULKAN_SDK_VERSION }}.tar.xz
+
+      - name: Set Vulkan SDK environment
+        run: |
+          echo "VULKAN_SDK=$HOME/vulkan-sdk/${{ env.VULKAN_SDK_VERSION }}/x86_64" >> $GITHUB_ENV
+          echo "$HOME/vulkan-sdk/${{ env.VULKAN_SDK_VERSION }}/x86_64/bin" >> $GITHUB_PATH
+          echo "LD_LIBRARY_PATH=$HOME/vulkan-sdk/${{ env.VULKAN_SDK_VERSION }}/x86_64/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
       - name: Configure CMake
         run: |
@@ -88,7 +103,7 @@ jobs:
         shell: pwsh
         run: |
           $ver = "${{ env.VULKAN_SDK_VERSION }}"
-          $url = "https://sdk.lunarg.com/sdk/download/${ver}/windows/VulkanSDK-${ver}-Installer.exe"
+          $url = "https://sdk.lunarg.com/sdk/download/${ver}/windows/vulkansdk-windows-X64-${ver}.exe"
           Write-Host "Downloading Vulkan SDK from $url"
           Invoke-WebRequest -Uri $url -OutFile VulkanSDK-Installer.exe
           Write-Host "Installing Vulkan SDK..."
