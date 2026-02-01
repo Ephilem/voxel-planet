@@ -15,7 +15,12 @@ struct TerrainFace3d {
     // Direction of the face (so in the gpu, we can compute normal, uv's, etc)
     uint32_t faceIndex : 3{}; // 0-5 for the 6 cube faces
 
-    uint32_t padding : 11 = 0;
+    // Greedy meshing: face dimensions in voxels
+    // Stored as (value - 1), so 0 = 1 voxel, 31 = 32 voxels
+    uint32_t width : 5{};
+    uint32_t height : 5{};
+
+    uint32_t padding : 1 = 0;
 
     ////////
 

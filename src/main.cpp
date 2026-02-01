@@ -1,5 +1,6 @@
 #include "core/CoreModule.h"
 #include "core/GameState.h"
+#include "core/TracyIntegration.h"
 #include "platform/PlatformModule.h"
 #include "renderer/RendererModule.h"
 #include "client/ClientModule.h"
@@ -16,6 +17,8 @@ int main() {
         ecs->import<ClientModule>();
         ecs->import<flecs::stats>();
         ecs->set<flecs::Rest>({});
+
+        tracy_integration::Register(*ecs);
 
         ecs->system("ShutdownSystem")
             .kind(flecs::PostFrame)

@@ -29,6 +29,27 @@ endif()
 
 include(FetchContent)
 
+# Optional: Tracy profiler
+option(ENABLE_TRACY "Enable Tracy profiler" ON)
+
+if(ENABLE_TRACY)
+    FetchContent_Declare(
+        tracy
+        GIT_REPOSITORY https://github.com/wolfpld/tracy.git
+        GIT_TAG v0.13.1
+        GIT_SHALLOW TRUE
+    )
+    set(TRACY_ENABLE ON CACHE BOOL "" FORCE)
+    set(TRACY_ON_DEMAND ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(tracy)
+    set(TRACY_FOUND TRUE)
+    message(STATUS "Tracy profiler enabled")
+else()
+    set(TRACY_FOUND FALSE)
+    message(STATUS "Tracy profiler disabled")
+endif()
+
+
 find_package(Vulkan REQUIRED)
 
 FetchContent_Declare(
@@ -139,6 +160,12 @@ add_subdirectory(src/core)
 add_subdirectory(src/platform)
 add_subdirectory(src/renderer)
 add_subdirectory(src/client)
+
+# Link Tracy to renderer if enabled
+if(TRACY_FOUND)
+    target_link_libraries(VoxelPlanetRenderer PUBLIC TracyClient)
+    target_compile_definitions(VoxelPlanetRenderer PUBLIC TRACY_ENABLE)
+endif()
 
 add_executable(${PROJECT_NAME}
         src/main.cpp

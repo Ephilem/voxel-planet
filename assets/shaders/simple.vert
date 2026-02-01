@@ -21,7 +21,7 @@ layout (set = 1, binding = 0, std430) readonly buffer object_uniform_buffer {
 } oub;
 
 struct TerrainFace3d {
-    uint packed1;  // x:6, y:6, z:6, faceIndex:3, padding:11
+    uint packed1;  // x:6, y:6, z:6, faceIndex:3, width:5, height:5, padding:1
     uint packed2;  // textureSlot:16, padding:16
 };
 
@@ -60,32 +60,49 @@ const vec3 FACE_NORMALS[6] = {
 
 const uint QUAD_INDICES[6] = uint[6](0, 1, 2, 0, 2, 3);
 
+// For each face: which component to scale by width (x=0,y=1,z=2), then by height
+const ivec2 FACE_SCALE_AXES[6] = ivec2[6](
+    ivec2(2, 1), ivec2(2, 1),
+    ivec2(0, 2), ivec2(0, 2),
+    ivec2(0, 1), ivec2(0, 1)
+);
+
 void main() {
-    // Vertex pulling logic - 6 vertices per face, no index buffer needed
     uint faceIndex = gl_VertexIndex / 6u;
     uint cornerIndex = QUAD_INDICES[gl_VertexIndex % 6u];
 
     TerrainFace3d face = faceBuffer.faces[faceIndex];
 
     // Unpack data from packed integers
-    uint voxelX = (face.packed1 >> 0u) & 0x3Fu; // 6 bits
-    uint voxelY = (face.packed1 >> 6u) & 0x3Fu; // 6 bits
-    uint voxelZ = (face.packed1 >> 12u) & 0x3Fu; // 6 bits
-    uint faceDir = (face.packed1 >> 18u) & 0x7u; // 3 bits (0-5)
-    uint textureSlot = (face.packed2 >> 0u) & 0xFFFFu; // 16 bits
+    uint voxelX = (face.packed1 >> 0u) & 0x3Fu;
+    uint voxelY = (face.packed1 >> 6u) & 0x3Fu;
+    uint voxelZ = (face.packed1 >> 12u) & 0x3Fu;
+    uint faceDir = (face.packed1 >> 18u) & 0x7u;
+    uint packedWidth = (face.packed1 >> 21u) & 0x1Fu;
+    uint packedHeight = (face.packed1 >> 26u) & 0x1Fu;
+    uint textureSlot = (face.packed2 >> 0u) & 0xFFFFu;
 
-    // Get local position of the vertex
+    // Actual dimensions (stored as value-1)
+    float faceWidth = float(packedWidth + 1u);
+    float faceHeight = float(packedHeight + 1u);
+
     vec3 voxelPos = vec3(float(voxelX), float(voxelY), float(voxelZ));
     vec3 cornerOffset = QUAD_CORNERS[faceDir][cornerIndex];
-    vec3 localPos = voxelPos + cornerOffset;
 
+    // Scale corner offset by face dimensions
+    ivec2 scaleAxes = FACE_SCALE_AXES[faceDir];
+    cornerOffset[scaleAxes.x] *= faceWidth;
+    cornerOffset[scaleAxes.y] *= faceHeight;
+
+    vec3 localPos = voxelPos + cornerOffset;
     debugFragLocalPos = localPos;
 
-    fragUV = QUAD_UVS[cornerIndex];
+    // Scale UVs for texture tiling
+    vec2 uv = QUAD_UVS[cornerIndex];
+    fragUV = vec2(uv.x * faceWidth, uv.y * faceHeight);
     fragNormal = FACE_NORMALS[faceDir];
     fragTextureSlot = textureSlot;
 
-    // Transform to world position
     mat4 model = oub.objects[gl_InstanceIndex].model;
     vec4 worldPos = model * vec4(localPos, 1.0);
     fragWorldPos = worldPos.xyz;

@@ -2,6 +2,8 @@
 
 #include <imgui.h>
 
+#include "core/TracyIntegration.h"
+
 #include "VoxelTextureManager.h"
 #include "core/log/Logger.h"
 #include "core/world/ChunkManager.h"
@@ -101,6 +103,7 @@ void VoxelChunkMesher::Register(flecs::world &ecs) {
 }
 
 void VoxelChunkMesher::enqueue_meshing_system(flecs::entity e, const VoxelChunk &chunk, const ChunkCoordinate &pos) {
+    VOXEL_ZONE_N("EnqueueMeshing");
     auto* textureManager = e.world().get_mut<VoxelTextureManager>();
     auto* chunkManager = e.world().get_mut<ChunkManager>();
 
@@ -139,6 +142,7 @@ void VoxelChunkMesher::enqueue_meshing_system(flecs::entity e, const VoxelChunk 
 }
 
 void VoxelChunkMesher::poll_meshing_results_system(flecs::iter &it) {
+    VOXEL_ZONE_N("PollMeshingResults");
     const auto* chunkManager = it.world().get<ChunkManager>();
     auto results = poll_results(256);
 
@@ -157,8 +161,22 @@ void VoxelChunkMesher::poll_meshing_results_system(flecs::iter &it) {
 }
 
 void VoxelChunkMesher::worker_loop(size_t id) {
+#ifdef TRACY_ENABLE
+    char threadName[32];
+    snprintf(threadName, sizeof(threadName), "MeshWorker %zu", id);
+    tracy::SetThreadName(threadName);
+#endif
+
+    constexpr size_t BATCH_SIZE = 32;
+    std::vector<TaskMeshingInput> batch;
+    std::vector<TaskMeshingOutput> results;
+    batch.reserve(BATCH_SIZE);
+    results.reserve(BATCH_SIZE);
+
     while (true) {
-        TaskMeshingInput input; {
+        batch.clear();
+        {
+            VOXEL_ZONE_N("WaitForTasks");
             std::unique_lock<std::mutex> lock(m_taskMutex);
             m_taskCv.wait(lock, [this] {
                 return m_stop || !m_taskQueue.empty();
@@ -168,92 +186,168 @@ void VoxelChunkMesher::worker_loop(size_t id) {
                 return;
             }
 
-            input = std::move(m_taskQueue.front());
-            m_taskQueue.pop();
-            m_pendingCoords.erase(input.chunkCoord);
+            while (!m_taskQueue.empty() && batch.size() < BATCH_SIZE) {
+                batch.push_back(std::move(m_taskQueue.front()));
+                m_taskQueue.pop();
+                m_pendingCoords.erase(batch.back().chunkCoord);
+            }
         }
 
-        TaskMeshingOutput result = build_mesh(input); {
+        {
+            VOXEL_ZONE_N("ProcessBatch");
+            results.clear();
+            for (auto& input : batch) {
+                results.push_back(build_mesh(input));
+            }
+        }
+
+        {
+            VOXEL_ZONE_N("PushResults");
             std::lock_guard<std::mutex> lock(m_resultMutex);
-            m_resultQueue.push(std::move(result));
+            for (auto& result : results) {
+                m_resultQueue.push(std::move(result));
+            }
         }
     }
 }
 
 TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
+    VOXEL_ZONE_N("BuildMesh");
+
     TaskMeshingOutput result;
     result.chunkCoord = input.chunkCoord;
     result.success = true;
 
-    auto at = [&input](int x, int y, int z) -> uint8_t {
-        if (0 <= x && x < CHUNK_SIZE &&
-            0 <= y && y < CHUNK_SIZE &&
-            0 <= z && z < CHUNK_SIZE) {
-            return (*input.voxels)[x + CHUNK_SIZE * (y + CHUNK_SIZE * z)];
+    const auto& voxels = *input.voxels;
+
+    // Helper to get neighbor voxel at boundary
+    auto get_neighbor_voxel = [&input](int neighborIdx, int lx, int ly, int lz) -> uint8_t {
+        if (const auto& nv = input.neighborVoxels[neighborIdx]) {
+            return (*nv)[lx + CHUNK_SIZE * (ly + CHUNK_SIZE * lz)];
         }
-
-        // Neighbor indices match ChunkManager
-        // 0: +X, 1: -X, 2: +Y, 3: -Y, 4: +Z, 5: -Z
-        int nx = x, ny = y, nz = z;
-        int neighborIndex = -1;
-
-        if (nx < 0) {
-            neighborIndex = 1; // -X
-            nx += CHUNK_SIZE;
-        } else if (nx >= CHUNK_SIZE) {
-            neighborIndex = 0; // +X
-            nx -= CHUNK_SIZE;
-        } else if (ny < 0) {
-            neighborIndex = 3; // -Y
-            ny += CHUNK_SIZE;
-        } else if (ny >= CHUNK_SIZE) {
-            neighborIndex = 2; // +Y
-            ny -= CHUNK_SIZE;
-        } else if (nz < 0) {
-            neighborIndex = 5; // -Z
-            nz += CHUNK_SIZE;
-        } else if (nz >= CHUNK_SIZE) {
-            neighborIndex = 4; // +Z
-            nz -= CHUNK_SIZE;
-        }
-
-        if (neighborIndex >= 0 && neighborIndex < static_cast<int>(input.neighborVoxels.size())) {
-            if (const auto &neighborVoxels = input.neighborVoxels[neighborIndex]) {
-                return (*neighborVoxels)[nx + CHUNK_SIZE * (ny + CHUNK_SIZE * nz)];
-            }
-        }
-
         return 0;
     };
 
-    for (int x = 0; x < CHUNK_SIZE; x++) {
-        for (int y = 0; y < CHUNK_SIZE; y++) {
-            for (int z = 0; z < CHUNK_SIZE; z++) {
-                uint8_t voxel = at(x, y, z);
-                if (voxel == 0) continue; // Air
+    // Pre-allocated masks for all 6 faces, all slices, per voxel type
+    using SliceMasks = std::unordered_map<uint8_t, std::array<uint32_t, CHUNK_SIZE>>;
+    std::array<std::array<SliceMasks, CHUNK_SIZE>, 6> allMasks;
 
-                for (int faceIdx = 0; faceIdx < 6; faceIdx++) {
-                    int nx = x + ((faceIdx == 0) ? -1 : (faceIdx == 1) ? 1 : 0);
-                    int ny = y + ((faceIdx == 2) ? -1 : (faceIdx == 3) ? 1 : 0);
-                    int nz = z + ((faceIdx == 4) ? -1 : (faceIdx == 5) ? 1 : 0);
+    {
+        VOXEL_ZONE_N("BuildAllMasks");
+        for (int z = 0; z < CHUNK_SIZE; z++) {
+            for (int y = 0; y < CHUNK_SIZE; y++) {
+                for (int x = 0; x < CHUNK_SIZE; x++) {
+                    const uint8_t voxel = voxels[x + CHUNK_SIZE * (y + CHUNK_SIZE * z)];
+                    if (voxel == 0) continue;
 
-                    bool isVisible = at(nx, ny, nz) == 0;
-                    if (!isVisible) continue;
-
-                    uint32_t textureSlot = 0;
-                    auto it = input.textureIDs.find(voxel);
-                    if (it != input.textureIDs.end()) {
-                        textureSlot = it->second;
+                    // Face 0: normal toward -X, check x-1 neighbor
+                    {
+                        uint8_t neighbor = (x > 0)
+                            ? voxels[(x - 1) + CHUNK_SIZE * (y + CHUNK_SIZE * z)]
+                            : get_neighbor_voxel(1, CHUNK_SIZE - 1, y, z);
+                        if (neighbor == 0) {
+                            allMasks[0][x][voxel][y] |= (1u << z);
+                        }
                     }
 
-                    TerrainFace3d face;
-                    face.x = static_cast<uint32_t>(x);
-                    face.y = static_cast<uint32_t>(y);
-                    face.z = static_cast<uint32_t>(z);
-                    face.faceIndex = static_cast<uint32_t>(faceIdx);
-                    face.textureSlot = static_cast<uint16_t>(textureSlot);
+                    // Face 1: normal toward +X, check x+1 neighbor
+                    {
+                        uint8_t neighbor = (x + 1 < CHUNK_SIZE)
+                            ? voxels[(x + 1) + CHUNK_SIZE * (y + CHUNK_SIZE * z)]
+                            : get_neighbor_voxel(0, 0, y, z);
+                        if (neighbor == 0) {
+                            allMasks[1][x][voxel][y] |= (1u << z);
+                        }
+                    }
 
-                    result.faces.push_back(face);
+                    // Face 2: normal toward -Y, check y-1 neighbor
+                    {
+                        uint8_t neighbor = (y > 0)
+                            ? voxels[x + CHUNK_SIZE * ((y - 1) + CHUNK_SIZE * z)]
+                            : get_neighbor_voxel(3, x, CHUNK_SIZE - 1, z);
+                        if (neighbor == 0) {
+                            allMasks[2][y][voxel][z] |= (1u << x);
+                        }
+                    }
+
+                    // Face 3: normal toward +Y, check y+1 neighbor
+                    {
+                        uint8_t neighbor = (y + 1 < CHUNK_SIZE)
+                            ? voxels[x + CHUNK_SIZE * ((y + 1) + CHUNK_SIZE * z)]
+                            : get_neighbor_voxel(2, x, 0, z);
+                        if (neighbor == 0) {
+                            allMasks[3][y][voxel][z] |= (1u << x);
+                        }
+                    }
+
+                    // Face 4: normal toward -Z, check z-1 neighbor
+                    {
+                        uint8_t neighbor = (z > 0)
+                            ? voxels[x + CHUNK_SIZE * (y + CHUNK_SIZE * (z - 1))]
+                            : get_neighbor_voxel(5, x, y, CHUNK_SIZE - 1);
+                        if (neighbor == 0) {
+                            allMasks[4][z][voxel][y] |= (1u << x);
+                        }
+                    }
+
+                    // Face 5: normal toward +Z, check z+1 neighbor
+                    {
+                        uint8_t neighbor = (z + 1 < CHUNK_SIZE)
+                            ? voxels[x + CHUNK_SIZE * (y + CHUNK_SIZE * (z + 1))]
+                            : get_neighbor_voxel(4, x, y, 0);
+                        if (neighbor == 0) {
+                            allMasks[5][z][voxel][y] |= (1u << x);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Face axes for coordinate reconstruction: {slice_axis, u_axis, v_axis}
+    constexpr int FACE_AXES[6][3] = {
+        {0,2,1}, {0,2,1}, {1,0,2}, {1,0,2}, {2,0,1}, {2,0,1}
+    };
+
+    // Greedy meshing on pre-computed masks
+    {
+        VOXEL_ZONE_N("GreedyMerge");
+        for (int faceDir = 0; faceDir < 6; faceDir++) {
+            const int sAxis = FACE_AXES[faceDir][0];
+            const int uAxis = FACE_AXES[faceDir][1];
+            const int vAxis = FACE_AXES[faceDir][2];
+
+            for (int slice = 0; slice < CHUNK_SIZE; slice++) {
+                for (auto& [voxel, mask] : allMasks[faceDir][slice]) {
+                    uint32_t texSlot = 0;
+                    if (auto it = input.textureIDs.find(voxel); it != input.textureIDs.end())
+                        texSlot = it->second;
+
+                    for (int v = 0; v < CHUNK_SIZE; v++) {
+                        while (mask[v]) {
+                            int u = __builtin_ctz(mask[v]);
+                            uint32_t shifted = mask[v] >> u;
+                            uint32_t inverted = ~shifted;
+                            int w = inverted ? __builtin_ctz(inverted) : (32 - u);
+                            uint32_t runMask = static_cast<uint32_t>(((1ull << w) - 1ull) << u);
+
+                            int h = 1;
+                            for (int nv = v + 1; nv < CHUNK_SIZE && (mask[nv] & runMask) == runMask; nv++) {
+                                mask[nv] &= ~runMask;
+                                h++;
+                            }
+                            mask[v] &= ~runMask;
+
+                            int p[3]; p[sAxis] = slice; p[uAxis] = u; p[vAxis] = v;
+                            TerrainFace3d face{};
+                            face.x = p[0]; face.y = p[1]; face.z = p[2];
+                            face.faceIndex = faceDir;
+                            face.width = w - 1;
+                            face.height = h - 1;
+                            face.textureSlot = texSlot;
+                            result.faces.push_back(face);
+                        }
+                    }
                 }
             }
         }
