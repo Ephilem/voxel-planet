@@ -39,7 +39,7 @@ public:
     void static Register(flecs::world& ecs);
 
     // public API for fast chunk entity lookup
-    std::vector<flecs::entity> get_neighboring_chunks(const glm::ivec3& chunkPos) const;
+    std::array<flecs::entity, 6> get_neighboring_chunks(const glm::ivec3 &chunkPos) const;
 
     flecs::entity get_chunk_entity(const glm::ivec3& chunkPos) const;
 

@@ -12,13 +12,12 @@
 #define CHUNK_VOLUME (CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE)
 
 struct IVec3Hash {
-    std::size_t operator()(const glm::ivec3& v) const {
-        std::size_t h1 = std::hash<int>{}(v.x);
-        std::size_t h2 = std::hash<int>{}(v.y);
-        std::size_t h3 = std::hash<int>{}(v.z);
-        return h1 ^ (h2 << 1) ^ (h3 << 2);
-    }
-};
+      std::size_t operator()(const glm::ivec3& v) const {
+          return static_cast<std::size_t>(v.x) * 73856093 ^
+                 static_cast<std::size_t>(v.y) * 19349663 ^
+                 static_cast<std::size_t>(v.z) * 83492791;
+      }
+  };
 
 struct ChunkCoordinate : glm::ivec3 {
     using glm::ivec3::ivec3;

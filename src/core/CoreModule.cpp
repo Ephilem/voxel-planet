@@ -25,7 +25,7 @@ CoreModule::CoreModule(flecs::world& ecs) {
         .lastTime = glfwGetTime()
     });
 
-    ecs.set<WorldGenerator>(WorldGenerator{12345});
+    ecs.set<WorldGenerator>(WorldGenerator{std::time(nullptr)});
     ChunkManager::Register(ecs);
 }
 

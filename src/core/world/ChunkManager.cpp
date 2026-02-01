@@ -228,31 +228,36 @@ void ChunkManager::Register(flecs::world &ecs) {
     ecs.get_mut<ChunkManager>()->init(ecs);
 }
 
-std::vector<flecs::entity> ChunkManager::get_neighboring_chunks(const glm::ivec3 &chunkPos) const {
-    std::vector<flecs::entity> neighbors;
+std::array<flecs::entity, 6> ChunkManager::get_neighboring_chunks(const glm::ivec3 &chunkPos) const {
+    std::array<flecs::entity, 6> neighbors;
 
-    std::vector<glm::ivec3> neighborOffsets = {
-        // +X
-        {1, 0, 0},
-        // -X
-        {-1, 0, 0},
-        // +Y
-        {0, 1, 0},
-        // -Y
-        {0, -1, 0},
-        // +Z
-        {0, 0, 1},
-        // -Z
-        {0, 0, -1}
-    };
-    for (const auto &offset: neighborOffsets) {
+    static constexpr std::array<glm::ivec3, 6> neighborOffsets = {
+        {
+            // +X
+            {1, 0, 0},
+            // -X
+            {-1, 0, 0},
+            // +Y
+            {0, 1, 0},
+            // -Y
+            {0, -1, 0},
+            // +Z
+            {0, 0, 1},
+            // -Z
+            {0, 0, -1}
+    }};
+
+    int i = 0;
+    while (i < neighborOffsets.size()) {
+        const auto &offset = neighborOffsets[i];
         glm::ivec3 neighborPos = chunkPos + offset;
         auto it = m_loadedChunks.find(neighborPos);
         if (it != m_loadedChunks.end()) {
-            neighbors.push_back(it->second);
+            neighbors[i] = it->second;
         } else {
-            neighbors.push_back(flecs::entity::null());
+            neighbors[i] = flecs::entity::null();
         }
+        i++;
     }
 
     return neighbors;
@@ -267,17 +272,15 @@ flecs::entity ChunkManager::get_chunk_entity(const glm::ivec3 &chunkPos) const {
 }
 
 bool ChunkManager::can_mesh(const glm::ivec3 &chunkPos) const {
-    // Check if the chunk is loaded
     if (!m_loadedChunks.contains(chunkPos)) {
         return false;
     }
 
-    // Check if any neighbor is loading
-    static const std::vector<glm::ivec3> neighborOffsets = {
+    static constexpr std::array<glm::ivec3, 6> neighborOffsets = {{
         {1, 0, 0}, {-1, 0, 0},
         {0, 1, 0}, {0, -1, 0},
         {0, 0, 1}, {0, 0, -1}
-    };
+    }};
 
     for (const auto &offset: neighborOffsets) {
         glm::ivec3 neighborPos = chunkPos + offset;
