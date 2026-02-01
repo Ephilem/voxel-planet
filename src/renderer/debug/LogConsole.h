@@ -31,17 +31,17 @@ public:
 
 private:
     struct DisplayEntry {
-        Logger::Level level;
+        vp::Logger::Level level;
         std::string component;
         std::string message;
         std::string timestamp;
     };
 
-    void on_log_received(const Logger::LogEntry& entry);
+    void on_log_received(const vp::Logger::LogEntry& entry);
 
     std::vector<DisplayEntry> m_entries;
     std::mutex m_entriesMutex;
-    Logger::SinkId m_sinkId = 0;
+    vp::Logger::SinkId m_sinkId = 0;
 
     size_t m_maxEntries = 1000;
     bool m_autoScroll = true;

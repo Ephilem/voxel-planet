@@ -8,16 +8,16 @@
 
 LogConsole::LogConsole() {
     // Register as a sink to receive log messages
-    m_sinkId = Logger::addSink([this](const Logger::LogEntry& entry) {
+    m_sinkId = vp::Logger::addSink([this](const vp::Logger::LogEntry& entry) {
         on_log_received(entry);
     });
 }
 
 LogConsole::~LogConsole() {
-    Logger::removeSink(m_sinkId);
+    vp::Logger::removeSink(m_sinkId);
 }
 
-void LogConsole::on_log_received(const Logger::LogEntry& entry) {
+void LogConsole::on_log_received(const vp::Logger::LogEntry& entry) {
     std::lock_guard<std::mutex> lock(m_entriesMutex);
 
     // Format timestamp
@@ -109,12 +109,12 @@ void LogConsole::draw() {
         // Color based on level
         ImVec4 color;
         switch (entry.level) {
-            case Logger::Level::TRACE:   color = ImVec4(0.5f, 0.5f, 0.5f, 1.0f); break;
-            case Logger::Level::DEBUG:   color = ImVec4(0.4f, 0.6f, 1.0f, 1.0f); break;
-            case Logger::Level::INFO:    color = ImVec4(0.4f, 1.0f, 0.4f, 1.0f); break;
-            case Logger::Level::WARNING: color = ImVec4(1.0f, 1.0f, 0.4f, 1.0f); break;
-            case Logger::Level::ERROR:   color = ImVec4(1.0f, 0.4f, 0.4f, 1.0f); break;
-            case Logger::Level::FATAL:   color = ImVec4(1.0f, 0.3f, 1.0f, 1.0f); break;
+            case vp::Logger::Level::TRACE:   color = ImVec4(0.5f, 0.5f, 0.5f, 1.0f); break;
+            case vp::Logger::Level::DEBUG:   color = ImVec4(0.4f, 0.6f, 1.0f, 1.0f); break;
+            case vp::Logger::Level::INFO:    color = ImVec4(0.4f, 1.0f, 0.4f, 1.0f); break;
+            case vp::Logger::Level::WARNING: color = ImVec4(1.0f, 1.0f, 0.4f, 1.0f); break;
+            case vp::Logger::Level::ERROR:   color = ImVec4(1.0f, 0.4f, 0.4f, 1.0f); break;
+            case vp::Logger::Level::FATAL:   color = ImVec4(1.0f, 0.3f, 1.0f, 1.0f); break;
         }
 
         // Timestamp (gray)
@@ -122,7 +122,7 @@ void LogConsole::draw() {
         ImGui::SameLine();
 
         // Level (colored)
-        ImGui::TextColored(color, "%-5s", Logger::levelToString(entry.level));
+        ImGui::TextColored(color, "%-5s", vp::Logger::levelToString(entry.level));
         ImGui::SameLine();
 
         // Component (cyan)
