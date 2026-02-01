@@ -15,7 +15,7 @@ std::map<std::string, size_t> Logger::maxLengths = {
 std::map<std::string, std::unique_ptr<Logger>> Logger::loggers;
 std::map<Logger::SinkId, Logger::SinkCallback> Logger::sinks;
 Logger::SinkId Logger::nextSinkId = 0;
-Logger::Level Logger::globalMinLevel = Level::TRACE;
+Logger::Level Logger::globalMinLevel = Level::TRACE_LEVEL;
 bool Logger::globalUseColors = true;
 bool Logger::globalShowTimestamp = true;
 
@@ -108,40 +108,40 @@ void Logger::log(Level level, const std::string& message) {
 
     ss << " " << formatMessage(message);
 
-    if (level >= Level::ERROR) {
+    if (level >= Level::ERROR_LEVEL) {
         std::cerr << ss.str();
     } else {
         std::cout << ss.str();
     }
 }
 
-void Logger::trace(const std::string& message) { log(Level::TRACE, message); }
-void Logger::debug(const std::string& message) { log(Level::DEBUG, message); }
-void Logger::info(const std::string& message) { log(Level::INFO, message); }
-void Logger::warning(const std::string& message) { log(Level::WARNING, message); }
-void Logger::error(const std::string& message) { log(Level::ERROR, message); }
-void Logger::fatal(const std::string& message) { log(Level::FATAL, message); }
+void Logger::trace(const std::string& message) { log(Level::TRACE_LEVEL, message); }
+void Logger::debug(const std::string& message) { log(Level::DEBUG_LEVEL, message); }
+void Logger::info(const std::string& message) { log(Level::INFO_LEVEL, message); }
+void Logger::warning(const std::string& message) { log(Level::WARNING_LEVEL, message); }
+void Logger::error(const std::string& message) { log(Level::ERROR_LEVEL, message); }
+void Logger::fatal(const std::string& message) { log(Level::FATAL_LEVEL, message); }
 
 const char* Logger::levelToString(Level level) {
     switch (level) {
-        case Level::TRACE:   return "TRACE";
-        case Level::DEBUG:   return "DEBUG";
-        case Level::INFO:    return "INFO";
-        case Level::WARNING: return "WARN";
-        case Level::ERROR:   return "ERROR";
-        case Level::FATAL:   return "FATAL";
+        case Level::TRACE_LEVEL:   return "TRACE";
+        case Level::DEBUG_LEVEL:   return "DEBUG";
+        case Level::INFO_LEVEL:    return "INFO";
+        case Level::WARNING_LEVEL: return "WARN";
+        case Level::ERROR_LEVEL:   return "ERROR";
+        case Level::FATAL_LEVEL:   return "FATAL";
         default:             return "?????";
     }
 }
 
 const char* Logger::levelToColor(Level level) {
     switch (level) {
-        case Level::TRACE:   return Colors::GRAY;
-        case Level::DEBUG:   return Colors::BLUE;
-        case Level::INFO:    return Colors::GREEN;
-        case Level::WARNING: return Colors::YELLOW;
-        case Level::ERROR:   return Colors::RED;
-        case Level::FATAL:   return Colors::MAGENTA;
+        case Level::TRACE_LEVEL:   return Colors::GRAY;
+        case Level::DEBUG_LEVEL:   return Colors::BLUE;
+        case Level::INFO_LEVEL:    return Colors::GREEN;
+        case Level::WARNING_LEVEL: return Colors::YELLOW;
+        case Level::ERROR_LEVEL:   return Colors::RED;
+        case Level::FATAL_LEVEL:   return Colors::MAGENTA;
         default:             return Colors::RESET;
     }
 }

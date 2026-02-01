@@ -109,12 +109,12 @@ void LogConsole::draw() {
         // Color based on level
         ImVec4 color;
         switch (entry.level) {
-            case vp::Logger::Level::TRACE:   color = ImVec4(0.5f, 0.5f, 0.5f, 1.0f); break;
-            case vp::Logger::Level::DEBUG:   color = ImVec4(0.4f, 0.6f, 1.0f, 1.0f); break;
-            case vp::Logger::Level::INFO:    color = ImVec4(0.4f, 1.0f, 0.4f, 1.0f); break;
-            case vp::Logger::Level::WARNING: color = ImVec4(1.0f, 1.0f, 0.4f, 1.0f); break;
-            case vp::Logger::Level::ERROR:   color = ImVec4(1.0f, 0.4f, 0.4f, 1.0f); break;
-            case vp::Logger::Level::FATAL:   color = ImVec4(1.0f, 0.3f, 1.0f, 1.0f); break;
+            case vp::Logger::Level::TRACE_LEVEL:   color = ImVec4(0.5f, 0.5f, 0.5f, 1.0f); break;
+            case vp::Logger::Level::DEBUG_LEVEL:   color = ImVec4(0.4f, 0.6f, 1.0f, 1.0f); break;
+            case vp::Logger::Level::INFO_LEVEL:    color = ImVec4(0.4f, 1.0f, 0.4f, 1.0f); break;
+            case vp::Logger::Level::WARNING_LEVEL: color = ImVec4(1.0f, 1.0f, 0.4f, 1.0f); break;
+            case vp::Logger::Level::ERROR_LEVEL:   color = ImVec4(1.0f, 0.4f, 0.4f, 1.0f); break;
+            case vp::Logger::Level::FATAL_LEVEL:   color = ImVec4(1.0f, 0.3f, 1.0f, 1.0f); break;
         }
 
         // Timestamp (gray)

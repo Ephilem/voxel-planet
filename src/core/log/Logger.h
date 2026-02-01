@@ -13,17 +13,13 @@ namespace vp {
 
 class Logger {
 public:
-    // Windows.h defines ERROR as 0, which breaks our enum
-#ifdef ERROR
-#undef ERROR
-#endif
     enum class Level {
-        TRACE,
-        DEBUG,
-        INFO,
-        WARNING,
-        ERROR,
-        FATAL,
+        TRACE_LEVEL,
+        DEBUG_LEVEL,
+        INFO_LEVEL,
+        WARNING_LEVEL,
+        ERROR_LEVEL,
+        FATAL_LEVEL,
     };
 
     // Log entry passed to all sinks
