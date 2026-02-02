@@ -343,10 +343,17 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
                             TerrainFace3d face{};
                             face.x = p[0]; face.y = p[1]; face.z = p[2];
                             face.faceIndex = faceDir;
-                            face.width = w - 1;
-                            face.height = h - 1;
+                            // Swap width/height for faces where UV orientation differs
+                            if (faceDir == 1 || faceDir == 3 || faceDir == 4) {
+                                face.width = h - 1;
+                                face.height = w - 1;
+                            } else {
+                                face.width = w - 1;
+                                face.height = h - 1;
+                            }
                             face.textureSlot = texSlot;
                             result.faces.push_back(face);
+
                         }
                     }
                 }

@@ -60,11 +60,13 @@ const vec3 FACE_NORMALS[6] = {
 
 const uint QUAD_INDICES[6] = uint[6](0, 1, 2, 0, 2, 3);
 
-// For each face: which component to scale by width (x=0,y=1,z=2), then by height
 const ivec2 FACE_SCALE_AXES[6] = ivec2[6](
-    ivec2(2, 1), ivec2(2, 1),
-    ivec2(0, 2), ivec2(0, 2),
-    ivec2(0, 1), ivec2(0, 1)
+    ivec2(2, 1), // Face 0 (-X)
+    ivec2(1, 2), // Face 1 (+X)
+    ivec2(0, 2), // Face 2 (-Y)
+    ivec2(2, 0), // Face 3 (+Y)
+    ivec2(1, 0), // Face 4 (-Z)
+    ivec2(0, 1)  // Face 5 (+Z)
 );
 
 void main() {
