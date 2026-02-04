@@ -3,7 +3,15 @@
 #include <deque>
 #include <unordered_set>
 #include <flecs.h>
+#include <iosfwd>
+#include <iosfwd>
+#include <iosfwd>
+#include <iosfwd>
 #include <queue>
+#include <vector>
+#include <vector>
+#include <vector>
+#include <vector>
 
 #include "world_components.h"
 #include "core/main_components.h"
@@ -14,6 +22,7 @@ class WorldGenerator;
 struct TaskGeneratingInput {
     glm::ivec3 chunkCoord;
     WorldGenerator* generator;
+    float priority = 0.0f;
 };
 
 struct TaskGeneratingOutput {
@@ -70,7 +79,7 @@ private:
     // Action methods
     void load_chunks_at_radius(const ChunkCoordinate &center, int radius, WorldGenerator* generator);
 
-    void enqueue_chunk_generation(const glm::ivec3 & chunkPos, WorldGenerator* generator);
+    void enqueue_chunks_generation(std::vector<struct ChunkCandidate> chunkCandidates, WorldGenerator* generator);
 
     std::vector<TaskGeneratingOutput> poll_generation_results(size_t maxResults = 30);
 
@@ -98,7 +107,11 @@ private:
     std::vector<std::thread> m_generationThreads;
     std::mutex m_generationMutex;
     std::condition_variable m_generationCv;
-    std::queue<TaskGeneratingInput> m_generationQueue;
+    std::priority_queue<
+        TaskGeneratingInput,
+        std::vector<TaskGeneratingInput>,
+        std::greater<TaskGeneratingInput>
+    > m_generationQueue;
     std::atomic<bool> m_stopGeneration{false};
 
     std::mutex m_generationResultsMutex;
@@ -106,3 +119,8 @@ private:
 
     void generation_worker_loop(size_t id);
 };
+
+// define filter ordering for priority queue
+inline bool operator>(const TaskGeneratingInput& a, const TaskGeneratingInput& b) {
+    return a.priority > b.priority;
+}
