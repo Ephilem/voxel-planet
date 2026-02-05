@@ -21,7 +21,7 @@ struct AABB {
     }
 
     static AABB from_chunk(const glm::ivec3& chunkPos, int chunkSize) {
-        glm::vec3 min = glm::vec3(chunkPos) * chunkSize;
+        glm::vec3 min = glm::vec3(chunkPos) * static_cast<float>(chunkSize);
         glm::vec3 max = min + glm::vec3(chunkSize);
         return {min, max};
     }

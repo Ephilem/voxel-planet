@@ -8,6 +8,7 @@
 #include <thread>
 #include <unordered_map>
 
+#include "core/math/frustrum.h"
 #include "core/resource/asset_id.h"
 #include "core/world/world_components.h"
 #include "renderer/rendering_components.h"
@@ -17,7 +18,12 @@ struct TaskMeshingInput {
     std::shared_ptr<const std::array<uint8_t, CHUNK_VOLUME>> voxels;
     std::array<std::shared_ptr<const std::array<uint8_t, CHUNK_VOLUME>>, 6> neighborVoxels; // size 6
     std::unordered_map<AssetID, uint8_t> textureIDs;
+    float priority = 0.0f;
 };
+
+inline bool operator>(const TaskMeshingInput& a, const TaskMeshingInput& b) {
+    return a.priority > b.priority;
+}
 
 struct TaskMeshingOutput {
     glm::ivec3 chunkCoord;
@@ -36,6 +42,12 @@ public:
 
     void init(flecs::world& ecs);
     void static Register(flecs::world& ecs);
+
+    void update_frustum(const glm::mat4& projectionViewMatrix, const glm::vec3& cameraPos, const glm::vec3& viewDir) {
+        m_frustum.update(projectionViewMatrix);
+        m_cameraPos = cameraPos;
+        m_viewDir = viewDir;
+    }
 
     size_t pending_count() const {
         std::lock_guard<std::mutex> lock(m_taskMutex);
@@ -65,17 +77,22 @@ private:
     void enqueue_meshing_system(flecs::entity e, const VoxelChunk& chunk, const ChunkCoordinate& pos);
     void poll_meshing_results_system(flecs::iter& it);
 
+    float calculate_task_priority(const glm::ivec3& chunkPos) const;
+
     // Worker thread function
     void worker_loop(size_t id);
     TaskMeshingOutput build_mesh(const TaskMeshingInput& input);
-
 
     std::vector<std::thread> m_workerThreads;
 
     // task queue input
     mutable std::mutex m_taskMutex;
     std::condition_variable m_taskCv;
-    std::queue<TaskMeshingInput> m_taskQueue;
+    std::priority_queue<
+          TaskMeshingInput,
+          std::vector<TaskMeshingInput>,
+          std::greater<TaskMeshingInput>
+    > m_taskQueue;
     std::unordered_set<glm::ivec3, IVec3Hash> m_pendingCoords;
 
     // result queue output
@@ -83,4 +100,8 @@ private:
     std::queue<TaskMeshingOutput> m_resultQueue;
 
     std::atomic<bool> m_stop;
+
+    Frustrum m_frustum;
+    glm::vec3 m_cameraPos;
+    glm::vec3 m_viewDir;
 };

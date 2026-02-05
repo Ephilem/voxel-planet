@@ -102,10 +102,10 @@ void ChunkManager::load_chunks_at_radius(const ChunkCoordinate &center, int radi
               glm::ivec3 chunkPos = glm::ivec3(center.x + x, center.y + y, center.z + z);
               if (!is_chunk_processed(chunkPos) && !m_loadingChunks.contains(chunkPos)) {
                   auto priority = distSq;
-                  if (center.y - 5 <= chunkPos.y && chunkPos.y <= center.y + 5) {
+                  if (center.y - 1 <= chunkPos.y && chunkPos.y <= center.y + 1) {
                       priority *= 0.01f;
                   }
-                  candidates.push_back({chunkPos, distSq});
+                  candidates.push_back({chunkPos, priority});
               }
           }
       }

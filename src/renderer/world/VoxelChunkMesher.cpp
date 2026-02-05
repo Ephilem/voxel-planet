@@ -90,6 +90,16 @@ void VoxelChunkMesher::init(flecs::world &ecs) {
                 ImGui::End();
             });
 
+    ecs.system<Camera3d, const Position, const Orientation>("VoxelChunkMesher-UpdateFrustum")
+            .kind(flecs::PreUpdate)
+            .each([this](flecs::entity e, Camera3d &camera, const Position &pos, const Orientation &orient) {
+                glm::mat4 viewProjection = camera.projectionMatrix * camera.viewMatrix;
+                glm::vec3 viewDir = orient.forward();
+                glm::vec3 cameraPos = {pos.x, pos.y, pos.z};
+
+                this->update_frustum(viewProjection, cameraPos, viewDir);
+            });
+
     // init workers
     size_t numThreads = std::max(1u, std::thread::hardware_concurrency() - 1);
 
@@ -114,6 +124,8 @@ void VoxelChunkMesher::enqueue_meshing_system(flecs::entity e, const VoxelChunk 
     TaskMeshingInput input;
     input.chunkCoord = pos;
     input.voxels = chunk.voxels;
+
+    input.priority = calculate_task_priority(pos);
 
     // Texture slots. Said to prepare some texture in the gpu
     for (const auto &[textureID, voxelID]: chunk.textureIDs) {
@@ -161,6 +173,30 @@ void VoxelChunkMesher::poll_meshing_results_system(flecs::iter &it) {
     }
 }
 
+float VoxelChunkMesher::calculate_task_priority(const glm::ivec3 &chunkPos) const {
+    glm::vec3 chunkCenter = glm::vec3(chunkPos) * static_cast<float>(CHUNK_SIZE)
+                            + glm::vec3(CHUNK_SIZE * 0.5f);
+
+    float distance = glm::length(chunkCenter - m_cameraPos);
+
+    AABB chunkAABB = AABB::from_chunk(chunkPos, CHUNK_SIZE);
+    bool inFrustum = m_frustum.intersects(chunkAABB);
+
+    glm::vec3 toChunk = glm::normalize(chunkCenter - m_cameraPos);
+    float dotProduct = glm::dot(toChunk, m_viewDir);
+
+    float priority = distance;
+
+    if (!inFrustum) {
+        priority += 1000.0f;
+    } else {
+        priority -= dotProduct * 50.0f;
+    }
+
+    return priority;
+}
+
+
 void VoxelChunkMesher::worker_loop(size_t id) {
 #ifdef TRACY_ENABLE
     char threadName[32];
@@ -175,8 +211,7 @@ void VoxelChunkMesher::worker_loop(size_t id) {
     results.reserve(BATCH_SIZE);
 
     while (true) {
-        batch.clear();
-        {
+        batch.clear(); {
             VOXEL_ZONE_N("WaitForTasks");
             std::unique_lock<std::mutex> lock(m_taskMutex);
             m_taskCv.wait(lock, [this] {
@@ -188,24 +223,20 @@ void VoxelChunkMesher::worker_loop(size_t id) {
             }
 
             while (!m_taskQueue.empty() && batch.size() < BATCH_SIZE) {
-                batch.push_back(std::move(m_taskQueue.front()));
+                batch.push_back(std::move(m_taskQueue.top()));
                 m_taskQueue.pop();
                 m_pendingCoords.erase(batch.back().chunkCoord);
             }
-        }
-
-        {
+        } {
             VOXEL_ZONE_N("ProcessBatch");
             results.clear();
-            for (auto& input : batch) {
+            for (auto &input: batch) {
                 results.push_back(build_mesh(input));
             }
-        }
-
-        {
+        } {
             VOXEL_ZONE_N("PushResults");
             std::lock_guard<std::mutex> lock(m_resultMutex);
-            for (auto& result : results) {
+            for (auto &result: results) {
                 m_resultQueue.push(std::move(result));
             }
         }
@@ -219,21 +250,19 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
     result.chunkCoord = input.chunkCoord;
     result.success = true;
 
-    const auto& voxels = *input.voxels;
+    const auto &voxels = *input.voxels;
 
     // Helper to get neighbor voxel at boundary
     auto get_neighbor_voxel = [&input](int neighborIdx, int lx, int ly, int lz) -> uint8_t {
-        if (const auto& nv = input.neighborVoxels[neighborIdx]) {
+        if (const auto &nv = input.neighborVoxels[neighborIdx]) {
             return (*nv)[lx + CHUNK_SIZE * (ly + CHUNK_SIZE * lz)];
         }
         return 0;
     };
 
     // Pre-allocated masks for all 6 faces, all slices, per voxel type
-    using SliceMasks = std::unordered_map<uint8_t, std::array<uint32_t, CHUNK_SIZE>>;
-    std::array<std::array<SliceMasks, CHUNK_SIZE>, 6> allMasks;
-
-    {
+    using SliceMasks = std::unordered_map<uint8_t, std::array<uint32_t, CHUNK_SIZE> >;
+    std::array<std::array<SliceMasks, CHUNK_SIZE>, 6> allMasks; {
         VOXEL_ZONE_N("BuildAllMasks");
         for (int z = 0; z < CHUNK_SIZE; z++) {
             for (int y = 0; y < CHUNK_SIZE; y++) {
@@ -244,8 +273,8 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
                     // Face 0: normal toward -X, check x-1 neighbor
                     {
                         uint8_t neighbor = (x > 0)
-                            ? voxels[(x - 1) + CHUNK_SIZE * (y + CHUNK_SIZE * z)]
-                            : get_neighbor_voxel(1, CHUNK_SIZE - 1, y, z);
+                                               ? voxels[(x - 1) + CHUNK_SIZE * (y + CHUNK_SIZE * z)]
+                                               : get_neighbor_voxel(1, CHUNK_SIZE - 1, y, z);
                         if (neighbor == 0) {
                             allMasks[0][x][voxel][y] |= (1u << z);
                         }
@@ -254,8 +283,8 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
                     // Face 1: normal toward +X, check x+1 neighbor
                     {
                         uint8_t neighbor = (x + 1 < CHUNK_SIZE)
-                            ? voxels[(x + 1) + CHUNK_SIZE * (y + CHUNK_SIZE * z)]
-                            : get_neighbor_voxel(0, 0, y, z);
+                                               ? voxels[(x + 1) + CHUNK_SIZE * (y + CHUNK_SIZE * z)]
+                                               : get_neighbor_voxel(0, 0, y, z);
                         if (neighbor == 0) {
                             allMasks[1][x][voxel][y] |= (1u << z);
                         }
@@ -264,8 +293,8 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
                     // Face 2: normal toward -Y, check y-1 neighbor
                     {
                         uint8_t neighbor = (y > 0)
-                            ? voxels[x + CHUNK_SIZE * ((y - 1) + CHUNK_SIZE * z)]
-                            : get_neighbor_voxel(3, x, CHUNK_SIZE - 1, z);
+                                               ? voxels[x + CHUNK_SIZE * ((y - 1) + CHUNK_SIZE * z)]
+                                               : get_neighbor_voxel(3, x, CHUNK_SIZE - 1, z);
                         if (neighbor == 0) {
                             allMasks[2][y][voxel][z] |= (1u << x);
                         }
@@ -274,8 +303,8 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
                     // Face 3: normal toward +Y, check y+1 neighbor
                     {
                         uint8_t neighbor = (y + 1 < CHUNK_SIZE)
-                            ? voxels[x + CHUNK_SIZE * ((y + 1) + CHUNK_SIZE * z)]
-                            : get_neighbor_voxel(2, x, 0, z);
+                                               ? voxels[x + CHUNK_SIZE * ((y + 1) + CHUNK_SIZE * z)]
+                                               : get_neighbor_voxel(2, x, 0, z);
                         if (neighbor == 0) {
                             allMasks[3][y][voxel][z] |= (1u << x);
                         }
@@ -284,8 +313,8 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
                     // Face 4: normal toward -Z, check z-1 neighbor
                     {
                         uint8_t neighbor = (z > 0)
-                            ? voxels[x + CHUNK_SIZE * (y + CHUNK_SIZE * (z - 1))]
-                            : get_neighbor_voxel(5, x, y, CHUNK_SIZE - 1);
+                                               ? voxels[x + CHUNK_SIZE * (y + CHUNK_SIZE * (z - 1))]
+                                               : get_neighbor_voxel(5, x, y, CHUNK_SIZE - 1);
                         if (neighbor == 0) {
                             allMasks[4][z][voxel][y] |= (1u << x);
                         }
@@ -294,8 +323,8 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
                     // Face 5: normal toward +Z, check z+1 neighbor
                     {
                         uint8_t neighbor = (z + 1 < CHUNK_SIZE)
-                            ? voxels[x + CHUNK_SIZE * (y + CHUNK_SIZE * (z + 1))]
-                            : get_neighbor_voxel(4, x, y, 0);
+                                               ? voxels[x + CHUNK_SIZE * (y + CHUNK_SIZE * (z + 1))]
+                                               : get_neighbor_voxel(4, x, y, 0);
                         if (neighbor == 0) {
                             allMasks[5][z][voxel][y] |= (1u << x);
                         }
@@ -307,7 +336,7 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
 
     // Face axes for coordinate reconstruction: {slice_axis, u_axis, v_axis}
     constexpr int FACE_AXES[6][3] = {
-        {0,2,1}, {0,2,1}, {1,0,2}, {1,0,2}, {2,0,1}, {2,0,1}
+        {0, 2, 1}, {0, 2, 1}, {1, 0, 2}, {1, 0, 2}, {2, 0, 1}, {2, 0, 1}
     };
 
     // Greedy meshing on pre-computed masks
@@ -319,7 +348,7 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
             const int vAxis = FACE_AXES[faceDir][2];
 
             for (int slice = 0; slice < CHUNK_SIZE; slice++) {
-                for (auto& [voxel, mask] : allMasks[faceDir][slice]) {
+                for (auto &[voxel, mask]: allMasks[faceDir][slice]) {
                     uint32_t texSlot = 0;
                     if (auto it = input.textureIDs.find(voxel); it != input.textureIDs.end())
                         texSlot = it->second;
@@ -339,9 +368,14 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
                             }
                             mask[v] &= ~runMask;
 
-                            int p[3]; p[sAxis] = slice; p[uAxis] = u; p[vAxis] = v;
+                            int p[3];
+                            p[sAxis] = slice;
+                            p[uAxis] = u;
+                            p[vAxis] = v;
                             TerrainFace3d face{};
-                            face.x = p[0]; face.y = p[1]; face.z = p[2];
+                            face.x = p[0];
+                            face.y = p[1];
+                            face.z = p[2];
                             face.faceIndex = faceDir;
                             // Swap width/height for faces where UV orientation differs
                             if (faceDir == 1 || faceDir == 3 || faceDir == 4) {
@@ -353,7 +387,6 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
                             }
                             face.textureSlot = texSlot;
                             result.faces.push_back(face);
-
                         }
                     }
                 }
