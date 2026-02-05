@@ -7,14 +7,6 @@
 #include "WorldGenerator.h"
 #include <imgui.h>
 #include "core/log/Logger.h"
-#include "platform/inputs/input_state.h"
-
-struct InputActionState;
-
-struct ChunkCandidate {
-    glm::ivec3 pos;
-    float priority;
-};
 
 ChunkManager::~ChunkManager() {
     shutdown();
@@ -40,29 +32,35 @@ void ChunkManager::init(flecs::world &ecs) {
     ecs.component<VoxelChunkState>()
             .add(flecs::Exclusive);
 
-    // register systems
-    ecs.system<ChunkLoader, const Position>("ChunkManager-UpdateLoadQueueSystem")
+    ecs.system<ChunkLoader, const Position>("ChunkManager-UpdateChunksSystem")
             .kind(flecs::OnUpdate)
             .each([this](flecs::entity e, ChunkLoader &loader, const Position &position) {
-                const auto* inputState = e.world().get<InputActionState>();
                 auto* generator = e.world().get_mut<WorldGenerator>();
-                if (inputState->is_action_pressed(ActionInputType::Debug1)) {
-                    this->load_chunks_at_radius({0, 0, 0}, 16, generator);
-                }
+                update_chunks_system(e, loader, position, generator);
             });
 
-    ecs.system("ChunkManager-ProcessLoadQueue")
+    ecs.system("ChunkManager-PollGenerationResults")
             .kind(flecs::OnStore)
             .run([this](flecs::iter &it) {
-                this->process_load_queue_system(it);
+                poll_generation_results_system(it);
+            });
 
+    ecs.system("ChunkManager-ProcessUnloadQueue")
+            .kind(flecs::OnStore)
+            .run([this](flecs::iter &it) {
+                process_unload_queue_system(it);
+            });
+
+    // Debug UI
+    ecs.system("ChunkManager-DebugInfo")
+            .kind(flecs::OnStore)
+            .run([this](flecs::iter &it) {
                 ImGui::Begin("Chunk Debug");
-                ImGui::Text("Load Queue: %zu", m_loadQueue.size());
                 ImGui::Text("Loading: %zu", m_loadingChunks.size());
                 ImGui::Text("Loaded: %zu", m_loadedChunks.size());
                 ImGui::Text("Empty: %zu", m_emptyChunks.size());
+                ImGui::Text("Cancelled: %zu", m_cancelledChunks.size());
                 ImGui::Text("Unload Queue: %zu", m_unloadQueue.size());
-
                 {
                     std::lock_guard<std::mutex> lock(m_generationMutex);
                     ImGui::Text("Generation Queue: %zu", m_generationQueue.size());
@@ -71,169 +69,189 @@ void ChunkManager::init(flecs::world &ecs) {
                 ImGui::End();
             });
 
-    ecs.system("ChunkManager-PollGenerationResults")
-            .kind(flecs::OnStore)
-            .run([this](flecs::iter &it) {
-                this->poll_generation_results_system(it);
-            });
-
-    ecs.system("ChunkManager-ProcessUnloadQueue")
-            .kind(flecs::OnStore)
-            .run([this](flecs::iter &it) {
-                this->process_unload_queue_system(it);
-            });
-
     // init threads
     size_t numThreads = std::max(1u, std::thread::hardware_concurrency() - 1);
     for (size_t i = 0; i < numThreads; i++) {
         m_generationThreads.emplace_back([this, i] { generation_worker_loop(i); });
     }
+
+    LOG_INFO("ChunkManager", "Started {} generation worker threads", numThreads);
 }
 
-void ChunkManager::load_chunks_at_radius(const ChunkCoordinate &center, int radius, WorldGenerator* generator) {
-    std::vector<ChunkCandidate> candidates;
-    candidates.reserve((2 * radius + 1) * (2 * radius + 1) * (2 * radius + 1));
+void ChunkManager::update_chunks_system(flecs::entity e, ChunkLoader &loader,
+                                         const Position &position, WorldGenerator* generator) {
+    glm::ivec3 currentChunk = world_pos_to_chunk_pos({position.x, position.y, position.z});
 
-    for (int x = -radius; x <= radius; x++) {
-      for (int y = -radius; y <= radius; y++) {
-          for (int z = -radius; z <= radius; z++) {
-              float distSq = static_cast<float>(x * x + y * y + z * z);
-
-              glm::ivec3 chunkPos = glm::ivec3(center.x + x, center.y + y, center.z + z);
-              if (!is_chunk_processed(chunkPos) && !m_loadingChunks.contains(chunkPos)) {
-                  auto priority = distSq;
-                  if (center.y - 1 <= chunkPos.y && chunkPos.y <= center.y + 1) {
-                      priority *= 0.01f;
-                  }
-                  candidates.push_back({chunkPos, priority});
-              }
-          }
-      }
+    if (loader.has_visited() && currentChunk == loader.lastVisitedChunk) {
+        return;
     }
 
-    std::ranges::sort(candidates,
-                      [](const ChunkCandidate& a, const ChunkCandidate& b) {
-                          return a.priority < b.priority;
-                      });
-
-    enqueue_chunks_generation(candidates, generator);
-}
-
-void ChunkManager::update_desired_chunk_system(flecs::entity e, ChunkLoader &loader, const Position &position) {
-    glm::ivec3 centerChunkPos = world_pos_to_chunk_pos(glm::vec3(position.x, position.y, position.z));
-
-    if (loader.has_visited() && centerChunkPos == loader.lastVisitedChunk) return;
+    LOG_DEBUG("ChunkManager", "Player moved to chunk ({}, {}, {})",
+              currentChunk.x, currentChunk.y, currentChunk.z);
 
     loader.desiredChunks.clear();
+    const int radius = loader.loadRadius;
+    const float radiusSq = static_cast<float>(radius * radius);
 
-    for (int x = -loader.loadRadius; x <= loader.loadRadius; x++) {
-        for (int y = -loader.loadRadius; y <= loader.loadRadius; y++) {
-            for (int z = -loader.loadRadius; z <= loader.loadRadius; z++) {
-                glm::ivec3 chunkPos = centerChunkPos + glm::ivec3(x, y, z);
+    for (int x = -radius; x <= radius; x++) {
+        for (int y = -radius; y <= radius; y++) {
+            for (int z = -radius; z <= radius; z++) {
+                float distSq = static_cast<float>(x * x + y * y + z * z);
+                if (distSq > radiusSq) continue;
+
+                glm::ivec3 chunkPos = currentChunk + glm::ivec3(x, y, z);
                 loader.desiredChunks.insert(chunkPos);
             }
         }
     }
 
-    loader.lastVisitedChunk = centerChunkPos;
+    request_chunks_in_radius(currentChunk, radius, generator);
 
-    // update queues
-    // find chunks that are desired but not loaded
-    for (const auto &chunkPos: loader.desiredChunks) {
-        if (!is_chunk_processed(chunkPos)) {
-            // not loaded, add to load queue if not already loading
-            if (!m_loadingChunks.contains(chunkPos)) {
-                m_loadQueue.push_back(chunkPos);
-                m_loadingChunks.insert(chunkPos);
+    // Cancel chunk that are not desired anymore
+    std::vector<glm::ivec3> toCancel;
+    for (const auto& chunkPos : m_loadingChunks) {
+        if (!loader.desiredChunks.contains(chunkPos)) {
+            toCancel.push_back(chunkPos);
+        }
+    }
+    for (const auto& chunkPos : toCancel) {
+        cancel_chunk_generation(chunkPos);
+    }
+
+    // update_unload_queue(loader, currentChunk);
+
+    loader.lastVisitedChunk = currentChunk;
+}
+
+void ChunkManager::request_chunks_in_radius(const glm::ivec3& center, int radius, WorldGenerator* generator) {
+    std::vector<ChunkCandidate> candidates;
+    const float radiusSq = static_cast<float>(radius * radius);
+
+    for (int x = -radius; x <= radius; x++) {
+        for (int y = -radius; y <= radius; y++) {
+            for (int z = -radius; z <= radius; z++) {
+                float distSq = static_cast<float>(x * x + y * y + z * z);
+                if (distSq > radiusSq) continue;
+
+                glm::ivec3 chunkPos = center + glm::ivec3(x, y, z);
+
+                if (is_chunk_processed(chunkPos) || is_chunk_in_progress(chunkPos)) {
+                    continue;
+                }
+
+                m_cancelledChunks.erase(chunkPos);
+
+                float priority = calculate_priority(chunkPos, center);
+                candidates.push_back({chunkPos, priority});
             }
         }
     }
 
-    // Find chunks to unload (loaded but outside unload radius)
-    glm::ivec3 centerPos = loader.lastVisitedChunk;
-    std::vector<glm::ivec3> chunksToUnload;
+    if (!candidates.empty()) {
+        std::ranges::sort(candidates, [](const auto& a, const auto& b) {
+            return a.priority < b.priority;
+        });
 
-    for (auto &[chunkPos, chunkEntity]: m_loadedChunks) {
-        // Check if this chunk is loaded by this loader
-        //if (!chunkEntity.has<LoadedBy>(e)) continue;
-
-        glm::ivec3 delta = chunkPos - centerPos;
-        float distSq = delta.x * delta.x + delta.y * delta.y + delta.z * delta.z;
-
-        if (distSq > loader.unloadRadius * loader.unloadRadius) {
-            chunksToUnload.push_back(chunkPos);
-        }
-    }
-
-    for (const auto &chunkPos: chunksToUnload) {
-        if (std::ranges::find(m_unloadQueue, chunkPos) == m_unloadQueue.end()) {
-            m_unloadQueue.push_back(chunkPos);
-        }
+        enqueue_chunks_generation(candidates, generator);
+        LOG_DEBUG("ChunkManager", "Enqueued {} chunks for generation", candidates.size());
     }
 }
 
-void ChunkManager::process_load_queue_system(flecs::iter &it) {
-    WorldGenerator* generator = it.world().get_mut<WorldGenerator>();
-    int chunksLoaded = 0;
+float ChunkManager::calculate_priority(const glm::ivec3& chunkPos, const glm::ivec3& center) {
+    glm::vec3 diff = glm::vec3(chunkPos - center);
+    float distSq = glm::dot(diff, diff);
 
-    while (!m_loadQueue.empty() && chunksLoaded < MAX_CHUNKS_PER_FRAME) {
-        glm::ivec3 chunkPos = m_loadQueue.front();
-        m_loadQueue.erase(m_loadQueue.begin());
+    // Give a bonus to chunks at player height (similar Y)
+    if (center.y - 1 <= chunkPos.y && chunkPos.y <= center.y + 1) {
+        distSq *= 0.5f;
+    }
 
-        // Skip if already processed (safety check)
-        if (is_chunk_processed(chunkPos)) {
-            continue;
+    return distSq;
+}
+
+void ChunkManager::enqueue_chunks_generation(const std::vector<ChunkCandidate>& candidates, WorldGenerator* generator) {
+    std::lock_guard<std::mutex> lock(m_generationMutex);
+
+    for (const auto& candidate : candidates) {
+        m_loadingChunks.insert(candidate.pos);
+        m_generationQueue.push(TaskGeneratingInput{
+            .chunkCoord = candidate.pos,
+            .generator = generator,
+            .priority = candidate.priority
+        });
+    }
+
+    m_generationCv.notify_all();
+}
+
+void ChunkManager::cancel_chunk_generation(const glm::ivec3& chunkPos) {
+    // We can't reliably remove from the priority queue, so we just mark it as cancelled
+    m_cancelledChunks.insert(chunkPos);
+    m_loadingChunks.erase(chunkPos);
+}
+
+void ChunkManager::update_unload_queue(const ChunkLoader& loader, const glm::ivec3& centerChunk) {
+    const float unloadRadiusSq = static_cast<float>(loader.unloadRadius * loader.unloadRadius);
+
+    for (const auto& [chunkPos, entity] : m_loadedChunks) {
+        glm::vec3 diff = glm::vec3(chunkPos - centerChunk);
+        float distSq = glm::dot(diff, diff);
+
+        if (distSq > unloadRadiusSq) {
+            if (std::ranges::find(m_unloadQueue, chunkPos) == m_unloadQueue.end()) {
+                m_unloadQueue.push_back(chunkPos);
+            }
         }
+    }
 
-        VoxelChunk chunkData = {};
-        if (generator->generate_chunk(chunkData, chunkPos)) {
-            auto chunk = it.world().entity()
-                    .set<ChunkCoordinate>(chunkPos)
-                    .set<Position>({
-                        static_cast<float>(chunkPos.x * CHUNK_SIZE),
-                        static_cast<float>(chunkPos.y * CHUNK_SIZE),
-                        static_cast<float>(chunkPos.z * CHUNK_SIZE)
-                    })
-                    .set<VoxelChunk>(chunkData);
+    std::vector<glm::ivec3> emptyToRemove;
+    for (const auto& chunkPos : m_emptyChunks) {
+        glm::vec3 diff = glm::vec3(chunkPos - centerChunk);
+        float distSq = glm::dot(diff, diff);
 
-            m_loadedChunks[chunkPos] = chunk;
-        } else {
-            m_emptyChunks.insert(chunkPos);
+        if (distSq > unloadRadiusSq) {
+            emptyToRemove.push_back(chunkPos);
         }
+    }
+    for (const auto& pos : emptyToRemove) {
+        m_emptyChunks.erase(pos);
+    }
 
-        chunksLoaded++;
+    std::vector<glm::ivec3> cancelledToRemove;
+    for (const auto& chunkPos : m_cancelledChunks) {
+        glm::vec3 diff = glm::vec3(chunkPos - centerChunk);
+        float distSq = glm::dot(diff, diff);
+
+        if (distSq > unloadRadiusSq) {
+            cancelledToRemove.push_back(chunkPos);
+        }
+    }
+    for (const auto& pos : cancelledToRemove) {
+        m_cancelledChunks.erase(pos);
     }
 }
 
 void ChunkManager::process_unload_queue_system(flecs::iter &it) {
     int chunksUnloaded = 0;
 
-    while (!m_unloadQueue.empty() && chunksUnloaded < MAX_CHUNKS_PER_FRAME) {
+    while (!m_unloadQueue.empty() && chunksUnloaded < MAX_UNLOADS_PER_FRAME) {
         glm::ivec3 chunkPos = m_unloadQueue.front();
         m_unloadQueue.erase(m_unloadQueue.begin());
 
         auto loadedIt = m_loadedChunks.find(chunkPos);
         if (loadedIt != m_loadedChunks.end()) {
-            if (!is_chunk_still_needed(chunkPos, it)) {
-                it.world().entity(loadedIt->second).destruct();
+            if (!is_chunk_still_needed(chunkPos, it.world())) {
+                loadedIt->second.destruct();
                 m_loadedChunks.erase(loadedIt);
                 chunksUnloaded++;
-            }
-        } else {
-            auto emptyIt = m_emptyChunks.find(chunkPos);
-            if (emptyIt != m_emptyChunks.end()) {
-                if (!is_chunk_still_needed(chunkPos, it)) {
-                    m_emptyChunks.erase(emptyIt);
-                    chunksUnloaded++;
-                }
             }
         }
     }
 }
 
-bool ChunkManager::is_chunk_still_needed(const glm::ivec3 &chunkPos, flecs::iter &it) {
+bool ChunkManager::is_chunk_still_needed(const glm::ivec3 &chunkPos, const flecs::world &world) const {
     bool stillNeeded = false;
-    it.world().each<ChunkLoader>([&](flecs::entity e, ChunkLoader &loader) {
+    world.each<ChunkLoader>([&](flecs::entity e, const ChunkLoader &loader) {
         if (loader.desiredChunks.contains(chunkPos)) {
             stillNeeded = true;
         }
@@ -241,9 +259,42 @@ bool ChunkManager::is_chunk_still_needed(const glm::ivec3 &chunkPos, flecs::iter
     return stillNeeded;
 }
 
+void ChunkManager::poll_generation_results_system(flecs::iter &it) {
+    auto results = poll_generation_results(MAX_GENERATION_RESULTS_PER_FRAME);
+
+    for (auto &result : results) {
+        m_loadingChunks.erase(result.chunkCoord);
+
+        if (m_cancelledChunks.contains(result.chunkCoord)) {
+            m_cancelledChunks.erase(result.chunkCoord);
+            continue;
+        }
+
+        if (!result.success) continue;
+
+        if (result.voxels && !result.empty) {
+            VoxelChunk chunkData = {};
+            chunkData.voxels = std::move(result.voxels);
+            chunkData.textureIDs = std::move(result.textureIDs);
+
+            auto chunk = it.world().entity()
+                    .set<ChunkCoordinate>(result.chunkCoord)
+                    .set<Position>({
+                        static_cast<float>(result.chunkCoord.x * CHUNK_SIZE),
+                        static_cast<float>(result.chunkCoord.y * CHUNK_SIZE),
+                        static_cast<float>(result.chunkCoord.z * CHUNK_SIZE)
+                    })
+                    .set<VoxelChunk>(chunkData);
+
+            m_loadedChunks[result.chunkCoord] = chunk;
+        } else {
+            m_emptyChunks.insert(result.chunkCoord);
+        }
+    }
+}
+
 void ChunkManager::Register(flecs::world &ecs) {
     ecs.component<ChunkLoader>();
-
     ecs.emplace<ChunkManager>();
     ecs.get_mut<ChunkManager>()->init(ecs);
 }
@@ -312,57 +363,14 @@ bool ChunkManager::can_mesh(const glm::ivec3 &chunkPos) const {
     return true;
 }
 
-void ChunkManager::poll_generation_results_system(flecs::iter &it) {
-    auto results = poll_generation_results(500);
-
-    for (auto &result: results) {
-        m_loadingChunks.erase(result.chunkCoord);
-        if (!result.success) continue;
-
-        if (result.voxels && !result.empty) {
-            VoxelChunk chunkData = {};
-            chunkData.voxels = std::move(result.voxels);
-            chunkData.textureIDs = std::move(result.textureIDs);
-
-            auto chunk = it.world().entity()
-                    .set<ChunkCoordinate>(result.chunkCoord)
-                    .set<Position>({
-                        static_cast<float>(result.chunkCoord.x * CHUNK_SIZE),
-                        static_cast<float>(result.chunkCoord.y * CHUNK_SIZE),
-                        static_cast<float>(result.chunkCoord.z * CHUNK_SIZE)
-                    })
-                    .set<VoxelChunk>(chunkData);
-
-            m_loadedChunks[result.chunkCoord] = chunk;
-        } else {
-            m_emptyChunks.insert(result.chunkCoord);
-        }
-    }
-}
-
-void ChunkManager::enqueue_chunks_generation(std::vector<ChunkCandidate> chunkCandidates, WorldGenerator* generator) {
-    {
-        std::lock_guard<std::mutex> lock(m_generationMutex);
-        for (auto& chunk_candidate : chunkCandidates) {
-            m_loadingChunks.insert(chunk_candidate.pos);
-            m_generationQueue.push(TaskGeneratingInput{
-                .chunkCoord = chunk_candidate.pos,
-                .generator = generator,
-                .priority = chunk_candidate.priority
-            });
-            m_generationCv.notify_one();
-        }
-    }
-}
-
 std::vector<TaskGeneratingOutput> ChunkManager::poll_generation_results(size_t maxResults) {
-    std::vector<TaskGeneratingOutput> results = {};
+    std::vector<TaskGeneratingOutput> results;
+    results.reserve(maxResults);
 
     std::lock_guard<std::mutex> lock(m_generationMutex);
     while (!m_generationResultsQueue.empty() && results.size() < maxResults) {
-        TaskGeneratingOutput output = std::move(m_generationResultsQueue.front());
+        results.push_back(std::move(m_generationResultsQueue.front()));
         m_generationResultsQueue.pop();
-        results.push_back(std::move(output));
     }
 
     return results;
@@ -370,7 +378,8 @@ std::vector<TaskGeneratingOutput> ChunkManager::poll_generation_results(size_t m
 
 void ChunkManager::generation_worker_loop(size_t id) {
     while (true) {
-        TaskGeneratingInput input; {
+        TaskGeneratingInput input;
+        {
             std::unique_lock<std::mutex> lock(m_generationMutex);
             m_generationCv.wait(lock, [this] {
                 return m_stopGeneration || !m_generationQueue.empty();
@@ -382,6 +391,11 @@ void ChunkManager::generation_worker_loop(size_t id) {
 
             input = std::move(m_generationQueue.top());
             m_generationQueue.pop();
+        }
+
+        // Vérifier si annulé AVANT de générer (évite le travail inutile)
+        if (m_cancelledChunks.contains(input.chunkCoord)) {
+            continue;
         }
 
         TaskGeneratingOutput result{};

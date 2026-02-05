@@ -3,21 +3,18 @@
 #include <deque>
 #include <unordered_set>
 #include <flecs.h>
-#include <iosfwd>
-#include <iosfwd>
-#include <iosfwd>
-#include <iosfwd>
 #include <queue>
-#include <vector>
-#include <vector>
-#include <vector>
 #include <vector>
 
 #include "world_components.h"
 #include "core/main_components.h"
 
-
 class WorldGenerator;
+
+struct ChunkCandidate {
+    glm::ivec3 pos;
+    float priority;
+};
 
 struct TaskGeneratingInput {
     glm::ivec3 chunkCoord;
@@ -28,13 +25,10 @@ struct TaskGeneratingInput {
 struct TaskGeneratingOutput {
     std::shared_ptr<std::array<uint8_t, (32 * 32 * 32)>> voxels;
     std::unordered_map<AssetID, uint8_t> textureIDs;
-
     glm::ivec3 chunkCoord;
-
     bool success = false;
     bool empty = true;
 };
-
 
 /**
  * Class with the responsibility to manage chunk loading, unloading, and overall chunk lifecycle.
@@ -45,45 +39,42 @@ public:
     ~ChunkManager();
 
     void init(flecs::world& ecs);
-    void static Register(flecs::world& ecs);
+    static void Register(flecs::world& ecs);
 
-    // public API for fast chunk entity lookup
+    // Public API
     std::array<flecs::entity, 6> get_neighboring_chunks(const glm::ivec3 &chunkPos) const;
-
     flecs::entity get_chunk_entity(const glm::ivec3& chunkPos) const;
-
-    // Check if a chunk can be meshed in a optimal way : is loaded, and its neighbors are not in loading state (to avoid non optimal meshing)
     bool can_mesh(const glm::ivec3& chunkPos) const;
 
 private:
-    std::deque<glm::ivec3> m_loadQueue;
     std::deque<glm::ivec3> m_unloadQueue;
 
     std::unordered_map<glm::ivec3, flecs::entity, IVec3Hash> m_loadedChunks;
-
     std::unordered_set<glm::ivec3, IVec3Hash> m_emptyChunks;
     std::unordered_set<glm::ivec3, IVec3Hash> m_loadingChunks;
 
-    static constexpr int MAX_CHUNKS_PER_FRAME = 20;
+    std::unordered_set<glm::ivec3, IVec3Hash> m_cancelledChunks;
+
+    static constexpr int MAX_CHUNKS_PER_FRAME = 50;
     static constexpr int MAX_UNLOADS_PER_FRAME = 50;
+    static constexpr int MAX_GENERATION_RESULTS_PER_FRAME = 100;
 
     void shutdown();
 
-    // Ecs systems
-    void update_desired_chunk_system(flecs::entity e, ChunkLoader& loader, const Position& position);
-    void process_load_queue_system(flecs::iter& it);
+    // ECS Systems
+    void update_chunks_system(flecs::entity e, ChunkLoader& loader, const Position& position, WorldGenerator* generator);
+    void poll_generation_results_system(flecs::iter& it);
     void process_unload_queue_system(flecs::iter& it);
 
-    void poll_generation_results_system(flecs::iter& it);
+    // Actions
+    void request_chunks_in_radius(const glm::ivec3& center, int radius, WorldGenerator* generator);
+    void enqueue_chunks_generation(const std::vector<ChunkCandidate>& candidates, WorldGenerator* generator);
+    void cancel_chunk_generation(const glm::ivec3& chunkPos);
+    void update_unload_queue(const ChunkLoader& loader, const glm::ivec3& centerChunk);
 
-    // Action methods
-    void load_chunks_at_radius(const ChunkCoordinate &center, int radius, WorldGenerator* generator);
+    std::vector<TaskGeneratingOutput> poll_generation_results(size_t maxResults);
 
-    void enqueue_chunks_generation(std::vector<struct ChunkCandidate> chunkCandidates, WorldGenerator* generator);
-
-    std::vector<TaskGeneratingOutput> poll_generation_results(size_t maxResults = 30);
-
-    // Helper
+    // Helpers
     static glm::ivec3 world_pos_to_chunk_pos(const glm::vec3& worldPos) {
         return {
             static_cast<int>(floor(worldPos.x / CHUNK_SIZE)),
@@ -96,14 +87,18 @@ private:
         return m_loadedChunks.contains(pos) || m_emptyChunks.contains(pos);
     }
 
-    static bool is_within_sphere(const glm::ivec3& center, const glm::ivec3& point, int radius) {
-        glm::ivec3 diff = point - center;
-        return diff.x * diff.x + diff.y * diff.y + diff.z * diff.z <= radius * radius;
+    bool is_chunk_in_progress(const glm::ivec3& pos) const {
+        return m_loadingChunks.contains(pos);
     }
 
-    static bool is_chunk_still_needed(const glm::ivec3& chunkPos, flecs::iter &it);
+    bool is_chunk_cancelled(const glm::ivec3& pos) const {
+        return m_cancelledChunks.contains(pos);
+    }
 
-    // Generation thread's methods and attributes
+    static float calculate_priority(const glm::ivec3& chunkPos, const glm::ivec3& center);
+    bool is_chunk_still_needed(const glm::ivec3& chunkPos, const flecs::world &world) const;
+
+    // Generation threads
     std::vector<std::thread> m_generationThreads;
     std::mutex m_generationMutex;
     std::condition_variable m_generationCv;
@@ -120,7 +115,6 @@ private:
     void generation_worker_loop(size_t id);
 };
 
-// define filter ordering for priority queue
 inline bool operator>(const TaskGeneratingInput& a, const TaskGeneratingInput& b) {
     return a.priority > b.priority;
 }

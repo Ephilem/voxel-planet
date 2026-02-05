@@ -52,13 +52,6 @@ std::vector<TaskMeshingOutput> VoxelChunkMesher::poll_results(size_t maxResults)
         }
     }
 
-    if (!results.empty()) {
-        std::lock_guard<std::mutex> lock(m_taskMutex);
-        for (const auto &output: results) {
-            m_pendingCoords.erase(output.chunkCoord);
-        }
-    }
-
     return results;
 }
 
@@ -157,7 +150,7 @@ void VoxelChunkMesher::enqueue_meshing_system(flecs::entity e, const VoxelChunk 
 void VoxelChunkMesher::poll_meshing_results_system(flecs::iter &it) {
     VOXEL_ZONE_N("PollMeshingResults");
     const auto* chunkManager = it.world().get<ChunkManager>();
-    auto results = poll_results(256);
+    auto results = poll_results(999);
 
     auto query = it.world().query_builder<VoxelChunkMesh, const ChunkCoordinate>()
             .with<VoxelChunkMeshState, voxel_chunk_mesh_state::Meshing>()

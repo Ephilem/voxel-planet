@@ -14,6 +14,7 @@
 #include "rendering_components.h"
 #include "core/main_components.h"
 #include "core/world/world_components.h"
+#include "core/world/ChunkManager.h"
 #include "debug/ImGuiManager.h"
 #include "debug/LogConsole.h"
 #include "nvrhi/utils.h"
@@ -58,6 +59,28 @@ RendererModule::RendererModule(flecs::world& ecs) {
         .each([](flecs::entity e, const VoxelChunk& chunk) {
             e.set<VoxelChunkMesh>({})
              .add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
+        });
+
+    ecs.observer<const VoxelChunk, const ChunkCoordinate>("MarkNeighborsDirtyOnChunkLoad")
+        .event(flecs::OnSet)
+        .each([](flecs::entity e, const VoxelChunk& chunk, const ChunkCoordinate& coord) {
+            auto* chunkManager = e.world().get<ChunkManager>();
+            if (!chunkManager) return;
+
+            static constexpr std::array<glm::ivec3, 6> neighborOffsets = {{
+                {1, 0, 0}, {-1, 0, 0},
+                {0, 1, 0}, {0, -1, 0},
+                {0, 0, 1}, {0, 0, -1}
+            }};
+
+            for (const auto& offset : neighborOffsets) {
+                glm::ivec3 neighborPos = glm::ivec3(coord) + offset;
+                flecs::entity neighbor = chunkManager->get_chunk_entity(neighborPos);
+
+                if (neighbor != flecs::entity::null() && neighbor.has<VoxelChunkMesh>()) {
+                    neighbor.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
+                }
+            }
         });
 
     VoxelTerrainRenderer::Register(ecs);
