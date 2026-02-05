@@ -13,7 +13,7 @@ struct InputActionState;
 
 struct ChunkCandidate {
     glm::ivec3 pos;
-    float distanceSq;
+    float priority;
 };
 
 ChunkManager::~ChunkManager() {
@@ -94,16 +94,17 @@ void ChunkManager::load_chunks_at_radius(const ChunkCoordinate &center, int radi
     std::vector<ChunkCandidate> candidates;
     candidates.reserve((2 * radius + 1) * (2 * radius + 1) * (2 * radius + 1));
 
-    const float radiusSq = static_cast<float>(radius * radius);
-
     for (int x = -radius; x <= radius; x++) {
       for (int y = -radius; y <= radius; y++) {
           for (int z = -radius; z <= radius; z++) {
               float distSq = static_cast<float>(x * x + y * y + z * z);
-              if (distSq > radiusSq) continue;
 
               glm::ivec3 chunkPos = glm::ivec3(center.x + x, center.y + y, center.z + z);
               if (!is_chunk_processed(chunkPos) && !m_loadingChunks.contains(chunkPos)) {
+                  auto priority = distSq;
+                  if (center.y - 5 <= chunkPos.y && chunkPos.y <= center.y + 5) {
+                      priority *= 0.01f;
+                  }
                   candidates.push_back({chunkPos, distSq});
               }
           }
@@ -112,7 +113,7 @@ void ChunkManager::load_chunks_at_radius(const ChunkCoordinate &center, int radi
 
     std::ranges::sort(candidates,
                       [](const ChunkCandidate& a, const ChunkCandidate& b) {
-                          return a.distanceSq < b.distanceSq;
+                          return a.priority < b.priority;
                       });
 
     enqueue_chunks_generation(candidates, generator);
@@ -121,7 +122,6 @@ void ChunkManager::load_chunks_at_radius(const ChunkCoordinate &center, int radi
 void ChunkManager::update_desired_chunk_system(flecs::entity e, ChunkLoader &loader, const Position &position) {
     glm::ivec3 centerChunkPos = world_pos_to_chunk_pos(glm::vec3(position.x, position.y, position.z));
 
-    // do nothing if the center chunk hasn't changed
     if (loader.has_visited() && centerChunkPos == loader.lastVisitedChunk) return;
 
     loader.desiredChunks.clear();
@@ -347,7 +347,8 @@ void ChunkManager::enqueue_chunks_generation(std::vector<ChunkCandidate> chunkCa
             m_loadingChunks.insert(chunk_candidate.pos);
             m_generationQueue.push(TaskGeneratingInput{
                 .chunkCoord = chunk_candidate.pos,
-                .generator = generator
+                .generator = generator,
+                .priority = chunk_candidate.priority
             });
             m_generationCv.notify_one();
         }
