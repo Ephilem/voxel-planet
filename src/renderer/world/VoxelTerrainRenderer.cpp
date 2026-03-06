@@ -210,6 +210,29 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(nvrhi::CommandListHandle cmd
         create_buffer();
     }
 
+    // Mesh already has a draw slot, just reallocate face regions in the same buffer
+    if (mesh.is_allocated()) {
+        int oldBufferIndex = mesh.bufferIndex;
+        if (oldBufferIndex >= 0 && oldBufferIndex < static_cast<int>(m_chunkBuffers.size())) {
+            VoxelBuffer& buffer = m_chunkBuffers[oldBufferIndex];
+            if (buffer.reallocate(mesh)) {
+                TerrainOUB oub = {
+                    .model = {
+                        1.0f, 0.0f, 0.0f, 0.0f,
+                        0.0f, 1.0f, 0.0f, 0.0f,
+                        0.0f, 0.0f, 1.0f, 0.0f,
+                        pos.x, pos.y, pos.z, 1.0f
+                    }
+                };
+                buffer.write(cmd, mesh, oub);
+                return true;
+            }
+            // If reallocate failed (fragmentation), fall through to try other buffers
+            // But first free the draw slot since we'll allocate fresh
+            buffer.free(mesh);
+        }
+    }
+
     for (size_t i = 0; i < m_chunkBuffers.size() && !uploaded; i++) {
         VoxelBuffer& buffer = m_chunkBuffers[i];
 

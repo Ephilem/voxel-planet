@@ -7,6 +7,7 @@
 #include "WorldGenerator.h"
 #include <imgui.h>
 #include "core/log/Logger.h"
+#include "platform/inputs/InputStateManager.h"
 
 ChunkManager::~ChunkManager() {
     shutdown();
@@ -36,6 +37,8 @@ void ChunkManager::init(flecs::world &ecs) {
             .kind(flecs::OnUpdate)
             .each([this](flecs::entity e, ChunkLoader &loader, const Position &position) {
                 auto* generator = e.world().get_mut<WorldGenerator>();
+                auto* inputManager = e.world().get_mut<InputActionState>();
+                if (!inputManager->is_action_pressed(ActionInputType::Debug1)) return;
                 update_chunks_system(e, loader, position, generator);
             });
 
@@ -91,13 +94,13 @@ void ChunkManager::update_chunks_system(flecs::entity e, ChunkLoader &loader,
 
     loader.desiredChunks.clear();
     const int radius = loader.loadRadius;
-    const float radiusSq = static_cast<float>(radius * radius);
+    // const float radiusSq = static_cast<float>(radius * radius);
 
     for (int x = -radius; x <= radius; x++) {
         for (int y = -radius; y <= radius; y++) {
             for (int z = -radius; z <= radius; z++) {
-                float distSq = static_cast<float>(x * x + y * y + z * z);
-                if (distSq > radiusSq) continue;
+                // float distSq = static_cast<float>(x * x + y * y + z * z);
+                // if (distSq > radiusSq) continue;
 
                 glm::ivec3 chunkPos = currentChunk + glm::ivec3(x, y, z);
                 loader.desiredChunks.insert(chunkPos);
@@ -125,13 +128,10 @@ void ChunkManager::update_chunks_system(flecs::entity e, ChunkLoader &loader,
 
 void ChunkManager::request_chunks_in_radius(const glm::ivec3& center, int radius, WorldGenerator* generator) {
     std::vector<ChunkCandidate> candidates;
-    const float radiusSq = static_cast<float>(radius * radius);
 
     for (int x = -radius; x <= radius; x++) {
         for (int y = -radius; y <= radius; y++) {
             for (int z = -radius; z <= radius; z++) {
-                float distSq = static_cast<float>(x * x + y * y + z * z);
-                if (distSq > radiusSq) continue;
 
                 glm::ivec3 chunkPos = center + glm::ivec3(x, y, z);
 

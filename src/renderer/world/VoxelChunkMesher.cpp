@@ -152,10 +152,6 @@ void VoxelChunkMesher::poll_meshing_results_system(flecs::iter &it) {
     const auto* chunkManager = it.world().get<ChunkManager>();
     auto results = poll_results(999);
 
-    auto query = it.world().query_builder<VoxelChunkMesh, const ChunkCoordinate>()
-            .with<VoxelChunkMeshState, voxel_chunk_mesh_state::Meshing>()
-            .build();
-
     for (auto &result: results) {
         flecs::entity chunk = chunkManager->get_chunk_entity(result.chunkCoord);
         if (chunk == flecs::entity::null() || !chunk.has<VoxelChunkMesh>()) continue;

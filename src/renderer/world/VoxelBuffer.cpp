@@ -173,6 +173,25 @@ bool VoxelBuffer::allocate(VoxelChunkMesh& mesh) {
     return true;
 }
 
+bool VoxelBuffer::reallocate(VoxelChunkMesh& mesh) {
+    if (mesh.faceRegionStart != UINT32_MAX) {
+        free_regions(m_freeFaceRegions, mesh.faceRegionStart, mesh.faceRegionCount);
+        mesh.faceRegionStart = UINT32_MAX;
+        mesh.faceRegionCount = 0;
+    }
+
+    uint32_t faceRegionsNeeded = (mesh.faceCount + FACES_PER_REGION - 1) / FACES_PER_REGION;
+    uint32_t faceStart;
+    if (!allocate_regions(m_freeFaceRegions, faceRegionsNeeded, faceStart)) {
+        return false;
+    }
+
+    mesh.faceRegionStart = faceStart;
+    mesh.faceRegionCount = faceRegionsNeeded;
+
+    return true;
+}
+
 void VoxelBuffer::write(nvrhi::CommandListHandle cmd, VoxelChunkMesh& mesh, const TerrainOUB& oub) {
     if (!mesh.is_allocated()) {
         LOG_ERROR("VoxelBuffer", "Cannot write unallocated mesh to buffer");
