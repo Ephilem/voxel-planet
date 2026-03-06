@@ -10,9 +10,15 @@ void VoxelBufferVisualizer::register_ecs(flecs::world &ecs) {
         .kind(flecs::PreStore)
         .each([this](flecs::iter& it, size_t, Renderer& renderer) {
             if (!this->m_visible) return;
-            if (!renderer.voxelTerrainRenderer) return;
 
-            this->draw(renderer.voxelTerrainRenderer.get());
+            VoxelTerrainRenderer* voxelRenderer = nullptr;
+            for (auto& pass : renderer.renderPasses) {
+                voxelRenderer = dynamic_cast<VoxelTerrainRenderer*>(pass.get());
+                if (voxelRenderer) break;
+            }
+            if (!voxelRenderer) return;
+
+            this->draw(voxelRenderer);
         });
 }
 

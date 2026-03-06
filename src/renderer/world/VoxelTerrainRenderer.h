@@ -8,6 +8,7 @@
 #include "core/resource/ResourceSystem.h"
 #include "core/world/world_components.h"
 #include "nvrhi/nvrhi.h"
+#include "renderer/IRenderPass.h"
 
 struct Position;
 struct Camera3d;
@@ -21,10 +22,12 @@ struct alignas(16) TerrainUBO {
     float time;
 };
 
-class VoxelTerrainRenderer {
+class VoxelTerrainRenderer : public IRenderPass {
 public:
     VoxelTerrainRenderer(VulkanBackend* backend, ResourceSystem* resourceSystem, VoxelTextureManager* textureManager);
-    ~VoxelTerrainRenderer();
+    ~VoxelTerrainRenderer() override;
+
+    void render(nvrhi::CommandListHandle cmd, Camera3d& camera, VulkanBackend& backend) override;
 
     // create instance and register components/systems in the ECS
     static void Register(flecs::world& ecs);
@@ -62,10 +65,6 @@ private:
     bool upload_chunk_mesh_system(
         nvrhi::CommandListHandle cmd,
         VoxelChunkMesh &mesh, const Position &pos);
-
-    void render_terrain_system(
-        Renderer &renderer,
-        Camera3d &camera);
 
     VoxelBuffer &create_buffer();
 

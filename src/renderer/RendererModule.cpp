@@ -12,6 +12,8 @@
 
 #include "Camera3dSystems.h"
 #include "rendering_components.h"
+#include "world/SkyRenderer.h"
+#include "world/VoxelTerrainRenderer.h"
 #include "core/main_components.h"
 #include "core/world/world_components.h"
 #include "debug/ImGuiManager.h"
@@ -44,7 +46,7 @@ RendererModule::RendererModule(flecs::world& ecs) {
             if (renderer.backend->begin_frame(ctx.commandList)) {
                 ctx.commandList->open();
 
-                nvrhi::utils::ClearColorAttachment(ctx.commandList, renderer.backend->get_current_framebuffer(), 0, nvrhi::Color(0.1f, 0.1f, 0.4f, 1.0f));
+                nvrhi::utils::ClearColorAttachment(ctx.commandList, renderer.backend->get_current_framebuffer(), 0, nvrhi::Color(0.0f, 0.0f, 0.0f, 1.0f));
                 nvrhi::utils::ClearDepthStencilAttachment(ctx.commandList, renderer.backend->get_current_framebuffer(), 1.0f, 0);
 
                 ctx.frameActive = true;
@@ -60,6 +62,7 @@ RendererModule::RendererModule(flecs::world& ecs) {
              .add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
         });
 
+    SkyRenderer::Register(ecs);
     VoxelTerrainRenderer::Register(ecs);
     ImGuiManager::Register(ecs);
     ImGuiDebugModuleManager::Register(ecs);
@@ -97,9 +100,7 @@ void shutdown_renderer(flecs::world& ecs) {
     LOG_INFO("RendererModule", "Shutting down...");
     auto* renderer = ecs.get_mut<Renderer>();
     if (renderer) {
-        if (renderer->voxelTerrainRenderer) {
-            renderer->voxelTerrainRenderer.reset();
-        }
+        renderer->renderPasses.clear();
         // TODO please find a better way to do this
         if (auto* vtm = ecs.get_mut<VoxelTextureManager>()) {
             vtm->release_resources();

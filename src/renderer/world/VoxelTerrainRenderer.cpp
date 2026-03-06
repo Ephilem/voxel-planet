@@ -159,12 +159,13 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
     VoxelChunkMesher::Register(ecs);
     VoxelTextureManager::Register(ecs);
 
-    renderer->voxelTerrainRenderer = std::make_unique<VoxelTerrainRenderer>(
+    auto pass = std::make_unique<VoxelTerrainRenderer>(
         renderer->backend.get(),
         gameState->resourceSystem.get(),
         ecs.get_mut<VoxelTextureManager>()
     );
-    auto* voxelRenderer = renderer->voxelTerrainRenderer.get();
+    auto* voxelRenderer = pass.get();
+    renderer->renderPasses.push_back(std::move(pass));
 
     ecs.component<VoxelChunkMesh>();
 
@@ -187,10 +188,9 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
             .each([voxelRenderer](flecs::entity e, Renderer &renderer) {
                 if (!renderer.frameContext.frameActive) return;
                 e.world().each<Camera3d>([&](flecs::entity cam_entity, Camera3d &camera) {
-                    voxelRenderer->render_terrain_system(renderer, camera);
+                    voxelRenderer->render(renderer.frameContext.commandList, camera, *renderer.backend);
                 });
             });
-
 
     ecs.observer<VoxelChunkMesh>("VoxelTerrainRenderer-CleanupVoxelChunkMesh")
             .event(flecs::OnRemove)
@@ -239,8 +239,7 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(nvrhi::CommandListHandle cmd
     return true;
 }
 
-void VoxelTerrainRenderer::render_terrain_system(Renderer &renderer, Camera3d &camera) {
-    auto &commandList = renderer.frameContext.commandList;
+void VoxelTerrainRenderer::render(nvrhi::CommandListHandle commandList, Camera3d &camera, VulkanBackend &backend) {
 
 
     if (camera.viewMatrix != m_ubo.view)

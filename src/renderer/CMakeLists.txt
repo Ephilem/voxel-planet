@@ -18,11 +18,14 @@ add_library(VoxelPlanetRenderer STATIC
         debug/WorldF3Info.h
         debug/VoxelBufferVisualizer.cpp
         debug/VoxelBufferVisualizer.h
+        world/SkyRenderer.cpp
+        world/SkyRenderer.h
         world/VoxelTerrainRenderer.cpp
         world/VoxelTerrainRenderer.h
         world/VoxelBuffer.cpp
         world/VoxelBuffer.h
         render_types.h
+        IRenderPass.h
         Camera3dSystems.cpp
         Camera3dSystems.h
         world/VoxelTextureManager.cpp
