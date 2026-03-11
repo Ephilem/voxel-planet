@@ -155,6 +155,12 @@ void VoxelChunkMesher::poll_meshing_results_system(flecs::iter &it) {
     for (auto &result: results) {
         flecs::entity chunk = chunkManager->get_chunk_entity(result.chunkCoord);
         if (chunk == flecs::entity::null() || !chunk.has<VoxelChunkMesh>()) continue;
+        // If the chunk became Dirty again while the worker was running (a neighbor arrived),
+        // discard the stale result and let it re-mesh next frame with the correct neighbors.
+        if (!chunk.has<VoxelChunkMeshState, voxel_chunk_mesh_state::Meshing>()) {
+            chunk.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
+            continue;
+        }
         auto mesh = chunk.get_mut<VoxelChunkMesh>();
         mesh->faces = std::move(result.faces);
         mesh->faceCount = static_cast<uint32_t>(mesh->faces.size());
