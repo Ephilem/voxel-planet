@@ -98,7 +98,7 @@ void VoxelTerrainRenderer::init() {
 
     // Configure render state
     nvrhi::RenderState renderState;
-    renderState.rasterState.cullMode = nvrhi::RasterCullMode::None;
+    renderState.rasterState.cullMode = nvrhi::RasterCullMode::Back;
     renderState.rasterState.fillMode = nvrhi::RasterFillMode::Fill;
     renderState.depthStencilState.depthTestEnable = true;
     renderState.depthStencilState.depthWriteEnable = true;
@@ -218,8 +218,8 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(nvrhi::CommandListHandle cmd
             uint32_t oldRegionStart = mesh.faceRegionStart;
             if (buffer.reallocate(mesh)) {
                 // Stage-4 probe: log remesh uploads
-                LOG_DEBUG("VoxelTerrainRenderer", "[UPLOAD remesh] ({:.0f},{:.0f},{:.0f}) faces={} slot={} region:{}->{} ",
-                          pos.x, pos.y, pos.z, mesh.faceCount, mesh.drawSlotIndex, oldRegionStart, mesh.faceRegionStart);
+                // LOG_DEBUG("VoxelTerrainRenderer", "[UPLOAD remesh] ({:.0f},{:.0f},{:.0f}) faces={} slot={} region:{}->{} ",
+                          // pos.x, pos.y, pos.z, mesh.faceCount, mesh.drawSlotIndex, oldRegionStart, mesh.faceRegionStart);
                 TerrainOUB oub = {
                     .model = {
                         1.0f, 0.0f, 0.0f, 0.0f,

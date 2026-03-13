@@ -74,18 +74,13 @@ RendererModule::RendererModule(flecs::world& ecs) {
                 {0, 0, 1}, {0, 0, -1}
             }};
 
-            int dirtyCount = 0;
             for (const auto& offset : neighborOffsets) {
                 glm::ivec3 neighborPos = glm::ivec3(coord) + offset;
                 flecs::entity neighbor = chunkManager->get_chunk_entity(neighborPos);
                 if (neighbor != flecs::entity::null() && neighbor.has<VoxelChunkMesh>()) {
                     neighbor.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
-                    dirtyCount++;
                 }
             }
-            if (dirtyCount == 0)
-            LOG_DEBUG("InitializeChunkMesh", "Chunk ({},{},{}) initialized → marked {} neighbors dirty",
-                      coord.x, coord.y, coord.z, dirtyCount);
         });
 
     VoxelTerrainRenderer::Register(ecs);

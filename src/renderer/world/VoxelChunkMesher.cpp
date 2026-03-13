@@ -186,17 +186,8 @@ void VoxelChunkMesher::poll_meshing_results_system(flecs::iter &it) {
             continue;
         }
 
-        uint32_t prevFaceCount = mesh->faceCount;
         mesh->faces = std::move(result.faces);
         mesh->faceCount = static_cast<uint32_t>(mesh->faces.size());
-
-        // Stage-3 probe: did the face count actually change on a remesh?
-        if (result.meshGeneration > 1) {
-            LOG_DEBUG("VoxelChunkMesher", "[REMESH RESULT] ({},{},{}) gen={} faces: {} -> {}{}",
-                      result.chunkCoord.x, result.chunkCoord.y, result.chunkCoord.z,
-                      result.meshGeneration, prevFaceCount, mesh->faceCount,
-                      (prevFaceCount == mesh->faceCount) ? "  <-- NO CHANGE (neighbor data had no effect?)" : "");
-        }
 
         chunk.add<VoxelChunkMeshState, voxel_chunk_mesh_state::ReadyForUpload>();
     }

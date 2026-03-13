@@ -71,5 +71,5 @@ public:
 
     uint32_t get_used_face_regions() const;
     uint32_t get_largest_free_face_block() const;
-    uint32_t get_draw_count() const { return m_nextDrawSlot - static_cast<uint32_t>(m_freeDrawSlots.size()); }
+    uint32_t get_draw_count() const { return m_nextDrawSlot; }
 };
