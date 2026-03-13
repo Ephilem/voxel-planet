@@ -52,19 +52,20 @@ RendererModule::RendererModule(flecs::world& ecs) {
             }
         });
 
-    // Initialize chunk meshes for any VoxelChunk that doesn't have a mesh yet
-    ecs.system<const VoxelChunk>("InitializeChunkMeshSystem")
+    // Initialize chunk meshes for any VoxelChunk that doesn't have a mesh yet,
+    // and mark already-loaded neighbors dirty so they re-mesh with the new chunk's border data.
+    // Running in OnUpdate guarantees all previous-frame deferred ops are committed, so
+    // neighbor.has<VoxelChunkMesh>() is reliable (unlike an OnSet observer which fires during
+    // the OnStore merge where the VoxelChunkMesh from InitializeChunkMeshSystem may not be visible).
+    ecs.system<const VoxelChunk, const ChunkCoordinate>("InitializeChunkMeshSystem")
         .kind(flecs::OnUpdate)
         .without<VoxelChunkMesh>()
-        .each([](flecs::entity e, const VoxelChunk& chunk) {
+        .each([](flecs::entity e, const VoxelChunk& chunk, const ChunkCoordinate& coord) {
             e.set<VoxelChunkMesh>({})
              .add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
-        });
 
-    ecs.observer<const VoxelChunk, const ChunkCoordinate>("MarkNeighborsDirtyOnChunkLoad")
-        .event(flecs::OnSet)
-        .each([](flecs::entity e, const VoxelChunk& chunk, const ChunkCoordinate& coord) {
-            auto* chunkManager = e.world().get<ChunkManager>();
+            // Mark already-uploaded neighbors dirty so they re-mesh with correct border data.
+            const auto* chunkManager = e.world().get<ChunkManager>();
             if (!chunkManager) return;
 
             static constexpr std::array<glm::ivec3, 6> neighborOffsets = {{
@@ -73,14 +74,18 @@ RendererModule::RendererModule(flecs::world& ecs) {
                 {0, 0, 1}, {0, 0, -1}
             }};
 
+            int dirtyCount = 0;
             for (const auto& offset : neighborOffsets) {
                 glm::ivec3 neighborPos = glm::ivec3(coord) + offset;
                 flecs::entity neighbor = chunkManager->get_chunk_entity(neighborPos);
-
                 if (neighbor != flecs::entity::null() && neighbor.has<VoxelChunkMesh>()) {
                     neighbor.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
+                    dirtyCount++;
                 }
             }
+            if (dirtyCount == 0)
+            LOG_DEBUG("InitializeChunkMesh", "Chunk ({},{},{}) initialized → marked {} neighbors dirty",
+                      coord.x, coord.y, coord.z, dirtyCount);
         });
 
     VoxelTerrainRenderer::Register(ecs);

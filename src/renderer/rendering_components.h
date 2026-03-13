@@ -37,9 +37,13 @@ struct VoxelChunkMesh {
 
     uint32_t faceCount = 0;
 
+    // Incremented each time a new mesh task is dispatched.
+    // Used to discard results from stale (superseded) tasks.
+    uint32_t meshGeneration = 0;
+
     bool is_allocated() const {
-        return faceRegionStart != UINT32_MAX &&
-               drawSlotIndex != UINT32_MAX &&
+        // A draw slot is the minimum requirement; face region may be absent for empty meshes.
+        return drawSlotIndex != UINT32_MAX &&
                bufferIndex != UINT32_MAX;
     }
 };

@@ -8,6 +8,7 @@
 #include <imgui.h>
 #include "core/log/Logger.h"
 #include "platform/inputs/InputStateManager.h"
+#include "renderer/rendering_components.h"
 
 ChunkManager::~ChunkManager() {
     shutdown();
@@ -69,6 +70,22 @@ void ChunkManager::init(flecs::world &ecs) {
                     ImGui::Text("Generation Queue: %zu", m_generationQueue.size());
                     ImGui::Text("Results Pending: %zu", m_generationResultsQueue.size());
                 }
+
+                ImGui::Separator();
+                ImGui::Text("-- Mesh States --");
+                int nDirty = 0, nMeshing = 0, nReady = 0, nClean = 0, nNoMesh = 0;
+                it.world().each<const ChunkCoordinate>([&](flecs::entity e, const ChunkCoordinate&) {
+                    if (!e.has<VoxelChunkMesh>())           { nNoMesh++;  return; }
+                    if (e.has<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>())          nDirty++;
+                    else if (e.has<VoxelChunkMeshState, voxel_chunk_mesh_state::Meshing>())   nMeshing++;
+                    else if (e.has<VoxelChunkMeshState, voxel_chunk_mesh_state::ReadyForUpload>()) nReady++;
+                    else if (e.has<VoxelChunkMeshState, voxel_chunk_mesh_state::Clean>())     nClean++;
+                });
+                ImGui::Text("No mesh yet: %d", nNoMesh);
+                ImGui::TextColored({1,0.4f,0,1},  "Dirty:          %d", nDirty);
+                ImGui::TextColored({1,1,0,1},      "Meshing:        %d", nMeshing);
+                ImGui::TextColored({0,1,0.4f,1},   "ReadyForUpload: %d", nReady);
+                ImGui::TextColored({0.5f,0.5f,0.5f,1}, "Clean:      %d", nClean);
                 ImGui::End();
             });
 

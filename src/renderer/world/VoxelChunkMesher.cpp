@@ -120,6 +120,11 @@ void VoxelChunkMesher::enqueue_meshing_system(flecs::entity e, const VoxelChunk 
 
     input.priority = calculate_task_priority(pos);
 
+    // Bump generation so any in-flight task result for this chunk is discarded on arrival
+    auto* mesh = e.get_mut<VoxelChunkMesh>();
+    mesh->meshGeneration++;
+    input.meshGeneration = mesh->meshGeneration;
+
     // Texture slots. Said to prepare some texture in the gpu
     for (const auto &[textureID, voxelID]: chunk.textureIDs) {
         input.textureIDs[voxelID] =
@@ -131,17 +136,27 @@ void VoxelChunkMesher::enqueue_meshing_system(flecs::entity e, const VoxelChunk 
     std::array<flecs::entity, 6> neighborChunkEntities = chunkManager->get_neighboring_chunks(pos);
 
     int neighborIndex = 0;
+    int presentNeighbors = 0;
     for (const auto &neighborEntity: neighborChunkEntities) {
         if (neighborEntity != flecs::entity::null()) {
             auto* neighborChunk = neighborEntity.get_mut<VoxelChunk>();
             if (neighborChunk != nullptr) {
                 neighborVoxels[neighborIndex] = neighborChunk->voxels;
+                presentNeighbors++;
+            } else {
+                LOG_WARN("VoxelChunkMesher", "Chunk ({},{},{}) neighbor[{}] entity exists but VoxelChunk is null",
+                         pos.x, pos.y, pos.z, neighborIndex);
             }
         }
         neighborIndex++;
     }
 
     input.neighborVoxels = neighborVoxels;
+
+    // if (mesh->meshGeneration > 1) {
+    //     LOG_DEBUG("VoxelChunkMesher", "[REMESH] ({},{},{}) gen={} neighbors={}/6 prevFaces={}",
+    //               pos.x, pos.y, pos.z, mesh->meshGeneration, presentNeighbors, mesh->faceCount);
+    // }
 
     enqueue(std::move(input));
     e.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Meshing>();
@@ -155,15 +170,34 @@ void VoxelChunkMesher::poll_meshing_results_system(flecs::iter &it) {
     for (auto &result: results) {
         flecs::entity chunk = chunkManager->get_chunk_entity(result.chunkCoord);
         if (chunk == flecs::entity::null() || !chunk.has<VoxelChunkMesh>()) continue;
-        // If the chunk became Dirty again while the worker was running (a neighbor arrived),
-        // discard the stale result and let it re-mesh next frame with the correct neighbors.
+
+        auto mesh = chunk.get_mut<VoxelChunkMesh>();
+
+        // Discard stale results: generation mismatch means a newer task was dispatched
+        // (e.g., a neighbor arrived and re-marked this chunk Dirty while the old task was running).
+        if (result.meshGeneration != mesh->meshGeneration) {
+            // The chunk was re-enqueued after this task started; discard and let the newer task win.
+            continue;
+        }
+
+        // If the state is no longer Meshing (e.g., chunk was unloaded), discard.
         if (!chunk.has<VoxelChunkMeshState, voxel_chunk_mesh_state::Meshing>()) {
             chunk.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
             continue;
         }
-        auto mesh = chunk.get_mut<VoxelChunkMesh>();
+
+        uint32_t prevFaceCount = mesh->faceCount;
         mesh->faces = std::move(result.faces);
         mesh->faceCount = static_cast<uint32_t>(mesh->faces.size());
+
+        // Stage-3 probe: did the face count actually change on a remesh?
+        if (result.meshGeneration > 1) {
+            LOG_DEBUG("VoxelChunkMesher", "[REMESH RESULT] ({},{},{}) gen={} faces: {} -> {}{}",
+                      result.chunkCoord.x, result.chunkCoord.y, result.chunkCoord.z,
+                      result.meshGeneration, prevFaceCount, mesh->faceCount,
+                      (prevFaceCount == mesh->faceCount) ? "  <-- NO CHANGE (neighbor data had no effect?)" : "");
+        }
+
         chunk.add<VoxelChunkMeshState, voxel_chunk_mesh_state::ReadyForUpload>();
     }
 }
@@ -244,6 +278,7 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
     TaskMeshingOutput result;
     result.chunkCoord = input.chunkCoord;
     result.success = true;
+    result.meshGeneration = input.meshGeneration;
 
     const auto &voxels = *input.voxels;
 

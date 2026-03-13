@@ -174,10 +174,16 @@ bool VoxelBuffer::allocate(VoxelChunkMesh& mesh) {
 }
 
 bool VoxelBuffer::reallocate(VoxelChunkMesh& mesh) {
+    // Free the old face region regardless of new size
     if (mesh.faceRegionStart != UINT32_MAX) {
         free_regions(m_freeFaceRegions, mesh.faceRegionStart, mesh.faceRegionCount);
         mesh.faceRegionStart = UINT32_MAX;
         mesh.faceRegionCount = 0;
+    }
+
+    // Empty mesh: no face region needed. write() will zero the indirect args.
+    if (mesh.faceCount == 0) {
+        return true;
     }
 
     uint32_t faceRegionsNeeded = (mesh.faceCount + FACES_PER_REGION - 1) / FACES_PER_REGION;
@@ -198,8 +204,22 @@ void VoxelBuffer::write(nvrhi::CommandListHandle cmd, VoxelChunkMesh& mesh, cons
         return;
     }
 
+    // Always update the indirect args first, even for 0-face meshes.
+    // If we skip this when faceCount==0, the GPU indirect buffer retains the old
+    // vertexCount/startVertex from before the remesh, causing stale geometry to be drawn.
+    {
+        auto args = nvrhi::DrawIndirectArguments()
+                .setVertexCount(mesh.faceCount * VERTICES_PER_QUAD)
+                .setStartVertexLocation(mesh.faceRegionStart * FACES_PER_REGION * VERTICES_PER_QUAD)
+                .setInstanceCount(mesh.faceCount > 0 ? 1u : 0u)
+                .setStartInstanceLocation(mesh.drawSlotIndex);
+
+        uint64_t indirectByteOffset = mesh.drawSlotIndex * sizeof(nvrhi::DrawIndirectArguments);
+        cmd->writeBuffer(m_indirectBuffer, &args, sizeof(nvrhi::DrawIndirectArguments), indirectByteOffset);
+    }
+
     if (mesh.faceCount == 0) {
-        return;
+        return;  // No face or OUB data to write
     }
 
     cmd->setBufferState(m_facesBuffer, nvrhi::ResourceStates::CopyDest);
@@ -214,18 +234,6 @@ void VoxelBuffer::write(nvrhi::CommandListHandle cmd, VoxelChunkMesh& mesh, cons
     // Write OUB
     uint64_t oubByteOffset = mesh.drawSlotIndex * sizeof(TerrainOUB);
     cmd->writeBuffer(m_oubBuffer, &oub, sizeof(TerrainOUB), oubByteOffset);
-
-    // Write Indirect Args
-    auto args = nvrhi::DrawIndirectArguments()
-            // .setIndexCount(mesh.faceCount * INDICES_PER_QUAD)
-            // .setStartIndexLocation(0)
-            .setVertexCount(mesh.faceCount * VERTICES_PER_QUAD)
-            .setStartVertexLocation(mesh.faceRegionStart * FACES_PER_REGION * VERTICES_PER_QUAD)
-            .setInstanceCount(1)
-            .setStartInstanceLocation(mesh.drawSlotIndex);  // Draw ID for gl_BaseInstance
-
-    uint64_t indirectByteOffset = mesh.drawSlotIndex * sizeof(nvrhi::DrawIndirectArguments);
-    cmd->writeBuffer(m_indirectBuffer, &args, sizeof(nvrhi::DrawIndirectArguments), indirectByteOffset);
 }
 
 void VoxelBuffer::cleanup_freed_draw_slots(nvrhi::CommandListHandle cmd) {

@@ -215,7 +215,11 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(nvrhi::CommandListHandle cmd
         int oldBufferIndex = mesh.bufferIndex;
         if (oldBufferIndex >= 0 && oldBufferIndex < static_cast<int>(m_chunkBuffers.size())) {
             VoxelBuffer& buffer = m_chunkBuffers[oldBufferIndex];
+            uint32_t oldRegionStart = mesh.faceRegionStart;
             if (buffer.reallocate(mesh)) {
+                // Stage-4 probe: log remesh uploads
+                LOG_DEBUG("VoxelTerrainRenderer", "[UPLOAD remesh] ({:.0f},{:.0f},{:.0f}) faces={} slot={} region:{}->{} ",
+                          pos.x, pos.y, pos.z, mesh.faceCount, mesh.drawSlotIndex, oldRegionStart, mesh.faceRegionStart);
                 TerrainOUB oub = {
                     .model = {
                         1.0f, 0.0f, 0.0f, 0.0f,
@@ -227,6 +231,8 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(nvrhi::CommandListHandle cmd
                 buffer.write(cmd, mesh, oub);
                 return true;
             }
+            LOG_WARN("VoxelTerrainRenderer", "[UPLOAD remesh FALLBACK] ({:.0f},{:.0f},{:.0f}) reallocate failed, doing free+alloc",
+                     pos.x, pos.y, pos.z);
             // If reallocate failed (fragmentation), fall through to try other buffers
             // But first free the draw slot since we'll allocate fresh
             buffer.free(mesh);
