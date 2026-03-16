@@ -5,6 +5,7 @@
 #include "VoxelBuffer.h"
 #include "../rendering_components.h"
 #include "core/log/Logger.h"
+#include "renderer/TracyVulkanIntegration.h"
 
 VoxelBuffer::VoxelBuffer(VulkanBackend* backend) {
     this->m_backend = backend;

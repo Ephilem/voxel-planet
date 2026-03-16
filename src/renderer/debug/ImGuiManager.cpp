@@ -6,6 +6,7 @@
 
 #include "platform/PlatformState.h"
 #include "renderer/Renderer.h"
+#include "renderer/TracyVulkanIntegration.h"
 #include "renderer/vulkan/VulkanBackend.h"
 
 ImGuiManager::~ImGuiManager() {
@@ -164,6 +165,7 @@ void ImGuiManager::Register(flecs::world& ecs) {
         .kind(flecs::OnStore)
         .each([](flecs::entity e, Renderer& renderer) {
             auto& ctx = renderer.frameContext;
+            VOXEL_VK_ZONE(renderer.backend->tracyVkCtx, ctx.commandList, "RenderImGui-Render");
             if (!ctx.frameActive || !ctx.commandList) {
                 // need to close the begin frame first
                 ImGui::EndFrame();

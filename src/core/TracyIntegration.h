@@ -16,6 +16,9 @@
 
 #define VOXEL_MESSAGE(msg) TracyMessage(msg, strlen(msg))
 
+#define VOXEL_LOCKABLE(type, name) TracyLockable(type, name)
+#define VOXEL_LOCKABLE_N(type, name, desc) TracyLockableN(type, name, desc)
+
 namespace tracy_integration {
 
 // Register Tracy systems with Flecs
@@ -41,6 +44,8 @@ inline void Register(flecs::world& ecs) {
 #define VOXEL_ZONE_NC(name, color)
 #define VOXEL_PLOT(name, val)
 #define VOXEL_MESSAGE(msg)
+#define VOXEL_LOCKABLE(type, name) type name
+#define VOXEL_LOCKABLE_N(type, name, desc) type name
 
 namespace tracy_integration {
 inline void Register(flecs::world&) {}

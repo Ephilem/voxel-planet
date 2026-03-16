@@ -1,5 +1,5 @@
 #pragma once
-#include <memory>
+
 #include <queue>
 #include <chrono>
 
@@ -8,6 +8,10 @@
 #include "GLFW/glfw3.h"
 #include <nvrhi/nvrhi.h>
 #include <nvrhi/vulkan.h>
+
+#ifdef TRACY_ENABLE
+#include <tracy/TracyVulkan.hpp>
+#endif
 
 #include "core/resource/ResourceSystem.h"
 
@@ -21,6 +25,10 @@ typedef struct RenderParameters {
 class VulkanBackend {
 public:
     // ResourceSystem resourceSystem;
+
+#ifdef TRACY_ENABLE
+    tracy::VkCtx* tracyVkCtx = nullptr;
+#endif
 
     RenderParameters renderParameters;
 

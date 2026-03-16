@@ -3,8 +3,6 @@
 #include <bit>
 #include <imgui.h>
 
-#include "core/TracyIntegration.h"
-
 #include "VoxelTextureManager.h"
 #include "core/log/Logger.h"
 #include "core/world/ChunkManager.h"
@@ -16,7 +14,7 @@ VoxelChunkMesher::~VoxelChunkMesher() {
 }
 
 void VoxelChunkMesher::shutdown() { {
-        std::lock_guard<std::mutex> lock(m_taskMutex);
+        std::lock_guard<LockableBase(std::mutex)> lock(m_taskMutex);
         m_stop = true;
     }
     m_taskCv.notify_all();
@@ -32,11 +30,12 @@ void VoxelChunkMesher::shutdown() { {
 }
 
 void VoxelChunkMesher::enqueue(TaskMeshingInput &&taskInput) {
+    VOXEL_ZONE_N("Enqueue");
     if (is_pending(taskInput.chunkCoord)) {
         // already pending
         return;
     } {
-        std::lock_guard<std::mutex> lock(m_taskMutex);
+        std::lock_guard<LockableBase(std::mutex)> lock(m_taskMutex);
         m_pendingCoords.insert(taskInput.chunkCoord);
         m_taskQueue.push(std::move(taskInput));
     }
@@ -45,7 +44,7 @@ void VoxelChunkMesher::enqueue(TaskMeshingInput &&taskInput) {
 
 std::vector<TaskMeshingOutput> VoxelChunkMesher::poll_results(size_t maxResults) {
     std::vector<TaskMeshingOutput> results; {
-        std::lock_guard<std::mutex> lock(m_resultMutex);
+        std::lock_guard<LockableBase(std::mutex)> lock(m_resultMutex);
         while (!m_resultQueue.empty() && results.size() < maxResults) {
             results.push_back(std::move(m_resultQueue.front()));
             m_resultQueue.pop();
@@ -60,17 +59,17 @@ void VoxelChunkMesher::init(flecs::world &ecs) {
     ecs.component<VoxelChunkMeshState>()
             .add(flecs::Exclusive);
 
-    ecs.system<const VoxelChunk, const ChunkCoordinate>("VoxelChunkMesher-EnqueueChunkBuild")
+    ecs.system<const VoxelChunk, const ChunkCoordinate, VoxelChunkMesh>("VoxelChunkMesher-EnqueueChunkBuild")
             .kind(flecs::PostUpdate)
             .with<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>()
-            .with<VoxelChunkMesh>() // only chunk that have a mesh component ready to receive the data after the meshing
-            .each([this](const flecs::entity e, const VoxelChunk &chunk, const ChunkCoordinate &pos) {
-                enqueue_meshing_system(e, chunk, pos);
+            .each([this](const flecs::entity e, const VoxelChunk &chunk, const ChunkCoordinate &pos, VoxelChunkMesh &mesh) {
+                enqueue_meshing_system(e, chunk, pos, mesh);
             });
 
     ecs.system("VoxelChunkMesher-PollMeshingResults")
             .kind(flecs::PostUpdate)
             .run([this](flecs::iter &it) {
+                VOXEL_ZONE_N("Mesher-PollResults");
                 poll_meshing_results_system(it);
             });
 
@@ -106,64 +105,66 @@ void VoxelChunkMesher::Register(flecs::world &ecs) {
     ecs.get_mut<VoxelChunkMesher>()->init(ecs);
 }
 
-void VoxelChunkMesher::enqueue_meshing_system(flecs::entity e, const VoxelChunk &chunk, const ChunkCoordinate &pos) {
-    VOXEL_ZONE_N("EnqueueMeshing");
-    auto* textureManager = e.world().get_mut<VoxelTextureManager>();
-    auto* chunkManager = e.world().get_mut<ChunkManager>();
+void VoxelChunkMesher::enqueue_meshing_system(flecs::entity e, const VoxelChunk &chunk, const ChunkCoordinate &pos, VoxelChunkMesh& mesh) {
+    VOXEL_ZONE_N("Mesher-EnqueueMeshing");
 
-    // Check if we can mesh this chunk optimally
-    if (!chunkManager->can_mesh(pos)) return;
+    {
+        VOXEL_ZONE_N("CanMesh");
+        auto* chunkManager = e.world().get_mut<ChunkManager>();
+        if (!chunkManager->can_mesh(pos)) return;
+    }
 
     TaskMeshingInput input;
     input.chunkCoord = pos;
     input.voxels = chunk.voxels;
 
-    input.priority = calculate_task_priority(pos);
-
-    // Bump generation so any in-flight task result for this chunk is discarded on arrival
-    auto* mesh = e.get_mut<VoxelChunkMesh>();
-    mesh->meshGeneration++;
-    input.meshGeneration = mesh->meshGeneration;
-
-    // Texture slots. Said to prepare some texture in the gpu
-    for (const auto &[textureID, voxelID]: chunk.textureIDs) {
-        input.textureIDs[voxelID] =
-                textureManager->request_texture_slot(textureID);
+    {
+        VOXEL_ZONE_N("CalcPriority");
+        input.priority = calculate_task_priority(pos);
     }
 
+    mesh.meshGeneration++;
+    input.meshGeneration = mesh.meshGeneration;
 
-    std::array<std::shared_ptr<const std::array<uint8_t, CHUNK_VOLUME>>, 6> neighborVoxels = {};
-    std::array<flecs::entity, 6> neighborChunkEntities = chunkManager->get_neighboring_chunks(pos);
-
-    int neighborIndex = 0;
-    int presentNeighbors = 0;
-    for (const auto &neighborEntity: neighborChunkEntities) {
-        if (neighborEntity != flecs::entity::null()) {
-            auto* neighborChunk = neighborEntity.get_mut<VoxelChunk>();
-            if (neighborChunk != nullptr) {
-                neighborVoxels[neighborIndex] = neighborChunk->voxels;
-                presentNeighbors++;
-            } else {
-                LOG_WARN("VoxelChunkMesher", "Chunk ({},{},{}) neighbor[{}] entity exists but VoxelChunk is null",
-                         pos.x, pos.y, pos.z, neighborIndex);
-            }
+    {
+        VOXEL_ZONE_N("TextureSlots");
+        auto* textureManager = e.world().get_mut<VoxelTextureManager>();
+        for (const auto &[textureID, voxelID]: chunk.textureIDs) {
+            input.textureIDs[voxelID] =
+                    textureManager->request_texture_slot(textureID);
         }
-        neighborIndex++;
     }
 
-    input.neighborVoxels = neighborVoxels;
+    {
+        VOXEL_ZONE_N("GatherNeighbors");
+        auto* chunkManager = e.world().get_mut<ChunkManager>();
+        std::array<std::shared_ptr<const std::array<uint8_t, CHUNK_VOLUME>>, 6> neighborVoxels = {};
+        std::array<flecs::entity, 6> neighborChunkEntities = chunkManager->get_neighboring_chunks(pos);
 
-    // if (mesh->meshGeneration > 1) {
-    //     LOG_DEBUG("VoxelChunkMesher", "[REMESH] ({},{},{}) gen={} neighbors={}/6 prevFaces={}",
-    //               pos.x, pos.y, pos.z, mesh->meshGeneration, presentNeighbors, mesh->faceCount);
-    // }
+        int neighborIndex = 0;
+        for (const auto &neighborEntity: neighborChunkEntities) {
+            if (neighborEntity != flecs::entity::null()) {
+                const auto* neighborChunk = neighborEntity.get<VoxelChunk>();
+                if (neighborChunk != nullptr) {
+                    neighborVoxels[neighborIndex] = neighborChunk->voxels;
+                } else {
+                    LOG_WARN("VoxelChunkMesher", "Chunk ({},{},{}) neighbor[{}] entity exists but VoxelChunk is null",
+                             pos.x, pos.y, pos.z, neighborIndex);
+                }
+            }
+            neighborIndex++;
+        }
+        input.neighborVoxels = neighborVoxels;
+    }
 
-    enqueue(std::move(input));
-    e.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Meshing>();
+    {
+        VOXEL_ZONE_N("EnqueueAndTransition");
+        enqueue(std::move(input));
+        e.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Meshing>();
+    }
 }
 
 void VoxelChunkMesher::poll_meshing_results_system(flecs::iter &it) {
-    VOXEL_ZONE_N("PollMeshingResults");
     const auto* chunkManager = it.world().get<ChunkManager>();
     auto results = poll_results(999);
 
@@ -232,8 +233,7 @@ void VoxelChunkMesher::worker_loop(size_t id) {
 
     while (true) {
         batch.clear(); {
-            VOXEL_ZONE_N("WaitForTasks");
-            std::unique_lock<std::mutex> lock(m_taskMutex);
+            std::unique_lock<LockableBase(std::mutex)> lock(m_taskMutex);
             m_taskCv.wait(lock, [this] {
                 return m_stop || !m_taskQueue.empty();
             });
@@ -255,7 +255,7 @@ void VoxelChunkMesher::worker_loop(size_t id) {
             }
         } {
             VOXEL_ZONE_N("PushResults");
-            std::lock_guard<std::mutex> lock(m_resultMutex);
+            std::lock_guard<LockableBase(std::mutex)> lock(m_resultMutex);
             for (auto &result: results) {
                 m_resultQueue.push(std::move(result));
             }

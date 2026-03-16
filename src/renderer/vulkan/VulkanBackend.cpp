@@ -93,6 +93,36 @@ VulkanBackend::VulkanBackend(GLFWwindow *window, RenderParameters renderParamete
 
     init_nvrhi();
     create_swapchain();
+
+#ifdef TRACY_ENABLE
+    // Init tracy for vulkan
+    VkCommandPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.queueFamilyIndex = vkDevice.get_queue_index(vkb::QueueType::graphics).value();
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    VkCommandPool initPool;
+    vkCreateCommandPool(vkDevice.device, &poolInfo, nullptr, &initPool);
+
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool = initPool;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandBufferCount = 1;
+    VkCommandBuffer initCmd;
+    vkAllocateCommandBuffers(vkDevice.device, &allocInfo, &initCmd);
+
+    tracyVkCtx = TracyVkContext(
+        vkDevice.physical_device,
+        vkDevice.device,
+        graphicsQueue,
+        initCmd
+    );
+
+    vkFreeCommandBuffers(vkDevice.device, initPool, 1, &initCmd);
+    vkDestroyCommandPool(vkDevice.device, initPool, nullptr);
+#endif
+
+
     init_syncs();
 
     m_commandLists.resize(MAX_FRAMES_IN_FLIGHT);
@@ -106,6 +136,13 @@ VulkanBackend::~VulkanBackend() {
         m_framesInFlight.pop();
         device->waitEventQuery(query);
     }
+
+#ifdef TRACY_ENABLE
+    if (tracyVkCtx) {
+        TracyVkDestroy(tracyVkCtx)
+        tracyVkCtx = nullptr;
+    }
+#endif
 
     if (device) {
         device->waitForIdle();

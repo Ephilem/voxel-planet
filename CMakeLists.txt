@@ -221,6 +221,9 @@ add_subdirectory(src/client)
 if(TRACY_FOUND)
     target_link_libraries(VoxelPlanetRenderer PUBLIC TracyClient)
     target_compile_definitions(VoxelPlanetRenderer PUBLIC TRACY_ENABLE)
+
+    target_link_libraries(VoxelPlanetCore PUBLIC TracyClient)
+    target_compile_definitions(VoxelPlanetCore PUBLIC TRACY_ENABLE)
 endif()
 
 add_executable(${PROJECT_NAME}

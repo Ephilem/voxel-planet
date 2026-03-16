@@ -1,0 +1,16 @@
+#pragma once
+
+#ifdef TRACY_ENABLE
+#include <tracy/TracyVulkan.hpp>
+#include <nvrhi/nvrhi.h>
+
+#define VOXEL_VK_ZONE(ctx, cmdList, name)                                        \
+VkCommandBuffer _tracy_vk_cmd_##__LINE__ = static_cast<VkCommandBuffer>(     \
+(cmdList)->getNativeObject(nvrhi::ObjectTypes::VK_CommandBuffer));        \
+TracyVkZone(ctx, _tracy_vk_cmd_##__LINE__, name)
+
+#else
+
+#define VOXEL_VK_ZONE(ctx, cmdList, name)
+
+#endif

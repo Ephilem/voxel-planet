@@ -13,6 +13,8 @@
 #include "core/world/world_components.h"
 #include "renderer/rendering_components.h"
 
+#include "core/TracyIntegration.h"
+
 struct TaskMeshingInput {
     glm::ivec3 chunkCoord;
     std::shared_ptr<const std::array<uint8_t, CHUNK_VOLUME>> voxels;
@@ -52,12 +54,12 @@ public:
     }
 
     size_t pending_count() const {
-        std::lock_guard<std::mutex> lock(m_taskMutex);
+        std::lock_guard<LockableBase(std::mutex)> lock(m_taskMutex);
         return m_pendingCoords.size();
     }
 
     size_t completed_count() const {
-        std::lock_guard<std::mutex> lock(m_resultMutex);
+        std::lock_guard<LockableBase(std::mutex)> lock(m_resultMutex);
         return m_resultQueue.size();
     }
 
@@ -70,13 +72,13 @@ private:
      * @return True if the chunk is pending meshing, false otherwise
      */
     bool is_pending(const glm::ivec3& coord) const {
-        std::lock_guard<std::mutex> lock(m_taskMutex);
+        std::lock_guard<LockableBase(std::mutex)> lock(m_taskMutex);
         return m_pendingCoords.count(coord) > 0;
     }
 
     std::vector<TaskMeshingOutput> poll_results(size_t maxResults = 30);
 
-    void enqueue_meshing_system(flecs::entity e, const VoxelChunk& chunk, const ChunkCoordinate& pos);
+    void enqueue_meshing_system(flecs::entity e, const VoxelChunk& chunk, const ChunkCoordinate& pos, VoxelChunkMesh& mesh);
     void poll_meshing_results_system(flecs::iter& it);
 
     float calculate_task_priority(const glm::ivec3& chunkPos) const;
@@ -88,8 +90,8 @@ private:
     std::vector<std::thread> m_workerThreads;
 
     // task queue input
-    mutable std::mutex m_taskMutex;
-    std::condition_variable m_taskCv;
+    mutable VOXEL_LOCKABLE(std::mutex, m_taskMutex);
+    std::condition_variable_any m_taskCv;
     std::priority_queue<
           TaskMeshingInput,
           std::vector<TaskMeshingInput>,
@@ -98,7 +100,7 @@ private:
     std::unordered_set<glm::ivec3, IVec3Hash> m_pendingCoords;
 
     // result queue output
-    mutable std::mutex m_resultMutex;
+    mutable VOXEL_LOCKABLE(std::mutex, m_resultMutex);
     std::queue<TaskMeshingOutput> m_resultQueue;
 
     std::atomic<bool> m_stop;

@@ -12,13 +12,17 @@
 
 #include "Camera3dSystems.h"
 #include "rendering_components.h"
-#include "core/main_components.h"
+#include "core/TracyIntegration.h"
 #include "core/world/world_components.h"
 #include "core/world/ChunkManager.h"
 #include "debug/ImGuiManager.h"
 #include "debug/LogConsole.h"
 #include "nvrhi/utils.h"
-#include "platform/inputs/input_state.h"
+
+
+#ifdef TRACY_ENABLE
+#include <tracy/TracyVulkan.hpp>
+#endif
 
 
 RendererModule::RendererModule(flecs::world& ecs) {
@@ -37,6 +41,7 @@ RendererModule::RendererModule(flecs::world& ecs) {
     ecs.system<Renderer>("BeginFrameSystem")
         .kind(flecs::PreStore)
         .each([](flecs::entity e, Renderer& renderer) {
+            VOXEL_ZONE_N("Renderer-BeginFrame");
             FrameContext& ctx = renderer.frameContext;
             ctx.frameActive = false;
 
@@ -92,8 +97,18 @@ RendererModule::RendererModule(flecs::world& ecs) {
     ecs.system<Renderer>("EndFrameSystem")
         .kind(flecs::PostFrame)
         .each([](flecs::entity e, Renderer& renderer) {
+            VOXEL_ZONE_N("Renderer-EndFrame");
             FrameContext& ctx = renderer.frameContext;
             if (!ctx.frameActive || !ctx.commandList) return;
+
+#ifdef TRACY_ENABLE
+            if (renderer.backend->tracyVkCtx) {
+                VkCommandBuffer vkCmd = static_cast<VkCommandBuffer>(
+                    ctx.commandList->getNativeObject(nvrhi::ObjectTypes::VK_CommandBuffer)
+                );
+                TracyVkCollect(renderer.backend->tracyVkCtx, vkCmd);
+            }
+#endif
 
             ctx.commandList->close();
             nvrhi::CommandListHandle cmdList = ctx.commandList;

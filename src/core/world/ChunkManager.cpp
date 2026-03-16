@@ -6,6 +6,8 @@
 
 #include "WorldGenerator.h"
 #include <imgui.h>
+
+#include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
 #include "platform/inputs/InputStateManager.h"
 #include "renderer/rendering_components.h"
@@ -37,6 +39,7 @@ void ChunkManager::init(flecs::world &ecs) {
     ecs.system<ChunkLoader, const Position>("ChunkManager-UpdateChunksSystem")
             .kind(flecs::OnUpdate)
             .each([this](flecs::entity e, ChunkLoader &loader, const Position &position) {
+                VOXEL_ZONE_N("ChunkManager-UpdateChunks")
                 auto* generator = e.world().get_mut<WorldGenerator>();
                 auto* inputManager = e.world().get_mut<InputActionState>();
                 // if (!inputManager->is_action_pressed(ActionInputType::Debug1)) return;
@@ -46,12 +49,14 @@ void ChunkManager::init(flecs::world &ecs) {
     ecs.system("ChunkManager-PollGenerationResults")
             .kind(flecs::OnStore)
             .run([this](flecs::iter &it) {
+                VOXEL_ZONE_N("ChunkManager-PollResults");
                 poll_generation_results_system(it);
             });
 
     ecs.system("ChunkManager-ProcessUnloadQueue")
             .kind(flecs::OnStore)
             .run([this](flecs::iter &it) {
+                VOXEL_ZONE_N("ChunkManager-UnloadQueue");
                 process_unload_queue_system(it);
             });
 
@@ -128,6 +133,7 @@ void ChunkManager::update_chunks_system(flecs::entity e, ChunkLoader &loader,
 }
 
 void ChunkManager::request_chunks_in_radius(const glm::ivec3& center, int radius, WorldGenerator* generator) {
+    VOXEL_ZONE_N("RequestChunksInRadius");
     std::vector<ChunkCandidate> candidates;
 
     for (int x = -radius; x <= radius; x++) {

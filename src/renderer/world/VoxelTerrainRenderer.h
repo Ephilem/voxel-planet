@@ -60,7 +60,7 @@ private:
     void destroy();
 
     bool upload_chunk_mesh_system(
-        nvrhi::CommandListHandle cmd,
+        const Renderer *renderer,
         VoxelChunkMesh &mesh, const Position &pos);
 
     void render_terrain_system(
