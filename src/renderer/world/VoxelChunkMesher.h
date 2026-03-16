@@ -38,6 +38,13 @@ struct TaskMeshingOutput {
     uint32_t meshGeneration = 0; // Must match VoxelChunkMesh::meshGeneration to be applied
 };
 
+// alignas(64) to avoid false sharing between worker threads and main thread when pushing/polling results
+struct alignas(64) MeshWorkerResult {
+    VOXEL_LOCKABLE(std::mutex, m_resultMutex);
+    std::vector<TaskMeshingOutput> results;
+    std::atomic<int> pendingCount{0};
+};
+
 class VoxelChunkMesher {
 public:
     VoxelChunkMesher() = default;
@@ -54,32 +61,23 @@ public:
     }
 
     size_t pending_count() const {
-        std::lock_guard<LockableBase(std::mutex)> lock(m_taskMutex);
+        std::lock_guard lock(m_taskMutex);
         return m_pendingCoords.size();
     }
 
     size_t completed_count() const {
-        std::lock_guard<LockableBase(std::mutex)> lock(m_resultMutex);
-        return m_resultQueue.size();
+        int total = 0;
+        for (const auto& wr : m_workerResults) {
+            total += wr->pendingCount.load();
+        }
+        return total;
     }
 
 private:
-    void enqueue(TaskMeshingInput&& taskInput);
-
-    /**
-     * Check if a chunk at the given coordinate is already pending meshing.
-     * @param coord Chunk coordinate
-     * @return True if the chunk is pending meshing, false otherwise
-     */
-    bool is_pending(const glm::ivec3& coord) const {
-        std::lock_guard<LockableBase(std::mutex)> lock(m_taskMutex);
-        return m_pendingCoords.count(coord) > 0;
-    }
-
     std::vector<TaskMeshingOutput> poll_results(size_t maxResults = 30);
 
-    void enqueue_meshing_system(flecs::entity e, const VoxelChunk& chunk, const ChunkCoordinate& pos, VoxelChunkMesh& mesh);
     void poll_meshing_results_system(flecs::iter& it);
+    void enqueue_chunks_build_system(flecs::iter& it);
 
     float calculate_task_priority(const glm::ivec3& chunkPos) const;
 
@@ -91,7 +89,7 @@ private:
 
     // task queue input
     mutable VOXEL_LOCKABLE(std::mutex, m_taskMutex);
-    std::condition_variable_any m_taskCv;
+    std::counting_semaphore<> m_taskSemaphore{0};
     std::priority_queue<
           TaskMeshingInput,
           std::vector<TaskMeshingInput>,
@@ -100,9 +98,7 @@ private:
     std::unordered_set<glm::ivec3, IVec3Hash> m_pendingCoords;
 
     // result queue output
-    mutable VOXEL_LOCKABLE(std::mutex, m_resultMutex);
-    std::queue<TaskMeshingOutput> m_resultQueue;
-
+    std::vector<std::unique_ptr<MeshWorkerResult>> m_workerResults; // one per worker thread
     std::atomic<bool> m_stop;
 
     Frustrum m_frustum;

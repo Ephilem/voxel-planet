@@ -14,43 +14,36 @@ VoxelChunkMesher::~VoxelChunkMesher() {
 }
 
 void VoxelChunkMesher::shutdown() { {
-        std::lock_guard<LockableBase(std::mutex)> lock(m_taskMutex);
+        std::lock_guard lock(m_taskMutex);
         m_stop = true;
     }
-    m_taskCv.notify_all();
 
     LOG_DEBUG("VoxelChunkMesher", "Shutting down {} worker threads", m_workerThreads.size());
-    for (auto &thread: m_workerThreads) {
-        if (thread.joinable()) {
-            thread.join();
-        }
+    m_taskSemaphore.release(m_workerThreads.size());
+
+    for (auto& thread : m_workerThreads) {
+        if (thread.joinable()) thread.join();
     }
     m_workerThreads.clear();
     LOG_INFO("VoxelChunkMesher", "All worker threads shut down");
 }
 
-void VoxelChunkMesher::enqueue(TaskMeshingInput &&taskInput) {
-    VOXEL_ZONE_N("Enqueue");
-    if (is_pending(taskInput.chunkCoord)) {
-        // already pending
-        return;
-    } {
-        std::lock_guard<LockableBase(std::mutex)> lock(m_taskMutex);
-        m_pendingCoords.insert(taskInput.chunkCoord);
-        m_taskQueue.push(std::move(taskInput));
-    }
-    m_taskCv.notify_one();
-}
 
 std::vector<TaskMeshingOutput> VoxelChunkMesher::poll_results(size_t maxResults) {
-    std::vector<TaskMeshingOutput> results; {
-        std::lock_guard<LockableBase(std::mutex)> lock(m_resultMutex);
-        while (!m_resultQueue.empty() && results.size() < maxResults) {
-            results.push_back(std::move(m_resultQueue.front()));
-            m_resultQueue.pop();
-        }
-    }
+    std::vector<TaskMeshingOutput> results;
+    for (auto &wr: m_workerResults) {
+        VOXEL_ZONE_N("Poll Result From a Worker");
+        if (results.size() >= maxResults) break;
+        if (wr->pendingCount.load(std::memory_order_relaxed) == 0) continue;
 
+        std::lock_guard lock(wr->m_resultMutex);
+        int count = static_cast<int>(wr->results.size());
+        for (auto &r: wr->results) {
+            results.push_back(std::move(r));
+        }
+        wr->results.clear();
+        wr->pendingCount.fetch_sub(count, std::memory_order_relaxed);
+    }
     return results;
 }
 
@@ -59,11 +52,11 @@ void VoxelChunkMesher::init(flecs::world &ecs) {
     ecs.component<VoxelChunkMeshState>()
             .add(flecs::Exclusive);
 
-    ecs.system<const VoxelChunk, const ChunkCoordinate, VoxelChunkMesh>("VoxelChunkMesher-EnqueueChunkBuild")
+    ecs.system<const VoxelChunk, const ChunkCoordinate, VoxelChunkMesh>("VoxelChunkMesher-EnqueueChunksBuild")
             .kind(flecs::PostUpdate)
             .with<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>()
-            .each([this](const flecs::entity e, const VoxelChunk &chunk, const ChunkCoordinate &pos, VoxelChunkMesh &mesh) {
-                enqueue_meshing_system(e, chunk, pos, mesh);
+            .run([this](flecs::iter &it) {
+                enqueue_chunks_build_system(it);
             });
 
     ecs.system("VoxelChunkMesher-PollMeshingResults")
@@ -95,6 +88,11 @@ void VoxelChunkMesher::init(flecs::world &ecs) {
     // init workers
     size_t numThreads = std::max(1u, std::thread::hardware_concurrency() - 1);
 
+    m_workerResults.reserve(numThreads);
+    for (size_t i = 0; i < numThreads; i++) {
+        m_workerResults.push_back(std::make_unique<MeshWorkerResult>());
+    }
+
     for (size_t i = 0; i < numThreads; i++) {
         m_workerThreads.emplace_back([this, i] { worker_loop(i); });
     }
@@ -105,62 +103,67 @@ void VoxelChunkMesher::Register(flecs::world &ecs) {
     ecs.get_mut<VoxelChunkMesher>()->init(ecs);
 }
 
-void VoxelChunkMesher::enqueue_meshing_system(flecs::entity e, const VoxelChunk &chunk, const ChunkCoordinate &pos, VoxelChunkMesh& mesh) {
-    VOXEL_ZONE_N("Mesher-EnqueueMeshing");
+void VoxelChunkMesher::enqueue_chunks_build_system(flecs::iter &it) {
+    VOXEL_ZONE_N("Mesher-EnqueueChunksBuild");
 
-    {
-        VOXEL_ZONE_N("CanMesh");
-        auto* chunkManager = e.world().get_mut<ChunkManager>();
-        if (!chunkManager->can_mesh(pos)) return;
-    }
+    struct PendingMesh {
+        flecs::entity e;
+        VoxelChunkMesh* mesh;
+        TaskMeshingInput input;
+    };
+    std::vector<PendingMesh> pending;
 
-    TaskMeshingInput input;
-    input.chunkCoord = pos;
-    input.voxels = chunk.voxels;
+    while (it.next()) {
+        auto chunks = it.field<const VoxelChunk>(0);
+        auto positions = it.field<const ChunkCoordinate>(1);
+        auto meshes = it.field<VoxelChunkMesh>(2);
 
-    {
-        VOXEL_ZONE_N("CalcPriority");
-        input.priority = calculate_task_priority(pos);
-    }
+        auto* chunkManager = it.world().get_mut<ChunkManager>();
+        auto* textureManager = it.world().get_mut<VoxelTextureManager>();
 
-    mesh.meshGeneration++;
-    input.meshGeneration = mesh.meshGeneration;
+        for (auto i: it) {
+            const ChunkCoordinate &pos = positions[i];
+            if (!chunkManager->can_mesh(pos)) continue;
 
-    {
-        VOXEL_ZONE_N("TextureSlots");
-        auto* textureManager = e.world().get_mut<VoxelTextureManager>();
-        for (const auto &[textureID, voxelID]: chunk.textureIDs) {
-            input.textureIDs[voxelID] =
-                    textureManager->request_texture_slot(textureID);
-        }
-    }
+            TaskMeshingInput input;
+            input.chunkCoord = pos;
+            input.voxels = chunks[i].voxels;
+            input.priority = calculate_task_priority(pos);
 
-    {
-        VOXEL_ZONE_N("GatherNeighbors");
-        auto* chunkManager = e.world().get_mut<ChunkManager>();
-        std::array<std::shared_ptr<const std::array<uint8_t, CHUNK_VOLUME>>, 6> neighborVoxels = {};
-        std::array<flecs::entity, 6> neighborChunkEntities = chunkManager->get_neighboring_chunks(pos);
+            for (const auto &[textureID, voxelID]: chunks[i].textureIDs) {
+                input.textureIDs[voxelID] = textureManager->request_texture_slot(textureID);
+            }
 
-        int neighborIndex = 0;
-        for (const auto &neighborEntity: neighborChunkEntities) {
-            if (neighborEntity != flecs::entity::null()) {
-                const auto* neighborChunk = neighborEntity.get<VoxelChunk>();
-                if (neighborChunk != nullptr) {
-                    neighborVoxels[neighborIndex] = neighborChunk->voxels;
-                } else {
-                    LOG_WARN("VoxelChunkMesher", "Chunk ({},{},{}) neighbor[{}] entity exists but VoxelChunk is null",
-                             pos.x, pos.y, pos.z, neighborIndex);
+            auto neighborEntities = chunkManager->get_neighboring_chunks(pos);
+            for (int n = 0; n < 6; n++) {
+                if (neighborEntities[n] != flecs::entity::null()) {
+                    const auto* neighborChunk = neighborEntities[n].get<VoxelChunk>();
+                    if (neighborChunk) input.neighborVoxels[n] = neighborChunk->voxels;
                 }
             }
-            neighborIndex++;
+
+            pending.push_back({it.entity(i), &meshes[i], std::move(input)});
         }
-        input.neighborVoxels = neighborVoxels;
     }
 
-    {
-        VOXEL_ZONE_N("EnqueueAndTransition");
-        enqueue(std::move(input));
-        e.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Meshing>();
+    if (pending.empty()) return;
+
+    size_t enqueued = 0; {
+        VOXEL_ZONE_N("EnqueueBatch");
+        std::lock_guard lock(m_taskMutex);
+        for (auto &p: pending) {
+            if (m_pendingCoords.count(p.input.chunkCoord)) continue;
+            p.mesh->meshGeneration++;
+            p.input.meshGeneration = p.mesh->meshGeneration;
+            m_pendingCoords.insert(p.input.chunkCoord);
+            m_taskQueue.push(std::move(p.input));
+            p.e.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Meshing>();
+            enqueued++;
+        }
+    }
+
+    if (enqueued > 0) {
+        m_taskSemaphore.release(enqueued);
     }
 }
 
@@ -225,39 +228,47 @@ void VoxelChunkMesher::worker_loop(size_t id) {
     tracy::SetThreadName(threadName);
 #endif
 
-    constexpr size_t BATCH_SIZE = 32;
+    constexpr size_t BATCH_SIZE = 1;
     std::vector<TaskMeshingInput> batch;
     std::vector<TaskMeshingOutput> results;
     batch.reserve(BATCH_SIZE);
     results.reserve(BATCH_SIZE);
 
     while (true) {
-        batch.clear(); {
-            std::unique_lock<LockableBase(std::mutex)> lock(m_taskMutex);
-            m_taskCv.wait(lock, [this] {
-                return m_stop || !m_taskQueue.empty();
-            });
+        batch.clear();
 
-            if (m_stop && m_taskQueue.empty()) {
-                return;
-            }
+        m_taskSemaphore.acquire();
 
-            while (!m_taskQueue.empty() && batch.size() < BATCH_SIZE) {
-                batch.push_back(std::move(m_taskQueue.top()));
+        // Réveil pour shutdown : stop ET queue vide
+        if (m_stop.load(std::memory_order_relaxed) && [&] {
+            std::lock_guard lock(m_taskMutex);
+            return m_taskQueue.empty();
+        }()) return;
+        {
+            std::lock_guard lock(m_taskMutex);
+            if (!m_taskQueue.empty()) {
+                batch.push_back(std::move(const_cast<TaskMeshingInput&>(m_taskQueue.top())));
                 m_taskQueue.pop();
                 m_pendingCoords.erase(batch.back().chunkCoord);
             }
-        } {
+        }
+
+        if (batch.empty()) continue;
+
+        {
             VOXEL_ZONE_N("ProcessBatch");
             results.clear();
             for (auto &input: batch) {
                 results.push_back(build_mesh(input));
             }
-        } {
+        }
+        {
             VOXEL_ZONE_N("PushResults");
-            std::lock_guard<LockableBase(std::mutex)> lock(m_resultMutex);
+            auto &workerResult = *m_workerResults[id];
+            std::lock_guard lock(workerResult.m_resultMutex);
             for (auto &result: results) {
-                m_resultQueue.push(std::move(result));
+                workerResult.results.push_back(std::move(result));
+                workerResult.pendingCount.fetch_add(1, std::memory_order_relaxed);
             }
         }
     }
