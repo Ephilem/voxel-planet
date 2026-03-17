@@ -350,6 +350,7 @@ flecs::entity ChunkManager::get_chunk_entity(const glm::ivec3 &chunkPos) const {
 }
 
 bool ChunkManager::can_mesh(const glm::ivec3 &chunkPos) const {
+    VOXEL_ZONE_N("Can Mesh Test");
     if (!m_loadedChunks.contains(chunkPos)) {
         return false;
     }

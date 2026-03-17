@@ -114,6 +114,7 @@ void VoxelChunkMesher::enqueue_chunks_build_system(flecs::iter &it) {
     std::vector<PendingMesh> pending;
 
     while (it.next()) {
+        VOXEL_ZONE_N("IT: Prepare Enqueue Chunk");
         auto chunks = it.field<const VoxelChunk>(0);
         auto positions = it.field<const ChunkCoordinate>(1);
         auto meshes = it.field<VoxelChunkMesh>(2);
@@ -122,8 +123,9 @@ void VoxelChunkMesher::enqueue_chunks_build_system(flecs::iter &it) {
         auto* textureManager = it.world().get_mut<VoxelTextureManager>();
 
         for (auto i: it) {
+            VOXEL_ZONE_N("Prepare Enqueue Chunk");
             const ChunkCoordinate &pos = positions[i];
-            if (!chunkManager->can_mesh(pos)) continue;
+            // if (!chunkManager->can_mesh(pos)) continue;
 
             TaskMeshingInput input;
             input.chunkCoord = pos;
@@ -134,11 +136,14 @@ void VoxelChunkMesher::enqueue_chunks_build_system(flecs::iter &it) {
                 input.textureIDs[voxelID] = textureManager->request_texture_slot(textureID);
             }
 
-            auto neighborEntities = chunkManager->get_neighboring_chunks(pos);
-            for (int n = 0; n < 6; n++) {
-                if (neighborEntities[n] != flecs::entity::null()) {
-                    const auto* neighborChunk = neighborEntities[n].get<VoxelChunk>();
-                    if (neighborChunk) input.neighborVoxels[n] = neighborChunk->voxels;
+            {
+                VOXEL_ZONE_N("Manage Neighboring Chunks");
+                auto neighborEntities = chunkManager->get_neighboring_chunks(pos);
+                for (int n = 0; n < 6; n++) {
+                    if (neighborEntities[n] != flecs::entity::null()) {
+                        const auto* neighborChunk = neighborEntities[n].get<VoxelChunk>();
+                        if (neighborChunk) input.neighborVoxels[n] = neighborChunk->voxels;
+                    }
                 }
             }
 
@@ -149,12 +154,15 @@ void VoxelChunkMesher::enqueue_chunks_build_system(flecs::iter &it) {
     if (pending.empty()) return;
 
     size_t enqueued = 0; {
-        VOXEL_ZONE_N("EnqueueBatch");
+        VOXEL_ZONE_N("Enqueue Batch");
         std::lock_guard lock(m_taskMutex);
         for (auto &p: pending) {
+            VOXEL_ZONE_N("Enqueue Chunk");
             if (m_pendingCoords.count(p.input.chunkCoord)) continue;
+
             p.mesh->meshGeneration++;
             p.input.meshGeneration = p.mesh->meshGeneration;
+
             m_pendingCoords.insert(p.input.chunkCoord);
             m_taskQueue.push(std::move(p.input));
             p.e.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Meshing>();
@@ -163,6 +171,7 @@ void VoxelChunkMesher::enqueue_chunks_build_system(flecs::iter &it) {
     }
 
     if (enqueued > 0) {
+        VOXEL_ZONE_N("Release Semaphore")
         m_taskSemaphore.release(enqueued);
     }
 }
@@ -172,6 +181,7 @@ void VoxelChunkMesher::poll_meshing_results_system(flecs::iter &it) {
     auto results = poll_results(999);
 
     for (auto &result: results) {
+        VOXEL_ZONE_N("Handle Mesh Result")
         flecs::entity chunk = chunkManager->get_chunk_entity(result.chunkCoord);
         if (chunk == flecs::entity::null() || !chunk.has<VoxelChunkMesh>()) continue;
 
@@ -239,12 +249,13 @@ void VoxelChunkMesher::worker_loop(size_t id) {
 
         m_taskSemaphore.acquire();
 
-        // Réveil pour shutdown : stop ET queue vide
         if (m_stop.load(std::memory_order_relaxed) && [&] {
             std::lock_guard lock(m_taskMutex);
             return m_taskQueue.empty();
         }()) return;
+
         {
+            VOXEL_ZONE_N("PollingJobs");
             std::lock_guard lock(m_taskMutex);
             if (!m_taskQueue.empty()) {
                 batch.push_back(std::move(const_cast<TaskMeshingInput&>(m_taskQueue.top())));

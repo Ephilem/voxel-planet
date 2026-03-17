@@ -52,4 +52,5 @@ target_link_libraries(VoxelPlanetRenderer
         PRIVATE
             VoxelPlanet::Core
             VoxelPlanet::Platform
+            VoxelPlanet::Utils
 )

@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <vulkan/vulkan.hpp>
 
+#include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
 
 VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
@@ -257,6 +258,7 @@ void VulkanBackend::init_nvrhi() {
 }
 
 void VulkanBackend::create_swapchain() {
+    VOXEL_ZONE_N("Create Swapchain");
     vkb::SwapchainBuilder builder{ vkDevice.physical_device, vkDevice.device, surface };
     auto swapchain_ret = builder
         .set_desired_format({ VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR })
@@ -325,6 +327,7 @@ void VulkanBackend::create_swapchain() {
 }
 
 void VulkanBackend::destroy_swapchain() {
+    VOXEL_ZONE_N("Destroy Swapchain");
     if (device) {
         device->waitForIdle();
     }
@@ -350,6 +353,7 @@ void VulkanBackend::destroy_swapchain() {
 }
 
 void VulkanBackend::recreate_swapchain() {
+    VOXEL_ZONE_N("Recreate Swapchain");
     destroy_swapchain();
     create_swapchain();
 }
@@ -388,6 +392,7 @@ bool VulkanBackend::begin_frame(nvrhi::CommandListHandle &out_currentCommandList
 
     // Check if resize has finished (no resize events for 150ms)
     if (m_isResizing) {
+        VOXEL_MESSAGE("Manage Resizing");
         auto now = std::chrono::steady_clock::now();
         auto timeSinceResize = std::chrono::duration_cast<std::chrono::milliseconds>(
             now - m_lastResizeTime).count();
@@ -400,6 +405,7 @@ bool VulkanBackend::begin_frame(nvrhi::CommandListHandle &out_currentCommandList
 
     // Skip swapchain recreation during active resize to avoid stutter
     if (m_swapchainDirty && !m_isResizing) {
+        VOXEL_MESSAGE("Swapchain was dirty. Recreate the swapchain");
         recreate_swapchain();
         m_swapchainDirty = false;
     }
@@ -412,6 +418,7 @@ bool VulkanBackend::begin_frame(nvrhi::CommandListHandle &out_currentCommandList
     VkResult result;
     int const maxAttempts = 3;
     for (int attempt = 0; attempt < maxAttempts; ++attempt) {
+        VOXEL_ZONE_N("Try Acquire Next Image");
         result = vkAcquireNextImageKHR(vkDevice,
             m_swapchain,
             UINT64_MAX,
@@ -447,6 +454,7 @@ bool VulkanBackend::begin_frame(nvrhi::CommandListHandle &out_currentCommandList
     if (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR) {
         // Schedule the wait. The actual wait operation will be submitted when the app executes any command list!
         // In the swap chain acquire flow, this line tells NVRHI: "Before executing any commands on the Graphics queue, wait for this semaphore to be signaled."
+        VOXEL_ZONE_N("Wait for the image semaphore");
         device->queueWaitForSemaphore(nvrhi::CommandQueue::Graphics, semaphore, 0);
         return true;
     }

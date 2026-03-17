@@ -38,7 +38,7 @@ RendererModule::RendererModule(flecs::world& ecs) {
         .imguiManager = std::make_unique<ImGuiManager>(),
     });
 
-    ecs.system<Renderer>("BeginFrameSystem")
+    ecs.system<Renderer>("Renderer-BeginFrameSystem")
         .kind(flecs::PreStore)
         .each([](flecs::entity e, Renderer& renderer) {
             VOXEL_ZONE_N("Renderer-BeginFrame");
@@ -66,6 +66,7 @@ RendererModule::RendererModule(flecs::world& ecs) {
         .kind(flecs::OnUpdate)
         .without<VoxelChunkMesh>()
         .each([](flecs::entity e, const VoxelChunk& chunk, const ChunkCoordinate& coord) {
+            VOXEL_ZONE_N("Initialize Chunk in Renderer");
             e.set<VoxelChunkMesh>({})
              .add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
 

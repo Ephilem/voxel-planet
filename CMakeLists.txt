@@ -212,6 +212,7 @@ set(CMAKE_CXX_FLAGS ${ORIGINAL_FLAGS})
 #### End Dependencies
 ####
 
+add_subdirectory(src/utils)
 add_subdirectory(src/core)
 add_subdirectory(src/platform)
 add_subdirectory(src/renderer)
@@ -251,6 +252,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         FastNoise2
         stb
 )
+
+if(TRACY_FOUND)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE TRACY_ENABLE)
+endif()
 
 # Version definitions accessible in C++ code
 target_compile_definitions(${PROJECT_NAME} PRIVATE
