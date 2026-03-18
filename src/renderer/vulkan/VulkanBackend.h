@@ -61,6 +61,8 @@ public:
     nvrhi::TextureHandle get_current_texture() const { return m_swapchainTextures[m_imageIndex]; }
     VkExtent2D get_swapchain_extent() const { return m_swapchain.extent; }
 
+    VmaAllocator get_vma_allocator() const { return m_vmaAllocator; }
+
     /**
      * Index of the current frame in flight, mapped to MAX_FRAMES_IN_FLIGHT. This is used for syncing and command list management.
      * Can be used for double/triple buffering logic in the renderer, but should not be used for indexing swapchain images directly, as the swapchain image index can be different from the frame in flight index.
@@ -82,6 +84,8 @@ private:
     uint32_t m_imageIndex;
     uint32_t m_acquiredSemaphoreIndex = 0;
     uint32_t m_commandListIndex = 0; // mapped to MAX_FRAMES_IN_FLIGHT
+
+    VmaAllocator m_vmaAllocator;
 
     bool m_windowVisible = true;
 

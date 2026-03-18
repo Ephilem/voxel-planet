@@ -30,6 +30,8 @@ add_library(VoxelPlanetRenderer STATIC
         world/VoxelChunkMesher.cpp
         world/VoxelChunkMesher.h
         TracyVulkanIntegration.h
+        world/VoxelMeshUploadBatcher.cpp
+        world/VoxelMeshUploadBatcher.h
 )
 
 add_library(VoxelPlanet::Renderer ALIAS VoxelPlanetRenderer)

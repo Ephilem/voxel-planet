@@ -96,6 +96,16 @@ VulkanBackend::VulkanBackend(GLFWwindow *window, RenderParameters renderParamete
     init_nvrhi();
     create_swapchain();
 
+    // init vma for precise buffer manipulation (instead of using nvrhi buffers for everything)
+    VmaAllocatorCreateInfo allocatorCreateInfo{};
+    allocatorCreateInfo.physicalDevice = vkDevice.physical_device;
+    allocatorCreateInfo.device = vkDevice.device;
+    allocatorCreateInfo.instance = instance;
+    allocatorCreateInfo.vulkanApiVersion = VK_API_VERSION_1_4;
+    if (vmaCreateAllocator(&allocatorCreateInfo, &m_vmaAllocator) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create VMA allocator");
+    }
+
 #ifdef TRACY_ENABLE
     // Init tracy for vulkan
     VkCommandPoolCreateInfo poolInfo{};
@@ -133,7 +143,6 @@ VulkanBackend::VulkanBackend(GLFWwindow *window, RenderParameters renderParamete
     vkFreeCommandBuffers(vkDevice.device, initPool, 1, &initCmd);
     vkDestroyCommandPool(vkDevice.device, initPool, nullptr);
 #endif
-
 
     init_syncs();
 
