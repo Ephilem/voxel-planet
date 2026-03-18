@@ -64,6 +64,7 @@ void ChunkManager::init(flecs::world &ecs) {
     ecs.system("ChunkManager-DebugInfo")
             .kind(flecs::OnStore)
             .run([this](flecs::iter &it) {
+                VOXEL_ZONE_N("ChunkManager-DebugInfo");
                 ImGui::Begin("Chunk Debug");
                 ImGui::Text("Loading: %zu", m_loadingChunks.size());
                 ImGui::Text("Loaded: %zu", m_loadedChunks.size());

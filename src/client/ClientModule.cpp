@@ -7,6 +7,7 @@
 
 #include "core/GameState.h"
 #include "core/main_components.h"
+#include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
 #include "core/world/world_components.h"
 #include "platform/inputs/input_state.h"
@@ -17,6 +18,7 @@ ClientModule::ClientModule(flecs::world &ecs) {
         .kind(flecs::OnUpdate)
         .with<Camera3d>()
         .each([](flecs::entity e, Orientation& orientation) {
+            VOXEL_ZONE_N("ClientModule-MouseLook");
             auto* inputState = e.world().get_mut<InputState>();
             if (!inputState->mouseCaptured) return;
 
@@ -34,6 +36,7 @@ ClientModule::ClientModule(flecs::world &ecs) {
         .kind(flecs::OnUpdate)
         .with<Camera3d>()
         .each([](flecs::entity e, Position& pos, const Orientation& orientation) {
+            VOXEL_ZONE_N("ClientModule-MovementSystem");
             float moveSpeed = 50.0f;
             const auto* inputState = e.world().get<InputActionState>();
 

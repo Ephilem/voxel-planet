@@ -6,6 +6,7 @@
 
 #include "imgui.h"
 #include "core/GameState.h"
+#include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
 
 
@@ -13,6 +14,7 @@ void FpsCounter::register_ecs(flecs::world &ecs) {
      ecs.system<GameState>("FPSCounter-FPSUpdateSystem")
         .kind(flecs::OnUpdate)
         .each([this](flecs::iter& it, size_t, GameState& gameState) {
+            VOXEL_ZONE_N("FPSCounter-UpdateFPS");
             float fps = static_cast<float>(1.0 / gameState.deltaTime);
             this->m_currentFPS = fps;
 
@@ -23,6 +25,7 @@ void FpsCounter::register_ecs(flecs::world &ecs) {
     ecs.system<GameState>("FPSCounter-FPSDisplaySystem")
         .kind(flecs::PreStore) // Or wherever you render ImGui
         .each([this](flecs::iter& it, size_t, GameState& gameState) {
+            VOXEL_ZONE_N("FPSCounter-Display");
             if (!this->m_visible) return;
 
             ImGuiWindowFlags window_flags =

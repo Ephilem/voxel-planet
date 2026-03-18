@@ -173,6 +173,7 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
             .kind(flecs::PreStore)
             .with<VoxelChunkMeshState, voxel_chunk_mesh_state::ReadyForUpload>()
             .each([voxelRenderer](flecs::entity e, VoxelChunkMesh &mesh, const Position& pos) {
+                VOXEL_ZONE_N("VoxelTerrainRenderer-UploadChunkMesh");
                 const auto *renderer = e.world().get<Renderer>();
                 if (!renderer) {
                     LOG_ERROR("VoxelTerrainRenderer", "Can't upload chunk mesh, Renderer not found in ECS");
@@ -186,6 +187,7 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
             .kind(flecs::OnStore)
             .each([voxelRenderer](flecs::entity e, Renderer &renderer) {
                 if (!renderer.frameContext.frameActive) return;
+                VOXEL_ZONE_N("VoxelTerrainRenderer-Render");
                 e.world().each<Camera3d>([&](flecs::entity cam_entity, Camera3d &camera) {
                     voxelRenderer->render_terrain_system(renderer, camera);
                 });
@@ -195,6 +197,7 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
     ecs.observer<VoxelChunkMesh>("VoxelTerrainRenderer-CleanupVoxelChunkMesh")
             .event(flecs::OnRemove)
             .each([voxelRenderer](flecs::entity e, VoxelChunkMesh &mesh) {
+                VOXEL_ZONE_N("TerrainRenderer-CleanupChunkMesh")
                 if (mesh.is_allocated() && !voxelRenderer->m_chunkBuffers.empty()) {
                     int bufferIndex = mesh.bufferIndex;
                     voxelRenderer->m_chunkBuffers[bufferIndex].free(mesh);

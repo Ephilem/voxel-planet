@@ -12,6 +12,7 @@
 #include "renderer/Renderer.h"
 #include <map>
 
+#include "core/TracyIntegration.h"
 #include "platform/inputs/input_state.h"
 
 void ImGuiDebugModuleManager::register_all_ecs(flecs::world &ecs) {
@@ -60,6 +61,7 @@ void ImGuiDebugModuleManager::Register(flecs::world &ecs) {
     ecs.system<Renderer>("DrawDebugMenuBarSystem")
         .kind(flecs::PreStore)
         .each([](flecs::entity e, Renderer& renderer) {
+            VOXEL_ZONE_N("ImGuiDebugModuleManager-DrawMenuBar");
             if (renderer.debugModuleManager) {
                 renderer.debugModuleManager->draw_menu_bar();
             }
@@ -69,6 +71,7 @@ void ImGuiDebugModuleManager::Register(flecs::world &ecs) {
         .kind(flecs::OnUpdate)
         .singleton()
         .each([](flecs::entity e, Renderer& renderer, InputActionState& debugMenuAction) {
+            VOXEL_ZONE_N("ImGuiDebugModuleManager-HandleMenuBarToggle");
             if (renderer.debugModuleManager && debugMenuAction.is_action_pressed(ActionInputType::DebugMenuBar)) {
                 bool currentVisibility = renderer.debugModuleManager->is_menu_bar_visible();
                 renderer.debugModuleManager->set_menu_bar_visible(!currentVisibility);

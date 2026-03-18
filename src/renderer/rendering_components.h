@@ -3,6 +3,8 @@
 #include <vector>
 #include "render_types.h"
 
+#define MAX_FRAMES_IN_FLIGHT 2
+
 struct Camera3dParameters {
     glm::float32 fov = 45.0f;
 };

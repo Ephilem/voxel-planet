@@ -111,9 +111,12 @@ RendererModule::RendererModule(flecs::world& ecs) {
             }
 #endif
 
-            ctx.commandList->close();
-            nvrhi::CommandListHandle cmdList = ctx.commandList;
-            renderer.backend->device->executeCommandLists(&cmdList, 1);
+            {
+                VOXEL_ZONE_N("Run commands");
+                ctx.commandList->close();
+                nvrhi::CommandListHandle cmdList = ctx.commandList;
+                renderer.backend->device->executeCommandLists(&cmdList, 1);
+            }
 
             renderer.backend->present();
 
@@ -123,6 +126,7 @@ RendererModule::RendererModule(flecs::world& ecs) {
     ecs.observer<PlatformState>()
         .event<WindowResizeEvent>()
         .run([](flecs::iter& it) {
+            VOXEL_ZONE_N("PlatformModule-HandleResize");
             auto* evt = it.param<WindowResizeEvent>();
             auto* renderer = it.world().get_mut<Renderer>();
 

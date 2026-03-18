@@ -5,11 +5,14 @@
 #include "renderer/world/VoxelBuffer.h"
 #include <algorithm>
 
+#include "core/TracyIntegration.h"
+
 void VoxelBufferVisualizer::register_ecs(flecs::world &ecs) {
     ecs.system<Renderer>("VoxelBufferVisualizer-DisplaySystem")
         .kind(flecs::PreStore)
         .each([this](flecs::iter& it, size_t, Renderer& renderer) {
             if (!this->m_visible) return;
+            VOXEL_ZONE_N("VoxelBufferVisualizer-Display");
             if (!renderer.voxelTerrainRenderer) return;
 
             this->draw(renderer.voxelTerrainRenderer.get());

@@ -9,6 +9,7 @@
 
 #include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
+#include "renderer/rendering_components.h"
 
 VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
@@ -112,11 +113,21 @@ VulkanBackend::VulkanBackend(GLFWwindow *window, RenderParameters renderParamete
     VkCommandBuffer initCmd;
     vkAllocateCommandBuffers(vkDevice.device, &allocInfo, &initCmd);
 
-    tracyVkCtx = TracyVkContext(
+    auto pfnGetPhysicalDeviceCalibrateableTimeDomains =
+          (PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT)
+          vkGetInstanceProcAddr(instance.instance, "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT");
+
+    auto pfnGetCalibratedTimestamps =
+        (PFN_vkGetCalibratedTimestampsEXT)
+        vkGetDeviceProcAddr(vkDevice.device, "vkGetCalibratedTimestampsEXT");
+
+    tracyVkCtx = TracyVkContextCalibrated(
         vkDevice.physical_device,
         vkDevice.device,
         graphicsQueue,
-        initCmd
+        initCmd,
+        pfnGetPhysicalDeviceCalibrateableTimeDomains,
+        pfnGetCalibratedTimestamps
     );
 
     vkFreeCommandBuffers(vkDevice.device, initPool, 1, &initCmd);
@@ -187,6 +198,9 @@ void VulkanBackend::init_nvrhi() {
     auto physicalDevice_ret = selector
         .set_surface(surface)
         .set_minimum_version(1, 3)
+#ifdef TRACY_ENABLE
+        .add_required_extension(VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME)
+#endif
         .select();
 
     if (!physicalDevice_ret) {
@@ -463,23 +477,34 @@ bool VulkanBackend::begin_frame(nvrhi::CommandListHandle &out_currentCommandList
 }
 
 bool VulkanBackend::present() {
+    VOXEL_ZONE_N("Present");
     const auto& semaphore = m_presentSemaphores[m_imageIndex];
 
     // This will signal the semaphore when all prior commands on the Graphics queue have completed
-    device->queueSignalSemaphore(nvrhi::CommandQueue::Graphics, semaphore, 0);
+    {
+        VOXEL_ZONE_N("Signal present semaphore");
+        device->queueSignalSemaphore(nvrhi::CommandQueue::Graphics, semaphore, 0);
+    }
 
-    device->executeCommandLists(nullptr, 0);
+    {
+        VOXEL_ZONE_N("Execute empty command list");
+        // Execute an empty command list to ensure the signal happens after all previous work. This is needed on some platforms (e.g. Linux with NVIDIA drivers) where queueSignalSemaphore doesn't wait for previously submitted work, even if the semaphore was scheduled with a wait in acquire next image.
+        device->executeCommandLists(nullptr, 0);
+    }
 
-    VkPresentInfoKHR presentInfo{};
-    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = &semaphore;
-    presentInfo.swapchainCount = 1;
-    presentInfo.pSwapchains = &m_swapchain.swapchain;
-    presentInfo.pImageIndices = &m_imageIndex;
-    VkResult result = vkQueuePresentKHR(presentQueue, &presentInfo);
-    if (!(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)) {
-        return false;
+    {
+        VOXEL_ZONE_N("Present the image");
+        VkPresentInfoKHR presentInfo{};
+        presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+        presentInfo.waitSemaphoreCount = 1;
+        presentInfo.pWaitSemaphores = &semaphore;
+        presentInfo.swapchainCount = 1;
+        presentInfo.pSwapchains = &m_swapchain.swapchain;
+        presentInfo.pImageIndices = &m_imageIndex;
+        VkResult result = vkQueuePresentKHR(presentQueue, &presentInfo);
+        if (!(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)) {
+            return false;
+        }
     }
 
     // On Linux with validation layers, explicitly sync with GPU to prevent memory buildup
@@ -487,6 +512,7 @@ bool VulkanBackend::present() {
 
     // Drain old frames before creating new query
     while (m_framesInFlight.size() >= MAX_FRAMES_IN_FLIGHT) {
+        VOXEL_ZONE_N("Drain old frame in flight");
         auto query = m_framesInFlight.front();
         m_framesInFlight.pop();
 
@@ -505,11 +531,17 @@ bool VulkanBackend::present() {
         query = device->createEventQuery();
     }
 
-    device->resetEventQuery(query);
-    device->setEventQuery(query, nvrhi::CommandQueue::Graphics);
-    m_framesInFlight.push(query);
+    {
+        VOXEL_ZONE_N("Reset and set event query for frame in flight tracking");
+        device->resetEventQuery(query);
+        device->setEventQuery(query, nvrhi::CommandQueue::Graphics);
+        m_framesInFlight.push(query);
+    }
 
-    device->runGarbageCollection();
+    {
+        VOXEL_ZONE_N("Run garbage collection");
+        device->runGarbageCollection();
+    }
 
     return true;
 }

@@ -4,6 +4,7 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 
+#include "core/TracyIntegration.h"
 #include "platform/PlatformState.h"
 #include "renderer/Renderer.h"
 #include "renderer/TracyVulkanIntegration.h"
@@ -154,6 +155,7 @@ void ImGuiManager::Register(flecs::world& ecs) {
     ecs.system<Renderer>("BeginImGuiFrameSystem")
         .kind(flecs::OnLoad)
         .each([](flecs::entity e, Renderer& renderer) {
+            VOXEL_ZONE_N("ImGuiManager-BeginFrame");
             if (renderer.imguiManager) {
                 renderer.imguiManager->begin_frame();
             }
@@ -164,6 +166,7 @@ void ImGuiManager::Register(flecs::world& ecs) {
     ecs.system<Renderer>("RenderImGuiSystem")
         .kind(flecs::OnStore)
         .each([](flecs::entity e, Renderer& renderer) {
+            VOXEL_ZONE_N("ImGuiManager-Render");
             auto& ctx = renderer.frameContext;
             VOXEL_VK_ZONE(renderer.backend->tracyVkCtx, ctx.commandList, "RenderImGui-Render");
             if (!ctx.frameActive || !ctx.commandList) {

@@ -15,8 +15,6 @@
 
 #include "core/resource/ResourceSystem.h"
 
-#define MAX_FRAMES_IN_FLIGHT 2
-
 typedef struct RenderParameters {
     uint32_t width;
     uint32_t height;
@@ -62,6 +60,13 @@ public:
     nvrhi::FramebufferHandle get_swapchain_framebuffer(uint32_t index) const;
     nvrhi::TextureHandle get_current_texture() const { return m_swapchainTextures[m_imageIndex]; }
     VkExtent2D get_swapchain_extent() const { return m_swapchain.extent; }
+
+    /**
+     * Index of the current frame in flight, mapped to MAX_FRAMES_IN_FLIGHT. This is used for syncing and command list management.
+     * Can be used for double/triple buffering logic in the renderer, but should not be used for indexing swapchain images directly, as the swapchain image index can be different from the frame in flight index.
+     * @return Index of the current frame in flight, mapped to MAX_FRAMES_IN_FLIGHT
+     */
+    uint32_t get_frame_in_flight_index() const { return m_commandListIndex; }
 
     void handle_resize(uint32_t width, uint32_t height);
 
