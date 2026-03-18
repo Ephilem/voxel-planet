@@ -57,20 +57,14 @@ RendererModule::RendererModule(flecs::world& ecs) {
             }
         });
 
-    // Initialize chunk meshes for any VoxelChunk that doesn't have a mesh yet,
-    // and mark already-loaded neighbors dirty so they re-mesh with the new chunk's border data.
-    // Running in OnUpdate guarantees all previous-frame deferred ops are committed, so
-    // neighbor.has<VoxelChunkMesh>() is reliable (unlike an OnSet observer which fires during
-    // the OnStore merge where the VoxelChunkMesh from InitializeChunkMeshSystem may not be visible).
     ecs.system<const VoxelChunk, const ChunkCoordinate>("InitializeChunkMeshSystem")
         .kind(flecs::OnUpdate)
         .without<VoxelChunkMesh>()
         .each([](flecs::entity e, const VoxelChunk& chunk, const ChunkCoordinate& coord) {
             VOXEL_ZONE_N("Initialize Chunk in Renderer");
             e.set<VoxelChunkMesh>({})
-             .add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
+             .add<VoxelChunkMeshState, voxel_chunk_mesh_state::WaitingForNeighbors>();
 
-            // Mark already-uploaded neighbors dirty so they re-mesh with correct border data.
             const auto* chunkManager = e.world().get<ChunkManager>();
             if (!chunkManager) return;
 
@@ -83,7 +77,13 @@ RendererModule::RendererModule(flecs::world& ecs) {
             for (const auto& offset : neighborOffsets) {
                 glm::ivec3 neighborPos = glm::ivec3(coord) + offset;
                 flecs::entity neighbor = chunkManager->get_chunk_entity(neighborPos);
-                if (neighbor != flecs::entity::null() && neighbor.has<VoxelChunkMesh>()) {
+                if (neighbor == flecs::entity::null() || !neighbor.has<VoxelChunkMesh>()) continue;
+
+                if (neighbor.has<VoxelChunkMeshState, voxel_chunk_mesh_state::WaitingForNeighbors>()) {
+                    if (chunkManager->can_mesh(neighborPos)) {
+                        neighbor.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
+                    }
+                } else {
                     neighbor.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
                 }
             }

@@ -52,6 +52,13 @@ void VoxelChunkMesher::init(flecs::world &ecs) {
     ecs.component<VoxelChunkMeshState>()
             .add(flecs::Exclusive);
 
+    ecs.system<const ChunkCoordinate>("VoxelChunkMesher-ResolveWaiting")
+            .kind(flecs::PostUpdate)
+            .with<VoxelChunkMeshState, voxel_chunk_mesh_state::WaitingForNeighbors>()
+            .run([this](flecs::iter &it) {
+                resolve_waiting_chunks_system(it);
+            });
+
     ecs.system<const VoxelChunk, const ChunkCoordinate, VoxelChunkMesh>("VoxelChunkMesher-EnqueueChunksBuild")
             .kind(flecs::PostUpdate)
             .with<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>()
@@ -101,6 +108,22 @@ void VoxelChunkMesher::init(flecs::world &ecs) {
 void VoxelChunkMesher::Register(flecs::world &ecs) {
     ecs.emplace<VoxelChunkMesher>();
     ecs.get_mut<VoxelChunkMesher>()->init(ecs);
+}
+
+void VoxelChunkMesher::resolve_waiting_chunks_system(flecs::iter &it) {
+    VOXEL_ZONE_N("Mesher-ResolveWaiting");
+
+    const auto* chunkManager = it.world().get<ChunkManager>();
+    if (!chunkManager) return;
+
+    while (it.next()) {
+        auto positions = it.field<const ChunkCoordinate>(0);
+        for (auto i : it) {
+            if (chunkManager->can_mesh(positions[i])) {
+                it.entity(i).add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
+            }
+        }
+    }
 }
 
 void VoxelChunkMesher::enqueue_chunks_build_system(flecs::iter &it) {

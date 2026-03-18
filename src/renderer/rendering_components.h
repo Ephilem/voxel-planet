@@ -16,6 +16,7 @@ struct Camera3d {
 };
 
 namespace voxel_chunk_mesh_state {
+    struct WaitingForNeighbors {};
     struct Clean {};
     struct Dirty {};
     struct Meshing {};

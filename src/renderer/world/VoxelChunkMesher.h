@@ -78,6 +78,7 @@ private:
 
     void poll_meshing_results_system(flecs::iter& it);
     void enqueue_chunks_build_system(flecs::iter& it);
+    void resolve_waiting_chunks_system(flecs::iter& it);
 
     float calculate_task_priority(const glm::ivec3& chunkPos) const;
 
