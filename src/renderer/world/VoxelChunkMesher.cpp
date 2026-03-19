@@ -21,7 +21,7 @@ void VoxelChunkMesher::shutdown() { {
     LOG_DEBUG("VoxelChunkMesher", "Shutting down {} worker threads", m_workerThreads.size());
     m_taskSemaphore.release(m_workerThreads.size());
 
-    for (auto& thread : m_workerThreads) {
+    for (auto &thread: m_workerThreads) {
         if (thread.joinable()) thread.join();
     }
     m_workerThreads.clear();
@@ -76,7 +76,7 @@ void VoxelChunkMesher::init(flecs::world &ecs) {
     ecs.system("VoxelChunkMesher-DebugInfo")
             .kind(flecs::OnStore)
             .run([this](flecs::iter &it) {
-                VOXEL_ZONE_N("Mesher-Deb");
+                VOXEL_ZONE_N("Mesher-Debug");
                 ImGui::Begin("Voxel Chunk Mesher");
                 ImGui::Text("Pending Tasks: %zu", pending_count());
                 ImGui::Text("Completed Results: %zu", completed_count());
@@ -86,7 +86,7 @@ void VoxelChunkMesher::init(flecs::world &ecs) {
     ecs.system<Camera3d, const Position, const Orientation>("VoxelChunkMesher-UpdateFrustum")
             .kind(flecs::PreUpdate)
             .each([this](flecs::entity e, Camera3d &camera, const Position &pos, const Orientation &orient) {
-                VOXEL_ZONE_N("Mesher-Debug");
+                VOXEL_ZONE_N("Mesher-Frustum");
                 glm::mat4 viewProjection = camera.projectionMatrix * camera.viewMatrix;
                 glm::vec3 viewDir = orient.forward();
                 glm::vec3 cameraPos = {pos.x, pos.y, pos.z};
@@ -120,7 +120,7 @@ void VoxelChunkMesher::resolve_waiting_chunks_system(flecs::iter &it) {
 
     while (it.next()) {
         auto positions = it.field<const ChunkCoordinate>(0);
-        for (auto i : it) {
+        for (auto i: it) {
             if (chunkManager->can_mesh(positions[i])) {
                 it.entity(i).add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
             }
@@ -159,9 +159,7 @@ void VoxelChunkMesher::enqueue_chunks_build_system(flecs::iter &it) {
 
             for (const auto &[textureID, voxelID]: chunks[i].textureIDs) {
                 input.textureIDs[voxelID] = textureManager->request_texture_slot(textureID);
-            }
-
-            {
+            } {
                 VOXEL_ZONE_N("Manage Neighboring Chunks");
                 auto neighborEntities = chunkManager->get_neighboring_chunks(pos);
                 for (int n = 0; n < 6; n++) {
@@ -197,7 +195,7 @@ void VoxelChunkMesher::enqueue_chunks_build_system(flecs::iter &it) {
 
     if (enqueued > 0) {
         VOXEL_ZONE_N("Release Semaphore")
-        m_taskSemaphore.release(enqueued);
+        m_taskSemaphore.release(std::min(enqueued, m_workerThreads.size()));
     }
 }
 
@@ -207,6 +205,7 @@ void VoxelChunkMesher::poll_meshing_results_system(flecs::iter &it) {
 
     for (auto &result: results) {
         VOXEL_ZONE_N("Handle Mesh Result")
+        m_pendingCoords.erase(result.chunkCoord);
         flecs::entity chunk = chunkManager->get_chunk_entity(result.chunkCoord);
         if (chunk == flecs::entity::null() || !chunk.has<VoxelChunkMesh>()) continue;
 
@@ -263,7 +262,7 @@ void VoxelChunkMesher::worker_loop(size_t id) {
     tracy::SetThreadName(threadName);
 #endif
 
-    constexpr size_t BATCH_SIZE = 1;
+    constexpr size_t BATCH_SIZE = 4;
     std::vector<TaskMeshingInput> batch;
     std::vector<TaskMeshingOutput> results;
     batch.reserve(BATCH_SIZE);
@@ -273,32 +272,33 @@ void VoxelChunkMesher::worker_loop(size_t id) {
         batch.clear();
 
         m_taskSemaphore.acquire();
-
         if (m_stop.load(std::memory_order_relaxed) && [&] {
             std::lock_guard lock(m_taskMutex);
             return m_taskQueue.empty();
-        }()) return;
+        }())
+            return;
 
         {
             VOXEL_ZONE_N("PollingJobs");
             std::lock_guard lock(m_taskMutex);
             if (!m_taskQueue.empty()) {
-                batch.push_back(std::move(const_cast<TaskMeshingInput&>(m_taskQueue.top())));
-                m_taskQueue.pop();
-                m_pendingCoords.erase(batch.back().chunkCoord);
+                while (batch.size() < BATCH_SIZE && !m_taskQueue.empty()) {
+                    batch.push_back(std::move(const_cast<TaskMeshingInput&>(m_taskQueue.top())));
+                    m_taskQueue.pop();
+                }
+                if (!m_taskQueue.empty()) {
+                    m_taskSemaphore.release(1);
+                }
             }
         }
 
-        if (batch.empty()) continue;
-
-        {
+        if (batch.empty()) continue; {
             VOXEL_ZONE_N("ProcessBatch");
             results.clear();
             for (auto &input: batch) {
                 results.push_back(build_mesh(input));
             }
-        }
-        {
+        } {
             VOXEL_ZONE_N("PushResults");
             auto &workerResult = *m_workerResults[id];
             std::lock_guard lock(workerResult.m_resultMutex);

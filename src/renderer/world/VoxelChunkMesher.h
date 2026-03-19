@@ -61,7 +61,6 @@ public:
     }
 
     size_t pending_count() const {
-        std::lock_guard lock(m_taskMutex);
         return m_pendingCoords.size();
     }
 
