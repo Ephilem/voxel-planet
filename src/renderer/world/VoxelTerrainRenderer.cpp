@@ -116,12 +116,15 @@ void VoxelTerrainRenderer::init() {
             .addBindingLayout(m_faceBufferBindingLayout) // Set 2 - face buffer
             .addBindingLayout(m_textureManager->get_binding_layout()); // Set 3 - texture array
     m_pipeline = m_backend->device->createGraphicsPipeline(pipelineDesc, framebufferInfo);
+
+    m_meshUploader.init(m_backend);
 }
 
 void VoxelTerrainRenderer::destroy() {
     m_backend->device->waitForIdle();
     m_chunkBuffers.clear();
     m_chunkBufferBindingSets.clear();
+    m_meshUploader.destroy();
     m_pipeline = nullptr;
     m_pixelShader = nullptr;
     m_vertexShader = nullptr;

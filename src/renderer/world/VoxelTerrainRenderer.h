@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "VoxelBuffer.h"
+#include "VoxelMeshUploadBatcher.h"
 #include "VoxelTextureManager.h"
 #include "core/resource/ResourceSystem.h"
 #include "core/world/world_components.h"
@@ -55,6 +56,10 @@ private:
     nvrhi::ShaderHandle m_pixelShader;
 
     nvrhi::GraphicsPipelineHandle m_pipeline;
+
+    // Used to manage the upload of batches. To flush before rendering
+    // Flush will execute the vulkan command to copy data for each buffers
+    VoxelMeshUploadBatcher m_meshUploader;
 
     void init();
     void destroy();

@@ -15,15 +15,32 @@ void VoxelMeshUploadBatcher::init(VulkanBackend* backend) {
         .usage = VMA_MEMORY_USAGE_CPU_TO_GPU,
     };
 
-    vmaCreateBuffer(backend->get_vma_allocator(), &bufferInfo, &allocationCreateInfo,
-        &m_stagingBuffers[0].buffer, &m_stagingBuffers[0].allocation, &m_stagingBuffers[0].info);
+    for (int i = 0; i < MAX_STAGING_BUFFER_SIZE; i++) {
+        vmaCreateBuffer(backend->get_vma_allocator(), &bufferInfo, &allocationCreateInfo,
+            &m_stagingBuffers[i].buffer, &m_stagingBuffers[i].allocation, &m_stagingBuffers[i].info);
+    }
 }
 
 void VoxelMeshUploadBatcher::destroy() {
+    for (int i = 0; i < MAX_STAGING_BUFFER_SIZE; i++) {
+        vmaDestroyBuffer(m_backend->get_vma_allocator(), m_stagingBuffers[i].buffer, m_stagingBuffers[i].allocation);
+    }
 }
 
 bool VoxelMeshUploadBatcher::enqueue(const VoxelChunkMesh &meshData, const TerrainOUB &oub, VoxelBuffer* targetBuffer) {
+    m_uploadTasks.emplace_back(UploadTask {
+        .faceData = meshData.faces.data(),
+        .faceDataSize = meshData.faces.size() * sizeof(TerrainFace3d),
+        .faceDataOffset = meshData.faceRegionStart * FACES_REGION_SIZE,
+
+        .oub = oub,
+        .drawSlotIndex = meshData.drawSlotIndex,
+
+        .targetBuffer = targetBuffer
+    });
 }
 
 void VoxelMeshUploadBatcher::flush(VkCommandBuffer cmd) {
+
+
 }

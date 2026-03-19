@@ -76,6 +76,7 @@ void VoxelChunkMesher::init(flecs::world &ecs) {
     ecs.system("VoxelChunkMesher-DebugInfo")
             .kind(flecs::OnStore)
             .run([this](flecs::iter &it) {
+                VOXEL_ZONE_N("Mesher-Deb");
                 ImGui::Begin("Voxel Chunk Mesher");
                 ImGui::Text("Pending Tasks: %zu", pending_count());
                 ImGui::Text("Completed Results: %zu", completed_count());
@@ -85,6 +86,7 @@ void VoxelChunkMesher::init(flecs::world &ecs) {
     ecs.system<Camera3d, const Position, const Orientation>("VoxelChunkMesher-UpdateFrustum")
             .kind(flecs::PreUpdate)
             .each([this](flecs::entity e, Camera3d &camera, const Position &pos, const Orientation &orient) {
+                VOXEL_ZONE_N("Mesher-Debug");
                 glm::mat4 viewProjection = camera.projectionMatrix * camera.viewMatrix;
                 glm::vec3 viewDir = orient.forward();
                 glm::vec3 cameraPos = {pos.x, pos.y, pos.z};

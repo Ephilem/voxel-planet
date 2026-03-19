@@ -7,6 +7,7 @@
 #include "core/TracyIntegration.h"
 #include "platform/PlatformState.h"
 #include "renderer/Renderer.h"
+#include "renderer/rendering_components.h"
 #include "renderer/TracyVulkanIntegration.h"
 #include "renderer/vulkan/VulkanBackend.h"
 
@@ -53,7 +54,6 @@ void ImGuiManager::init(GLFWwindow* window, VulkanBackend* backend) {
 
     ImGui_ImplGlfw_InitForVulkan(window, true);
 
-    // Use Dynamic Rendering (Vulkan 1.3+) - no render pass needed!
     ImGui_ImplVulkan_InitInfo initInfo {};
     initInfo.Instance = backend->instance;
     initInfo.PhysicalDevice = backend->vkDevice.physical_device;
@@ -68,7 +68,6 @@ void ImGuiManager::init(GLFWwindow* window, VulkanBackend* backend) {
     initInfo.Allocator = nullptr;
     initInfo.CheckVkResultFn = nullptr;
 
-    // Dynamic rendering setup - no VkRenderPass!
     initInfo.UseDynamicRendering = true;
     initInfo.PipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     initInfo.PipelineRenderingCreateInfo.colorAttachmentCount = 1;

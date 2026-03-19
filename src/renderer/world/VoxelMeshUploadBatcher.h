@@ -52,14 +52,14 @@ private:
         VkDeviceSize faceDataOffset; // offset in the target buffer
 
         TerrainOUB oub;
-        VkDeviceSize oubOffset; // offset in the target buffer
 
-        VkDrawIndirectCommand indirect;
-        VkDeviceSize indirectOffset;
+        uint32_t drawSlotIndex;
 
         VoxelBuffer* targetBuffer; // target buffer to copy the data to
     };
 
+    VulkanBackend* m_backend = nullptr;
+
     StagingBuffer m_stagingBuffers[STAGING_NUMBER];
-    std::vector<UploadTask> m_uploadTasks[STAGING_NUMBER];
+    std::vector<UploadTask> m_uploadTasks;
 };
