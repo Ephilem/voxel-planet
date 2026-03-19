@@ -204,58 +204,6 @@ bool VoxelBuffer::reallocate(VoxelChunkMesh& mesh) {
     return true;
 }
 
-void VoxelBuffer::write(nvrhi::CommandListHandle cmd, VoxelChunkMesh& mesh, const TerrainOUB& oub) {
-    if (!mesh.is_allocated()) {
-        LOG_ERROR("VoxelBuffer", "Cannot write unallocated mesh to buffer");
-        return;
-    }
-
-    // Always update the indirect args first, even for 0-face meshes.
-    // If we skip this when faceCount==0, the GPU indirect buffer retains the old
-    // vertexCount/startVertex from before the remesh, causing stale geometry to be drawn.
-    {
-        auto args = nvrhi::DrawIndirectArguments()
-                .setVertexCount(mesh.faceCount * VERTICES_PER_QUAD)
-                .setStartVertexLocation(mesh.faceRegionStart * FACES_PER_REGION * VERTICES_PER_QUAD)
-                .setInstanceCount(mesh.faceCount > 0 ? 1u : 0u)
-                .setStartInstanceLocation(mesh.drawSlotIndex);
-
-        uint64_t indirectByteOffset = mesh.drawSlotIndex * sizeof(nvrhi::DrawIndirectArguments);
-        cmd->writeBuffer(m_indirectBuffer, &args, sizeof(nvrhi::DrawIndirectArguments), indirectByteOffset);
-    }
-
-    if (mesh.faceCount == 0) {
-        return;  // No face or OUB data to write
-    }
-
-    cmd->setBufferState(m_facesBuffer, nvrhi::ResourceStates::CopyDest);
-
-    // Write faces
-    uint64_t faceByteOffset = mesh.faceRegionStart * FACES_REGION_SIZE;
-    cmd->writeBuffer(m_facesBuffer, mesh.faces.data(),
-                     sizeof(TerrainFace3d) * mesh.faceCount, faceByteOffset);
-
-    cmd->setBufferState(m_facesBuffer, nvrhi::ResourceStates::ShaderResource);
-
-    // Write OUB
-    uint64_t oubByteOffset = mesh.drawSlotIndex * sizeof(TerrainOUB);
-    cmd->writeBuffer(m_oubBuffer, &oub, sizeof(TerrainOUB), oubByteOffset);
-}
-
-void VoxelBuffer::cleanup_freed_draw_slots(nvrhi::CommandListHandle cmd) {
-    for (uint32_t drawSlot : m_freedPendingDrawSlots) {
-        auto args = nvrhi::DrawIndirectArguments()
-                // .setBaseVertexLocation(0)
-                // .setIndexCount(0)
-                // .setStartIndexLocation(0)
-                .setInstanceCount(0)
-                .setStartInstanceLocation(0);
-        uint64_t indirectByteOffset = drawSlot * sizeof(nvrhi::DrawIndirectArguments);
-        cmd->writeBuffer(m_indirectBuffer, &args, sizeof(nvrhi::DrawIndirectArguments), indirectByteOffset);
-    }
-    m_freedPendingDrawSlots.clear();
-}
-
 void VoxelBuffer::free(VoxelChunkMesh& mesh) {
     if (!mesh.is_allocated()) {
         return;

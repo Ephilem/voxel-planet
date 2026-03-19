@@ -203,6 +203,7 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
                 VOXEL_ZONE_N("TerrainRenderer-CleanupChunkMesh")
                 if (mesh.is_allocated() && !voxelRenderer->m_chunkBuffers.empty()) {
                     int bufferIndex = mesh.bufferIndex;
+                    voxelRenderer->m_meshUploader.enqueue_free(mesh.drawSlotIndex, &voxelRenderer->m_chunkBuffers[bufferIndex]);
                     voxelRenderer->m_chunkBuffers[bufferIndex].free(mesh);
                 }
             });
@@ -211,7 +212,7 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
 
 bool VoxelTerrainRenderer::upload_chunk_mesh_system(const Renderer *renderer, VoxelChunkMesh &mesh, const Position &pos) {
     auto &commandList = renderer->frameContext.commandList;
-    VOXEL_VK_ZONE(renderer->backend->tracyVkCtx, commandList, "GPU Upload Chunk Meshes");
+    VOXEL_VK_NVRHI_ZONE(renderer->backend->tracyVkCtx, commandList, "GPU Upload Chunk Meshes");
     // TODO use the buffer with the position
     bool uploaded = false;
     if (m_chunkBuffers.empty()) {
@@ -236,7 +237,7 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(const Renderer *renderer, Vo
                         pos.x, pos.y, pos.z, 1.0f
                     }
                 };
-                buffer.write(commandList, mesh, oub);
+                m_meshUploader.enqueue(mesh, oub, &buffer);
                 return true;
             }
             LOG_WARN("VoxelTerrainRenderer", "[UPLOAD remesh FALLBACK] ({:.0f},{:.0f},{:.0f}) reallocate failed, doing free+alloc",
@@ -244,6 +245,7 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(const Renderer *renderer, Vo
             // If reallocate failed (fragmentation), fall through to try other buffers
             // But first free the draw slot since we'll allocate fresh
             buffer.free(mesh);
+            // TODO check if we need to deallocate in the gpu also... (double draw?)
         }
     }
 
@@ -263,10 +265,7 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(const Renderer *renderer, Vo
                 pos.x, pos.y, pos.z, 1.0f  // column 3 (translation)
             }
         };
-        {
-
-            buffer.write(commandList, mesh, oub);
-        }
+        m_meshUploader.enqueue(mesh, oub, &buffer);
         uploaded = true;
     }
 
@@ -282,17 +281,15 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(const Renderer *renderer, Vo
 void VoxelTerrainRenderer::render_terrain_system(Renderer &renderer, Camera3d &camera) {
     auto &commandList = renderer.frameContext.commandList;
 
-
     if (camera.viewMatrix != m_ubo.view)
         m_ubo.view = camera.viewMatrix;
     if (camera.projectionMatrix != m_ubo.projection)
         m_ubo.projection = camera.projectionMatrix;
 
 
-    // Before rendering, clean up freed draw slots
-    for (auto& chunkBuffer : m_chunkBuffers) {
-        chunkBuffer.cleanup_freed_draw_slots(commandList);
-    }
+    // Before rendering, flush upload batcher to ensure all pending uploads are executed
+    auto* vkCmdBuf = static_cast<VkCommandBuffer>(commandList->getNativeObject(nvrhi::ObjectTypes::VK_CommandBuffer));
+    m_meshUploader.flush(vkCmdBuf); // execute upload commands
 
     commandList->writeBuffer(
         m_uboBuffer,
@@ -301,7 +298,7 @@ void VoxelTerrainRenderer::render_terrain_system(Renderer &renderer, Camera3d &c
     auto extent = m_backend->get_swapchain_extent();
 
     {
-        VOXEL_VK_ZONE(renderer.backend->tracyVkCtx, commandList, "GPU Draw Terrain Buffer");
+        VOXEL_VK_NVRHI_ZONE(renderer.backend->tracyVkCtx, commandList, "GPU Draw Terrain Buffer");
         int i = 0;
         for (auto& chunkBuffer : m_chunkBuffers) {
             auto& bufferBindingSet = m_chunkBufferBindingSets[i];

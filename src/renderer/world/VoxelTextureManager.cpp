@@ -259,14 +259,14 @@ void VoxelTextureManager::upload_pending_textures_system(Renderer &renderer, Res
           // upload mip level 0
           constexpr size_t rowPitch = 32 * 4;
           {
-              VOXEL_VK_ZONE(renderer.backend->tracyVkCtx, cmd, "Upload texture");
+              VOXEL_VK_NVRHI_ZONE(renderer.backend->tracyVkCtx, cmd, "Upload texture");
               cmd->writeTexture(m_textureArray, slotIndex, 0,
                                textureRes->get_data(), rowPitch);
           }
           LOG_DEBUG("VoxelTextureManager", "Uploaded texture {} to slot {}",
                     assetIdStr, slotIndex);
           {
-              VOXEL_VK_ZONE(renderer.backend->tracyVkCtx, cmd, "Generate Mipmaps");
+              VOXEL_VK_NVRHI_ZONE(renderer.backend->tracyVkCtx, cmd, "Generate Mipmaps");
               generate_mipmaps(cmd, slotIndex);
           }
 

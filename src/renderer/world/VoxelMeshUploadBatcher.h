@@ -34,6 +34,15 @@ public:
     bool enqueue(const VoxelChunkMesh& meshData, const TerrainOUB& oub, VoxelBuffer* targetBuffer);
 
     /**
+     * Will write to the draw slot index a null draw (instance count = 0)
+     * Will not clean the face regions, it will just be ignored and overwritten by the next upload
+     * @param drawSlotIndex index of the draw slot to free. This should be the same index that was used in the original enqueue() call for this mesh.
+     * @param targetBuffer target buffer to write the null draw to. This should be the same buffer that was used in the original enqueue() call for this mesh.
+     * @return true if the free command was successfully queued, false if there was not enough space in the staging buffer and the caller should try again in the next frame
+     */
+    bool enqueue_free(uint32_t drawSlotIndex, VoxelBuffer* targetBuffer);
+
+    /**
      * Flush and execute all queued uploads. This should be called once per frame after all mesh uploads have been enqueued.
      * @param cmd Command buffer to record the copy commands into. This should be the same command buffer that will be submitted for rendering after this, so the uploads are guaranteed to be executed before rendering.
      */
@@ -59,6 +68,8 @@ private:
     };
 
     VulkanBackend* m_backend = nullptr;
+
+    uint64_t m_currentTotalSize = 0;
 
     StagingBuffer m_stagingBuffers[STAGING_NUMBER];
     std::vector<UploadTask> m_uploadTasks;

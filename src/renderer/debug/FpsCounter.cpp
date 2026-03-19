@@ -50,19 +50,21 @@ void FpsCounter::register_ecs(flecs::world &ecs) {
                 float fps = this->m_currentFPS;
                 float frameTime = gameState.deltaTime * 1000.0f;
 
-                // Color-code based on performance
-                ImVec4 color = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); // Green
-                if (fps < 58.0f) color = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); // Yellow
-                if (fps < 30.0f) color = ImVec4(1.0f, 0.0f, 0.0f, 1.0f); // Red
 
-                ImGui::TextColored(color, "FPS: %.0f", fps);
-                ImGui::Text("Frame: %.2f ms", frameTime);
 
                 // Calculate average FPS
                 float avgFPS = 0.0f;
                 for (float f : this->m_fpsHistory) avgFPS += f;
                 avgFPS /= this->m_fpsHistory.size();
-                ImGui::Text("Avg: %.0f", avgFPS);
+
+                // Color-code based on performance
+                ImVec4 color = ImVec4(0.0f, 1.0f, 0.0f, 1.0f); // Green
+                if (avgFPS < 58.0f) color = ImVec4(1.0f, 1.0f, 0.0f, 1.0f); // Yellow
+                if (avgFPS < 30.0f) color = ImVec4(1.0f, 0.0f, 0.0f, 1.0f); // Red
+                ImGui::TextColored(color, "Avg. FPS: %.0f", avgFPS);
+
+                ImGui::Text("Fps: %.0f", fps);
+                ImGui::Text("Frame: %.2f ms", frameTime);
 
                 // FPS Graph
                 ImGui::PlotLines("##fps_graph",

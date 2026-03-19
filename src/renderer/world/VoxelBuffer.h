@@ -57,8 +57,6 @@ public:
     bool can_allocate(uint32_t faceCount);
     bool allocate(struct VoxelChunkMesh& mesh);
     bool reallocate(struct VoxelChunkMesh& mesh);
-    void write(nvrhi::CommandListHandle cmd, struct VoxelChunkMesh& mesh, const TerrainOUB& oub);
-    void cleanup_freed_draw_slots(nvrhi::CommandListHandle cmd);
     void free(struct VoxelChunkMesh& mesh);
 
     nvrhi::BufferHandle get_faces_buffer() const { return m_facesBuffer; }
