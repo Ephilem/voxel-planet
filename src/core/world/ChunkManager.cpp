@@ -80,7 +80,8 @@ void ChunkManager::init(flecs::world &ecs) {
             });
 
     // init threads
-    size_t numThreads = std::max(1u, std::thread::hardware_concurrency() - 1);
+    // size_t numThreads = std::max(1u, std::thread::hardware_concurrency() - 1);
+    size_t numThreads = 2;
     for (size_t i = 0; i < numThreads; i++) {
         m_generationThreads.emplace_back([this, i] { generation_worker_loop(i); });
     }

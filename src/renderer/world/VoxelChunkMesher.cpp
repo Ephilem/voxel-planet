@@ -6,6 +6,7 @@
 #include "VoxelTextureManager.h"
 #include "core/log/Logger.h"
 #include "core/world/ChunkManager.h"
+#include "platform/inputs/input_state.h"
 #include "renderer/rendering_components.h"
 
 
@@ -63,7 +64,15 @@ void VoxelChunkMesher::init(flecs::world &ecs) {
             .kind(flecs::PostUpdate)
             .with<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>()
             .run([this](flecs::iter &it) {
-                enqueue_chunks_build_system(it);
+                static bool canMesh = false;
+                auto* inputAction = it.world().get<InputActionState>();
+                if (inputAction->is_action_pressed(ActionInputType::Debug2))
+                    canMesh = !canMesh;
+
+                if (canMesh)
+                    enqueue_chunks_build_system(it);
+                else
+                    it.fini();
             });
 
     ecs.system("VoxelChunkMesher-PollMeshingResults")
@@ -95,7 +104,8 @@ void VoxelChunkMesher::init(flecs::world &ecs) {
             });
 
     // init workers
-    size_t numThreads = std::max(1u, std::thread::hardware_concurrency() - 1);
+    // size_t numThreads = std::max(1u, std::thread::hardware_concurrency() - 1);
+    size_t numThreads = 2;
 
     m_workerResults.reserve(numThreads);
     for (size_t i = 0; i < numThreads; i++) {
