@@ -48,6 +48,7 @@ public:
 
 private:
     std::deque<glm::ivec3> m_unloadQueue;
+    std::unordered_set<glm::ivec3, IVec3Hash> m_unloadQueueSet;
 
     std::unordered_map<glm::ivec3, flecs::entity, IVec3Hash> m_loadedChunks;
     std::unordered_set<glm::ivec3, IVec3Hash> m_emptyChunks;
@@ -67,7 +68,7 @@ private:
     void process_unload_queue_system(flecs::iter& it);
 
     // Actions
-    void request_chunks_in_radius(const glm::ivec3& center, int radius, WorldGenerator* generator);
+    void request_chunks_in_radius(const glm::ivec3& center, const glm::ivec3& oldCenter, int radius, WorldGenerator* generator);
     void enqueue_chunks_generation(const std::vector<ChunkCandidate>& candidates, WorldGenerator* generator);
     void cancel_chunk_generation(const glm::ivec3& chunkPos);
     void update_unload_queue(const ChunkLoader& loader, const glm::ivec3& centerChunk);

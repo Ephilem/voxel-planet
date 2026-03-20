@@ -97,71 +97,92 @@ void ChunkManager::update_chunks_system(flecs::entity e, ChunkLoader &loader,
         return;
     }
 
+    VOXEL_MESSAGE("MOVED CHUNK");
     LOG_DEBUG("ChunkManager", "Player moved to chunk ({}, {}, {})",
               currentChunk.x, currentChunk.y, currentChunk.z);
 
-    loader.desiredChunks.clear();
     const int radius = loader.loadRadius;
-    // const float radiusSq = static_cast<float>(radius * radius);
+    // Save old center before updating — used for delta and must be safe (no INT32_MAX overflow)
+    const glm::ivec3 oldCenter = loader.has_visited()
+        ? loader.lastVisitedChunk
+        : currentChunk + glm::ivec3(radius * 3 + 1);
 
-    for (int x = -radius; x <= radius; x++) {
-        for (int y = -radius; y <= radius; y++) {
-            for (int z = -radius; z <= radius; z++) {
-                // float distSq = static_cast<float>(x * x + y * y + z * z);
-                // if (distSq > radiusSq) continue;
+    // Update early so is_chunk_desired uses the correct center in the cancel loop below
+    loader.lastVisitedChunk = currentChunk;
 
-                glm::ivec3 chunkPos = currentChunk + glm::ivec3(x, y, z);
-                loader.desiredChunks.insert(chunkPos);
+    request_chunks_in_radius(currentChunk, oldCenter, radius, generator);
+
+    // Cancel chunks that are no longer desired
+    {
+        VOXEL_ZONE_N("UpdateChunks-CancelOutOfRange");
+        std::vector<glm::ivec3> toCancel;
+        for (const auto& chunkPos : m_loadingChunks) {
+            if (!loader.is_chunk_desired(chunkPos)) {
+                toCancel.push_back(chunkPos);
             }
         }
-    }
-
-    request_chunks_in_radius(currentChunk, radius, generator);
-
-    // Cancel chunk that are not desired anymore
-    std::vector<glm::ivec3> toCancel;
-    for (const auto& chunkPos : m_loadingChunks) {
-        if (!loader.desiredChunks.contains(chunkPos)) {
-            toCancel.push_back(chunkPos);
+        for (const auto& chunkPos : toCancel) {
+            cancel_chunk_generation(chunkPos);
         }
     }
-    for (const auto& chunkPos : toCancel) {
-        cancel_chunk_generation(chunkPos);
+
+    {
+        VOXEL_ZONE_N("UpdateChunks-UnloadQueue");
+        update_unload_queue(loader, currentChunk);
     }
-
-    update_unload_queue(loader, currentChunk);
-
-    loader.lastVisitedChunk = currentChunk;
 }
 
-void ChunkManager::request_chunks_in_radius(const glm::ivec3& center, int radius, WorldGenerator* generator) {
+void ChunkManager::request_chunks_in_radius(const glm::ivec3& center, const glm::ivec3& oldCenter, int radius, WorldGenerator* generator) {
     VOXEL_ZONE_N("RequestChunksInRadius");
     std::vector<ChunkCandidate> candidates;
 
-    for (int x = -radius; x <= radius; x++) {
-        for (int y = -radius; y <= radius; y++) {
-            for (int z = -radius; z <= radius; z++) {
+    {
+        VOXEL_ZONE_N("RequestChunks-IterateAndFilter");
+        for (int x = -radius; x <= radius; x++) {
+            for (int y = -radius; y <= radius; y++) {
+                for (int z = -radius; z <= radius; z++) {
 
-                glm::ivec3 chunkPos = center + glm::ivec3(x, y, z);
+                    glm::ivec3 chunkPos = center + glm::ivec3(x, y, z);
 
-                if (is_chunk_processed(chunkPos) || is_chunk_in_progress(chunkPos)) {
-                    continue;
+                    // Skip chunks that were already in the old radius
+                    const bool isCancelled = m_cancelledChunks.contains(chunkPos);
+                    if (!isCancelled) {
+                        glm::ivec3 relToOld = chunkPos - oldCenter;
+                        if (std::abs(relToOld.x) <= radius &&
+                            std::abs(relToOld.y) <= radius &&
+                            std::abs(relToOld.z) <= radius) {
+                            continue;
+                        }
+                    }
+
+                    {
+                        VOXEL_ZONE_N("RequestChunks-HashLookups");
+                        if (is_chunk_processed(chunkPos) || is_chunk_in_progress(chunkPos)) {
+                            continue;
+                        }
+                    }
+
+                    m_cancelledChunks.erase(chunkPos);
+
+                    float priority = calculate_priority(chunkPos, center);
+                    candidates.push_back({chunkPos, priority});
                 }
-
-                m_cancelledChunks.erase(chunkPos);
-
-                float priority = calculate_priority(chunkPos, center);
-                candidates.push_back({chunkPos, priority});
             }
         }
     }
 
     if (!candidates.empty()) {
-        std::ranges::sort(candidates, [](const auto& a, const auto& b) {
-            return a.priority < b.priority;
-        });
+        {
+            VOXEL_ZONE_N("RequestChunks-Sort");
+            std::ranges::sort(candidates, [](const auto& a, const auto& b) {
+                return a.priority < b.priority;
+            });
+        }
 
-        enqueue_chunks_generation(candidates, generator);
+        {
+            VOXEL_ZONE_N("RequestChunks-Enqueue");
+            enqueue_chunks_generation(candidates, generator);
+        }
         LOG_DEBUG("ChunkManager", "Enqueued {} chunks for generation", candidates.size());
     }
 }
@@ -207,7 +228,7 @@ void ChunkManager::update_unload_queue(const ChunkLoader& loader, const glm::ive
         float distSq = glm::dot(diff, diff);
 
         if (distSq > unloadRadiusSq) {
-            if (std::ranges::find(m_unloadQueue, chunkPos) == m_unloadQueue.end()) {
+            if (m_unloadQueueSet.insert(chunkPos).second) {
                 m_unloadQueue.push_back(chunkPos);
             }
         }
@@ -245,7 +266,8 @@ void ChunkManager::process_unload_queue_system(flecs::iter &it) {
 
     while (!m_unloadQueue.empty() && chunksUnloaded < MAX_UNLOADS_PER_FRAME) {
         glm::ivec3 chunkPos = m_unloadQueue.front();
-        m_unloadQueue.erase(m_unloadQueue.begin());
+        m_unloadQueue.pop_front();
+        m_unloadQueueSet.erase(chunkPos);
 
         auto loadedIt = m_loadedChunks.find(chunkPos);
         if (loadedIt != m_loadedChunks.end()) {
@@ -261,7 +283,7 @@ void ChunkManager::process_unload_queue_system(flecs::iter &it) {
 bool ChunkManager::is_chunk_still_needed(const glm::ivec3 &chunkPos, const flecs::world &world) const {
     bool stillNeeded = false;
     world.each<ChunkLoader>([&](flecs::entity e, const ChunkLoader &loader) {
-        if (loader.desiredChunks.contains(chunkPos)) {
+        if (loader.is_chunk_desired(chunkPos)) {
             stillNeeded = true;
         }
     });
