@@ -1,6 +1,6 @@
 #pragma once
-#include <condition_variable>
 #include <deque>
+#include <semaphore>
 #include <unordered_set>
 #include <flecs.h>
 #include <queue>
@@ -8,8 +8,11 @@
 
 #include "world_components.h"
 #include "core/main_components.h"
+#include "core/TracyIntegration.h"
 
 class WorldGenerator;
+
+
 
 struct ChunkCandidate {
     glm::ivec3 pos;
@@ -28,6 +31,13 @@ struct TaskGeneratingOutput {
     glm::ivec3 chunkCoord;
     bool success = false;
     bool empty = true;
+};
+
+// alignas(64) to avoid false sharing between worker threads and main thread when pushing/polling results
+struct alignas(64) GenerationWorkerResult {
+    VOXEL_LOCKABLE(std::mutex, m_resultMutex);
+    std::vector<TaskGeneratingOutput> results;
+    std::atomic<int> pendingCount{0};
 };
 
 /**
@@ -59,6 +69,7 @@ private:
     static constexpr int MAX_CHUNKS_PER_FRAME = 50;
     static constexpr int MAX_UNLOADS_PER_FRAME = 50;
     static constexpr int MAX_GENERATION_RESULTS_PER_FRAME = 100;
+    static constexpr size_t GENERATION_BATCH_SIZE = 4;
 
     void shutdown();
 
@@ -101,8 +112,8 @@ private:
 
     // Generation threads
     std::vector<std::thread> m_generationThreads;
-    std::mutex m_generationMutex;
-    std::condition_variable m_generationCv;
+    VOXEL_LOCKABLE(std::mutex, m_generationMutex);
+    std::counting_semaphore<> m_generationSemaphore{0};
     std::priority_queue<
         TaskGeneratingInput,
         std::vector<TaskGeneratingInput>,
@@ -110,8 +121,7 @@ private:
     > m_generationQueue;
     std::atomic<bool> m_stopGeneration{false};
 
-    std::mutex m_generationResultsMutex;
-    std::queue<TaskGeneratingOutput> m_generationResultsQueue;
+    std::vector<std::unique_ptr<GenerationWorkerResult>> m_workerResults; // one per worker thread
 
     void generation_worker_loop(size_t id);
 };

@@ -72,6 +72,8 @@ public:
         return total;
     }
 
+    static constexpr size_t MESHING_BATCH_SIZE = 4;
+
 private:
     std::vector<TaskMeshingOutput> poll_results(size_t maxResults = 30);
 

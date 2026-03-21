@@ -64,15 +64,16 @@ void VoxelChunkMesher::init(flecs::world &ecs) {
             .kind(flecs::PostUpdate)
             .with<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>()
             .run([this](flecs::iter &it) {
-                static bool canMesh = false;
-                auto* inputAction = it.world().get<InputActionState>();
-                if (inputAction->is_action_pressed(ActionInputType::Debug2))
-                    canMesh = !canMesh;
-
-                if (canMesh)
-                    enqueue_chunks_build_system(it);
-                else
-                    it.fini();
+                // static bool canMesh = false;
+                // auto* inputAction = it.world().get<InputActionState>();
+                // if (inputAction->is_action_pressed(ActionInputType::Debug2))
+                //     canMesh = !canMesh;
+                //
+                // if (canMesh)
+                //     enqueue_chunks_build_system(it);
+                // else
+                //     it.fini();
+                enqueue_chunks_build_system(it);
             });
 
     ecs.system("VoxelChunkMesher-PollMeshingResults")
@@ -104,8 +105,8 @@ void VoxelChunkMesher::init(flecs::world &ecs) {
             });
 
     // init workers
-    // size_t numThreads = std::max(1u, std::thread::hardware_concurrency() - 1);
-    size_t numThreads = 2;
+    size_t numThreads = std::max(1u, std::thread::hardware_concurrency() - 1);
+    // size_t numThreads = 2;
 
     m_workerResults.reserve(numThreads);
     for (size_t i = 0; i < numThreads; i++) {
@@ -205,7 +206,7 @@ void VoxelChunkMesher::enqueue_chunks_build_system(flecs::iter &it) {
 
     if (enqueued > 0) {
         VOXEL_ZONE_N("Release Semaphore")
-        m_taskSemaphore.release(std::min(enqueued, m_workerThreads.size()));
+        m_taskSemaphore.release(std::min((enqueued + MESHING_BATCH_SIZE - 1) / MESHING_BATCH_SIZE, m_workerThreads.size()));
     }
 }
 
@@ -272,7 +273,7 @@ void VoxelChunkMesher::worker_loop(size_t id) {
     tracy::SetThreadName(threadName);
 #endif
 
-    constexpr size_t BATCH_SIZE = 4;
+    constexpr size_t BATCH_SIZE = MESHING_BATCH_SIZE;
     std::vector<TaskMeshingInput> batch;
     std::vector<TaskMeshingOutput> results;
     batch.reserve(BATCH_SIZE);

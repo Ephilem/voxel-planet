@@ -17,11 +17,8 @@ ChunkManager::~ChunkManager() {
 }
 
 void ChunkManager::shutdown() {
-    {
-        std::lock_guard<std::mutex> lock(m_generationMutex);
-        m_stopGeneration = true;
-    }
-    m_generationCv.notify_all();
+    m_stopGeneration = true;
+    m_generationSemaphore.release(m_generationThreads.size());
 
     for (auto &thread: m_generationThreads) {
         if (thread.joinable()) {
@@ -72,16 +69,25 @@ void ChunkManager::init(flecs::world &ecs) {
                 ImGui::Text("Cancelled: %zu", m_cancelledChunks.size());
                 ImGui::Text("Unload Queue: %zu", m_unloadQueue.size());
                 {
-                    std::lock_guard<std::mutex> lock(m_generationMutex);
+                    std::lock_guard lock(m_generationMutex);
                     ImGui::Text("Generation Queue: %zu", m_generationQueue.size());
-                    ImGui::Text("Results Pending: %zu", m_generationResultsQueue.size());
+                }
+                {
+                    int pending = 0;
+                    for (const auto& wr : m_workerResults)
+                        pending += wr->pendingCount.load(std::memory_order_relaxed);
+                    ImGui::Text("Results Pending: %d", pending);
                 }
                 ImGui::End();
             });
 
     // init threads
-    // size_t numThreads = std::max(1u, std::thread::hardware_concurrency() - 1);
-    size_t numThreads = 2;
+    size_t numThreads = std::max(1u, std::thread::hardware_concurrency() - 1);
+    // size_t numThreads = 2;
+    m_workerResults.reserve(numThreads);
+    for (size_t i = 0; i < numThreads; i++) {
+        m_workerResults.push_back(std::make_unique<GenerationWorkerResult>());
+    }
     for (size_t i = 0; i < numThreads; i++) {
         m_generationThreads.emplace_back([this, i] { generation_worker_loop(i); });
     }
@@ -200,18 +206,21 @@ float ChunkManager::calculate_priority(const glm::ivec3& chunkPos, const glm::iv
 }
 
 void ChunkManager::enqueue_chunks_generation(const std::vector<ChunkCandidate>& candidates, WorldGenerator* generator) {
-    std::lock_guard<std::mutex> lock(m_generationMutex);
-
-    for (const auto& candidate : candidates) {
-        m_loadingChunks.insert(candidate.pos);
-        m_generationQueue.push(TaskGeneratingInput{
-            .chunkCoord = candidate.pos,
-            .generator = generator,
-            .priority = candidate.priority
-        });
+    VOXEL_ZONE_N("EnqueueChunksGeneration");
+    {
+        VOXEL_ZONE_N("PushToGenerationQueue");
+        std::lock_guard lock(m_generationMutex);
+        for (const auto& candidate : candidates) {
+            m_loadingChunks.insert(candidate.pos);
+            m_generationQueue.push(TaskGeneratingInput{
+                .chunkCoord = candidate.pos,
+                .generator = generator,
+                .priority = candidate.priority
+            });
+        }
     }
 
-    m_generationCv.notify_all();
+    m_generationSemaphore.release(std::min((candidates.size() + GENERATION_BATCH_SIZE - 1) / GENERATION_BATCH_SIZE, m_generationThreads.size()));
 }
 
 void ChunkManager::cancel_chunk_generation(const glm::ivec3& chunkPos) {
@@ -294,6 +303,7 @@ void ChunkManager::poll_generation_results_system(flecs::iter &it) {
     auto results = poll_generation_results(MAX_GENERATION_RESULTS_PER_FRAME);
 
     for (auto &result : results) {
+        VOXEL_ZONE_N("HandleGenerationResult");
         m_loadingChunks.erase(result.chunkCoord);
 
         if (m_cancelledChunks.contains(result.chunkCoord)) {
@@ -308,14 +318,18 @@ void ChunkManager::poll_generation_results_system(flecs::iter &it) {
             chunkData.voxels = std::move(result.voxels);
             chunkData.textureIDs = std::move(result.textureIDs);
 
-            auto chunk = it.world().entity()
-                    .set<ChunkCoordinate>(result.chunkCoord)
-                    .set<Position>({
-                        static_cast<float>(result.chunkCoord.x * CHUNK_SIZE),
-                        static_cast<float>(result.chunkCoord.y * CHUNK_SIZE),
-                        static_cast<float>(result.chunkCoord.z * CHUNK_SIZE)
-                    })
-                    .set<VoxelChunk>(chunkData);
+            flecs::entity chunk;
+            {
+                VOXEL_ZONE_N("CreateChunkEntity");
+                chunk = it.world().entity()
+                        .set<ChunkCoordinate>(result.chunkCoord)
+                        .set<Position>({
+                            static_cast<float>(result.chunkCoord.x * CHUNK_SIZE),
+                            static_cast<float>(result.chunkCoord.y * CHUNK_SIZE),
+                            static_cast<float>(result.chunkCoord.z * CHUNK_SIZE)
+                        })
+                        .set<VoxelChunk>(chunkData);
+            }
 
             m_loadedChunks[result.chunkCoord] = chunk;
         } else {
@@ -399,48 +413,89 @@ std::vector<TaskGeneratingOutput> ChunkManager::poll_generation_results(size_t m
     std::vector<TaskGeneratingOutput> results;
     results.reserve(maxResults);
 
-    std::lock_guard<std::mutex> lock(m_generationMutex);
-    while (!m_generationResultsQueue.empty() && results.size() < maxResults) {
-        results.push_back(std::move(m_generationResultsQueue.front()));
-        m_generationResultsQueue.pop();
+    for (auto& wr : m_workerResults) {
+        VOXEL_ZONE_N("DrainWorkerResults");
+        if (results.size() >= maxResults) break;
+        if (wr->pendingCount.load(std::memory_order_relaxed) == 0) continue;
+
+        std::lock_guard lock(wr->m_resultMutex);
+        int count = static_cast<int>(wr->results.size());
+        for (auto& r : wr->results) {
+            results.push_back(std::move(r));
+        }
+        wr->results.clear();
+        wr->pendingCount.fetch_sub(count, std::memory_order_relaxed);
     }
 
     return results;
 }
 
 void ChunkManager::generation_worker_loop(size_t id) {
+#ifdef TRACY_ENABLE
+    char threadName[32];
+    snprintf(threadName, sizeof(threadName), "ChunkGenWorker %zu", id);
+    tracy::SetThreadName(threadName);
+#endif
+
+    std::vector<TaskGeneratingInput> batch;
+    std::vector<TaskGeneratingOutput> results;
+    batch.reserve(GENERATION_BATCH_SIZE);
+    results.reserve(GENERATION_BATCH_SIZE);
+
     while (true) {
-        TaskGeneratingInput input;
-        {
-            std::unique_lock<std::mutex> lock(m_generationMutex);
-            m_generationCv.wait(lock, [this] {
-                return m_stopGeneration || !m_generationQueue.empty();
-            });
+        batch.clear();
 
-            if (m_stopGeneration && m_generationQueue.empty()) {
-                return;
+        m_generationSemaphore.acquire();
+
+        if (m_stopGeneration && [&] {
+            std::lock_guard lock(m_generationMutex);
+            return m_generationQueue.empty();
+        }()) return;
+
+        {
+            VOXEL_ZONE_N("PollJobs");
+            std::lock_guard lock(m_generationMutex);
+            while (batch.size() < GENERATION_BATCH_SIZE && !m_generationQueue.empty()) {
+                batch.push_back(std::move(const_cast<TaskGeneratingInput&>(m_generationQueue.top())));
+                m_generationQueue.pop();
             }
-
-            input = std::move(m_generationQueue.top());
-            m_generationQueue.pop();
+            if (!m_generationQueue.empty())
+                m_generationSemaphore.release(1);
         }
 
-        // Vérifier si annulé AVANT de générer (évite le travail inutile)
-        if (m_cancelledChunks.contains(input.chunkCoord)) {
-            continue;
-        }
-
-        TaskGeneratingOutput result{};
-        VoxelChunk chunkData = {};
-        result.empty = !input.generator->generate_chunk(chunkData, input.chunkCoord);
-        result.success = true;
-        result.chunkCoord = input.chunkCoord;
-        result.voxels = std::move(chunkData.voxels);
-        result.textureIDs = std::move(chunkData.textureIDs);
+        if (batch.empty()) continue;
 
         {
-            std::lock_guard<std::mutex> lock(m_generationMutex);
-            m_generationResultsQueue.push(std::move(result));
+            VOXEL_ZONE_N("ProcessBatch");
+            results.clear();
+            for (auto& input : batch) {
+                {
+                    VOXEL_ZONE_N("CheckCancelled");
+                    if (m_cancelledChunks.contains(input.chunkCoord)) continue;
+                }
+
+                TaskGeneratingOutput result{};
+                VoxelChunk chunkData = {};
+                {
+                    VOXEL_ZONE_N("GenerateChunk");
+                    result.empty = !input.generator->generate_chunk(chunkData, input.chunkCoord);
+                }
+                result.success = true;
+                result.chunkCoord = input.chunkCoord;
+                result.voxels = std::move(chunkData.voxels);
+                result.textureIDs = std::move(chunkData.textureIDs);
+                results.push_back(std::move(result));
+            }
+        }
+
+        {
+            VOXEL_ZONE_N("PushResults");
+            auto& wr = *m_workerResults[id];
+            std::lock_guard lock(wr.m_resultMutex);
+            for (auto& result : results) {
+                wr.results.push_back(std::move(result));
+            }
+            wr.pendingCount.fetch_add(static_cast<int>(results.size()), std::memory_order_relaxed);
         }
     }
 }
