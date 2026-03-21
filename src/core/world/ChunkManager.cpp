@@ -150,6 +150,13 @@ void ChunkManager::request_chunks_in_radius(const glm::ivec3& center, const glm:
 
                     glm::ivec3 chunkPos = center + glm::ivec3(x, y, z);
 
+                    {
+                        VOXEL_ZONE_N("RequestChunks-HashLookups");
+                        if (is_chunk_processed(chunkPos) || is_chunk_in_progress(chunkPos)) {
+                            continue;
+                        }
+                    }
+
                     // Skip chunks that were already in the old radius
                     const bool isCancelled = m_cancelledChunks.contains(chunkPos);
                     if (!isCancelled) {
@@ -157,13 +164,6 @@ void ChunkManager::request_chunks_in_radius(const glm::ivec3& center, const glm:
                         if (std::abs(relToOld.x) <= radius &&
                             std::abs(relToOld.y) <= radius &&
                             std::abs(relToOld.z) <= radius) {
-                            continue;
-                        }
-                    }
-
-                    {
-                        VOXEL_ZONE_N("RequestChunks-HashLookups");
-                        if (is_chunk_processed(chunkPos) || is_chunk_in_progress(chunkPos)) {
                             continue;
                         }
                     }
@@ -187,7 +187,25 @@ void ChunkManager::request_chunks_in_radius(const glm::ivec3& center, const glm:
 
         {
             VOXEL_ZONE_N("RequestChunks-Enqueue");
-            enqueue_chunks_generation(candidates, generator);
+            std::lock_guard lock(m_generationMutex);
+
+            for (auto& task : m_generationQueue) {
+                task.priority = calculate_priority(task.chunkCoord, center);
+            }
+
+            for (const auto& candidate : candidates) {
+                m_loadingChunks.insert(candidate.pos);
+                m_generationQueue.push_back(TaskGeneratingInput{
+                    .chunkCoord = candidate.pos,
+                    .generator = generator,
+                    .priority = candidate.priority
+                });
+            }
+
+            std::make_heap(m_generationQueue.begin(), m_generationQueue.end(), std::greater<TaskGeneratingInput>{});
+
+            m_generationSemaphore.release(std::min((candidates.size() + GENERATION_BATCH_SIZE - 1) / GENERATION_BATCH_SIZE, m_generationThreads.size()));
+
         }
         LOG_DEBUG("ChunkManager", "Enqueued {} chunks for generation", candidates.size());
     }
@@ -203,24 +221,6 @@ float ChunkManager::calculate_priority(const glm::ivec3& chunkPos, const glm::iv
     }
 
     return distSq;
-}
-
-void ChunkManager::enqueue_chunks_generation(const std::vector<ChunkCandidate>& candidates, WorldGenerator* generator) {
-    VOXEL_ZONE_N("EnqueueChunksGeneration");
-    {
-        VOXEL_ZONE_N("PushToGenerationQueue");
-        std::lock_guard lock(m_generationMutex);
-        for (const auto& candidate : candidates) {
-            m_loadingChunks.insert(candidate.pos);
-            m_generationQueue.push(TaskGeneratingInput{
-                .chunkCoord = candidate.pos,
-                .generator = generator,
-                .priority = candidate.priority
-            });
-        }
-    }
-
-    m_generationSemaphore.release(std::min((candidates.size() + GENERATION_BATCH_SIZE - 1) / GENERATION_BATCH_SIZE, m_generationThreads.size()));
 }
 
 void ChunkManager::cancel_chunk_generation(const glm::ivec3& chunkPos) {
@@ -456,8 +456,9 @@ void ChunkManager::generation_worker_loop(size_t id) {
             VOXEL_ZONE_N("PollJobs");
             std::lock_guard lock(m_generationMutex);
             while (batch.size() < GENERATION_BATCH_SIZE && !m_generationQueue.empty()) {
-                batch.push_back(std::move(const_cast<TaskGeneratingInput&>(m_generationQueue.top())));
-                m_generationQueue.pop();
+                std::pop_heap(m_generationQueue.begin(), m_generationQueue.end(), std::greater<TaskGeneratingInput>{});
+                batch.push_back(std::move(m_generationQueue.back()));
+                m_generationQueue.pop_back();
             }
             if (!m_generationQueue.empty())
                 m_generationSemaphore.release(1);

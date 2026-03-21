@@ -3,7 +3,6 @@
 #include <semaphore>
 #include <unordered_set>
 #include <flecs.h>
-#include <queue>
 #include <vector>
 
 #include "world_components.h"
@@ -114,11 +113,7 @@ private:
     std::vector<std::thread> m_generationThreads;
     VOXEL_LOCKABLE(std::mutex, m_generationMutex);
     std::counting_semaphore<> m_generationSemaphore{0};
-    std::priority_queue<
-        TaskGeneratingInput,
-        std::vector<TaskGeneratingInput>,
-        std::greater<TaskGeneratingInput>
-    > m_generationQueue;
+    std::vector<TaskGeneratingInput> m_generationQueue; // min-heap managed via push_heap/pop_heap/make_heap
     std::atomic<bool> m_stopGeneration{false};
 
     std::vector<std::unique_ptr<GenerationWorkerResult>> m_workerResults; // one per worker thread
