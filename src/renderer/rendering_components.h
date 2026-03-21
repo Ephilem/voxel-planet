@@ -3,6 +3,8 @@
 #include <vector>
 #include "render_types.h"
 
+#define MAX_FRAMES_IN_FLIGHT 2
+
 struct Camera3dParameters {
     glm::float32 fov = 45.0f;
 };
@@ -16,6 +18,7 @@ struct Camera3d {
 };
 
 namespace voxel_chunk_mesh_state {
+    struct WaitingForNeighbors {};
     struct Clean {};
     struct Dirty {};
     struct Meshing {};
@@ -37,9 +40,13 @@ struct VoxelChunkMesh {
 
     uint32_t faceCount = 0;
 
+    // Incremented each time a new mesh task is dispatched.
+    // Used to discard results from stale (superseded) tasks.
+    uint32_t meshGeneration = 0;
+
     bool is_allocated() const {
-        return faceRegionStart != UINT32_MAX &&
-               drawSlotIndex != UINT32_MAX &&
+        // A draw slot is the minimum requirement; face region may be absent for empty meshes.
+        return drawSlotIndex != UINT32_MAX &&
                bufferIndex != UINT32_MAX;
     }
 };

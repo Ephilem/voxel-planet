@@ -212,6 +212,7 @@ set(CMAKE_CXX_FLAGS ${ORIGINAL_FLAGS})
 #### End Dependencies
 ####
 
+add_subdirectory(src/utils)
 add_subdirectory(src/core)
 add_subdirectory(src/platform)
 add_subdirectory(src/renderer)
@@ -221,6 +222,9 @@ add_subdirectory(src/client)
 if(TRACY_FOUND)
     target_link_libraries(VoxelPlanetRenderer PUBLIC TracyClient)
     target_compile_definitions(VoxelPlanetRenderer PUBLIC TRACY_ENABLE)
+
+    target_link_libraries(VoxelPlanetCore PUBLIC TracyClient)
+    target_compile_definitions(VoxelPlanetCore PUBLIC TRACY_ENABLE)
 endif()
 
 add_executable(${PROJECT_NAME}
@@ -248,6 +252,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         FastNoise2
         stb
 )
+
+if(TRACY_FOUND)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE TRACY_ENABLE)
+endif()
 
 # Version definitions accessible in C++ code
 target_compile_definitions(${PROJECT_NAME} PRIVATE

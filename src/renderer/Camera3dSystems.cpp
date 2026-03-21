@@ -7,6 +7,8 @@
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 
+#include "core/TracyIntegration.h"
+
 void Camera3dSystems::Register(flecs::world &ecs) {
     ecs.component<Camera3d>();
     ecs.component<Camera3dParameters>();
@@ -14,12 +16,14 @@ void Camera3dSystems::Register(flecs::world &ecs) {
     ecs.system<Camera3d, const Position, const Orientation>("UpdateCameraViewSystem")
         .kind(flecs::OnUpdate)
         .each([](flecs::entity e, Camera3d &camera, const Position &position, const Orientation &orientation) {
+            VOXEL_ZONE_N("Camera-UpdateView");
             update_camera_view_system(camera, position, orientation);
         });
 
     ecs.observer<Camera3d, const Camera3dParameters>("UpdateCameraProjectionSystem")
         .event(flecs::OnSet)
         .each([](flecs::entity e, Camera3d &camera, const Camera3dParameters &parameters) {
+            VOXEL_ZONE_N("Camera-UpdateProjection");
             const auto* renderer = e.world().get<Renderer>();
             if (renderer) {
                 update_camera_projection_system(camera, parameters, *renderer);

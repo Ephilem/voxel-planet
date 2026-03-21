@@ -4,6 +4,7 @@
 
 #include "InputStateManager.h"
 
+#include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
 #include "platform/PlatformState.h"
 
@@ -82,6 +83,7 @@ void InputStateManager::Register(flecs::world &ecs) {
     ecs.system("CaptureInputSystem")
         .kind(flecs::OnLoad)
         .run([](flecs::iter& it) {
+            VOXEL_ZONE_N("InputStateManager-CaptureInput");
             auto* inputState = it.world().get_mut<InputState>();
             auto* platformState = it.world().get_mut<PlatformState>();
             if (inputState && platformState) {
@@ -92,6 +94,7 @@ void InputStateManager::Register(flecs::world &ecs) {
     ecs.system("UpdateActionStatesSystem")
         .kind(flecs::PreUpdate)
         .run([](flecs::iter& it) {
+            VOXEL_ZONE_N("InputStateManager-UpdateAction");
             auto* inputState = it.world().get_mut<InputState>();
             auto* actionState = it.world().get_mut<InputActionState>();
             auto* platformState = it.world().get_mut<PlatformState>();

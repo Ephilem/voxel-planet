@@ -7,7 +7,12 @@
 #include <stdexcept>
 #include <vulkan/vulkan.hpp>
 
+#include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
+#include "renderer/rendering_components.h"
+
+#define VMA_IMPLEMENTATION
+#include <vk_mem_alloc.h>
 
 VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
@@ -93,6 +98,55 @@ VulkanBackend::VulkanBackend(GLFWwindow *window, RenderParameters renderParamete
 
     init_nvrhi();
     create_swapchain();
+
+    // init vma for precise buffer manipulation (instead of using nvrhi buffers for everything)
+    VmaAllocatorCreateInfo allocatorCreateInfo{};
+    allocatorCreateInfo.physicalDevice = vkDevice.physical_device;
+    allocatorCreateInfo.device = vkDevice.device;
+    allocatorCreateInfo.instance = instance;
+    allocatorCreateInfo.vulkanApiVersion = VK_API_VERSION_1_3;
+    if (vmaCreateAllocator(&allocatorCreateInfo, &m_vmaAllocator) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create VMA allocator");
+    }
+
+#ifdef TRACY_ENABLE
+    // Init tracy for vulkan
+    VkCommandPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.queueFamilyIndex = vkDevice.get_queue_index(vkb::QueueType::graphics).value();
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    VkCommandPool initPool;
+    vkCreateCommandPool(vkDevice.device, &poolInfo, nullptr, &initPool);
+
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool = initPool;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandBufferCount = 1;
+    VkCommandBuffer initCmd;
+    vkAllocateCommandBuffers(vkDevice.device, &allocInfo, &initCmd);
+
+    auto pfnGetPhysicalDeviceCalibrateableTimeDomains =
+          (PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT)
+          vkGetInstanceProcAddr(instance.instance, "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT");
+
+    auto pfnGetCalibratedTimestamps =
+        (PFN_vkGetCalibratedTimestampsEXT)
+        vkGetDeviceProcAddr(vkDevice.device, "vkGetCalibratedTimestampsEXT");
+
+    tracyVkCtx = TracyVkContextCalibrated(
+        vkDevice.physical_device,
+        vkDevice.device,
+        graphicsQueue,
+        initCmd,
+        pfnGetPhysicalDeviceCalibrateableTimeDomains,
+        pfnGetCalibratedTimestamps
+    );
+
+    vkFreeCommandBuffers(vkDevice.device, initPool, 1, &initCmd);
+    vkDestroyCommandPool(vkDevice.device, initPool, nullptr);
+#endif
+
     init_syncs();
 
     m_commandLists.resize(MAX_FRAMES_IN_FLIGHT);
@@ -106,6 +160,13 @@ VulkanBackend::~VulkanBackend() {
         m_framesInFlight.pop();
         device->waitEventQuery(query);
     }
+
+#ifdef TRACY_ENABLE
+    if (tracyVkCtx) {
+        TracyVkDestroy(tracyVkCtx)
+        tracyVkCtx = nullptr;
+    }
+#endif
 
     if (device) {
         device->waitForIdle();
@@ -149,6 +210,9 @@ void VulkanBackend::init_nvrhi() {
     auto physicalDevice_ret = selector
         .set_surface(surface)
         .set_minimum_version(1, 3)
+#ifdef TRACY_ENABLE
+        .add_required_extension(VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME)
+#endif
         .select();
 
     if (!physicalDevice_ret) {
@@ -220,10 +284,11 @@ void VulkanBackend::init_nvrhi() {
 }
 
 void VulkanBackend::create_swapchain() {
+    VOXEL_ZONE_N("Create Swapchain");
     vkb::SwapchainBuilder builder{ vkDevice.physical_device, vkDevice.device, surface };
     auto swapchain_ret = builder
         .set_desired_format({ VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR })
-        .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
+        .set_desired_present_mode(VK_PRESENT_MODE_MAILBOX_KHR)
         .set_desired_extent(renderParameters.width, renderParameters.height)
         .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
         .build();
@@ -288,6 +353,7 @@ void VulkanBackend::create_swapchain() {
 }
 
 void VulkanBackend::destroy_swapchain() {
+    VOXEL_ZONE_N("Destroy Swapchain");
     if (device) {
         device->waitForIdle();
     }
@@ -313,6 +379,7 @@ void VulkanBackend::destroy_swapchain() {
 }
 
 void VulkanBackend::recreate_swapchain() {
+    VOXEL_ZONE_N("Recreate Swapchain");
     destroy_swapchain();
     create_swapchain();
 }
@@ -351,6 +418,7 @@ bool VulkanBackend::begin_frame(nvrhi::CommandListHandle &out_currentCommandList
 
     // Check if resize has finished (no resize events for 150ms)
     if (m_isResizing) {
+        VOXEL_MESSAGE("Manage Resizing");
         auto now = std::chrono::steady_clock::now();
         auto timeSinceResize = std::chrono::duration_cast<std::chrono::milliseconds>(
             now - m_lastResizeTime).count();
@@ -363,6 +431,7 @@ bool VulkanBackend::begin_frame(nvrhi::CommandListHandle &out_currentCommandList
 
     // Skip swapchain recreation during active resize to avoid stutter
     if (m_swapchainDirty && !m_isResizing) {
+        VOXEL_MESSAGE("Swapchain was dirty. Recreate the swapchain");
         recreate_swapchain();
         m_swapchainDirty = false;
     }
@@ -375,6 +444,7 @@ bool VulkanBackend::begin_frame(nvrhi::CommandListHandle &out_currentCommandList
     VkResult result;
     int const maxAttempts = 3;
     for (int attempt = 0; attempt < maxAttempts; ++attempt) {
+        VOXEL_ZONE_N("Try Acquire Next Image");
         result = vkAcquireNextImageKHR(vkDevice,
             m_swapchain,
             UINT64_MAX,
@@ -410,6 +480,7 @@ bool VulkanBackend::begin_frame(nvrhi::CommandListHandle &out_currentCommandList
     if (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR) {
         // Schedule the wait. The actual wait operation will be submitted when the app executes any command list!
         // In the swap chain acquire flow, this line tells NVRHI: "Before executing any commands on the Graphics queue, wait for this semaphore to be signaled."
+        VOXEL_ZONE_N("Wait for the image semaphore");
         device->queueWaitForSemaphore(nvrhi::CommandQueue::Graphics, semaphore, 0);
         return true;
     }
@@ -418,23 +489,34 @@ bool VulkanBackend::begin_frame(nvrhi::CommandListHandle &out_currentCommandList
 }
 
 bool VulkanBackend::present() {
+    VOXEL_ZONE_N("Present");
     const auto& semaphore = m_presentSemaphores[m_imageIndex];
 
     // This will signal the semaphore when all prior commands on the Graphics queue have completed
-    device->queueSignalSemaphore(nvrhi::CommandQueue::Graphics, semaphore, 0);
+    {
+        VOXEL_ZONE_N("Signal present semaphore");
+        device->queueSignalSemaphore(nvrhi::CommandQueue::Graphics, semaphore, 0);
+    }
 
-    device->executeCommandLists(nullptr, 0);
+    {
+        VOXEL_ZONE_N("Execute empty command list");
+        // Execute an empty command list to ensure the signal happens after all previous work. This is needed on some platforms (e.g. Linux with NVIDIA drivers) where queueSignalSemaphore doesn't wait for previously submitted work, even if the semaphore was scheduled with a wait in acquire next image.
+        device->executeCommandLists(nullptr, 0);
+    }
 
-    VkPresentInfoKHR presentInfo{};
-    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = &semaphore;
-    presentInfo.swapchainCount = 1;
-    presentInfo.pSwapchains = &m_swapchain.swapchain;
-    presentInfo.pImageIndices = &m_imageIndex;
-    VkResult result = vkQueuePresentKHR(presentQueue, &presentInfo);
-    if (!(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)) {
-        return false;
+    {
+        VOXEL_ZONE_N("Present the image");
+        VkPresentInfoKHR presentInfo{};
+        presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+        presentInfo.waitSemaphoreCount = 1;
+        presentInfo.pWaitSemaphores = &semaphore;
+        presentInfo.swapchainCount = 1;
+        presentInfo.pSwapchains = &m_swapchain.swapchain;
+        presentInfo.pImageIndices = &m_imageIndex;
+        VkResult result = vkQueuePresentKHR(presentQueue, &presentInfo);
+        if (!(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)) {
+            return false;
+        }
     }
 
     // On Linux with validation layers, explicitly sync with GPU to prevent memory buildup
@@ -442,6 +524,7 @@ bool VulkanBackend::present() {
 
     // Drain old frames before creating new query
     while (m_framesInFlight.size() >= MAX_FRAMES_IN_FLIGHT) {
+        VOXEL_ZONE_N("Drain old frame in flight");
         auto query = m_framesInFlight.front();
         m_framesInFlight.pop();
 
@@ -460,11 +543,17 @@ bool VulkanBackend::present() {
         query = device->createEventQuery();
     }
 
-    device->resetEventQuery(query);
-    device->setEventQuery(query, nvrhi::CommandQueue::Graphics);
-    m_framesInFlight.push(query);
+    {
+        VOXEL_ZONE_N("Reset and set event query for frame in flight tracking");
+        device->resetEventQuery(query);
+        device->setEventQuery(query, nvrhi::CommandQueue::Graphics);
+        m_framesInFlight.push(query);
+    }
 
-    device->runGarbageCollection();
+    {
+        VOXEL_ZONE_N("Run garbage collection");
+        device->runGarbageCollection();
+    }
 
     return true;
 }

@@ -22,6 +22,8 @@ add_library(VoxelPlanetCore STATIC
     main_components.h
         world/ChunkManager.cpp
         world/ChunkManager.h
+        math/frustrum.h
+        math/aabb.h
 )
 
 add_library(VoxelPlanet::Core ALIAS VoxelPlanetCore)

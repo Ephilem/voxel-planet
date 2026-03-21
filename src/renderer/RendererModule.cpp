@@ -12,14 +12,20 @@
 
 #include "Camera3dSystems.h"
 #include "rendering_components.h"
+#include "core/TracyIntegration.h"
 #include "world/SkyRenderer.h"
 #include "world/VoxelTerrainRenderer.h"
 #include "core/main_components.h"
 #include "core/world/world_components.h"
+#include "core/world/ChunkManager.h"
 #include "debug/ImGuiManager.h"
 #include "debug/LogConsole.h"
 #include "nvrhi/utils.h"
-#include "platform/inputs/input_state.h"
+
+
+#ifdef TRACY_ENABLE
+#include <tracy/TracyVulkan.hpp>
+#endif
 
 
 RendererModule::RendererModule(flecs::world& ecs) {
@@ -35,9 +41,10 @@ RendererModule::RendererModule(flecs::world& ecs) {
         .imguiManager = std::make_unique<ImGuiManager>(),
     });
 
-    ecs.system<Renderer>("BeginFrameSystem")
+    ecs.system<Renderer>("Renderer-BeginFrameSystem")
         .kind(flecs::PreStore)
         .each([](flecs::entity e, Renderer& renderer) {
+            VOXEL_ZONE_N("Renderer-BeginFrame");
             FrameContext& ctx = renderer.frameContext;
             ctx.frameActive = false;
 
@@ -53,13 +60,36 @@ RendererModule::RendererModule(flecs::world& ecs) {
             }
         });
 
-    // Initialize chunk meshes for any VoxelChunk that doesn't have a mesh yet
-    ecs.system<const VoxelChunk>("InitializeChunkMeshSystem")
+    ecs.system<const VoxelChunk, const ChunkCoordinate>("InitializeChunkMeshSystem")
         .kind(flecs::OnUpdate)
         .without<VoxelChunkMesh>()
-        .each([](flecs::entity e, const VoxelChunk& chunk) {
+        .each([](flecs::entity e, const VoxelChunk& chunk, const ChunkCoordinate& coord) {
+            VOXEL_ZONE_N("Initialize Chunk in Renderer");
             e.set<VoxelChunkMesh>({})
-             .add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
+             .add<VoxelChunkMeshState, voxel_chunk_mesh_state::WaitingForNeighbors>();
+
+            const auto* chunkManager = e.world().get<ChunkManager>();
+            if (!chunkManager) return;
+
+            static constexpr std::array<glm::ivec3, 6> neighborOffsets = {{
+                {1, 0, 0}, {-1, 0, 0},
+                {0, 1, 0}, {0, -1, 0},
+                {0, 0, 1}, {0, 0, -1}
+            }};
+
+            for (const auto& offset : neighborOffsets) {
+                glm::ivec3 neighborPos = glm::ivec3(coord) + offset;
+                flecs::entity neighbor = chunkManager->get_chunk_entity(neighborPos);
+                if (neighbor == flecs::entity::null() || !neighbor.has<VoxelChunkMesh>()) continue;
+
+                if (neighbor.has<VoxelChunkMeshState, voxel_chunk_mesh_state::WaitingForNeighbors>()) {
+                    if (chunkManager->can_mesh(neighborPos)) {
+                        neighbor.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
+                    }
+                } else {
+                    neighbor.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
+                }
+            }
         });
 
     SkyRenderer::Register(ecs);
@@ -72,12 +102,25 @@ RendererModule::RendererModule(flecs::world& ecs) {
     ecs.system<Renderer>("EndFrameSystem")
         .kind(flecs::PostFrame)
         .each([](flecs::entity e, Renderer& renderer) {
+            VOXEL_ZONE_N("Renderer-EndFrame");
             FrameContext& ctx = renderer.frameContext;
             if (!ctx.frameActive || !ctx.commandList) return;
 
-            ctx.commandList->close();
-            nvrhi::CommandListHandle cmdList = ctx.commandList;
-            renderer.backend->device->executeCommandLists(&cmdList, 1);
+#ifdef TRACY_ENABLE
+            if (renderer.backend->tracyVkCtx) {
+                VkCommandBuffer vkCmd = static_cast<VkCommandBuffer>(
+                    ctx.commandList->getNativeObject(nvrhi::ObjectTypes::VK_CommandBuffer)
+                );
+                TracyVkCollect(renderer.backend->tracyVkCtx, vkCmd);
+            }
+#endif
+
+            {
+                VOXEL_ZONE_N("Run commands");
+                ctx.commandList->close();
+                nvrhi::CommandListHandle cmdList = ctx.commandList;
+                renderer.backend->device->executeCommandLists(&cmdList, 1);
+            }
 
             renderer.backend->present();
 
@@ -87,6 +130,7 @@ RendererModule::RendererModule(flecs::world& ecs) {
     ecs.observer<PlatformState>()
         .event<WindowResizeEvent>()
         .run([](flecs::iter& it) {
+            VOXEL_ZONE_N("PlatformModule-HandleResize");
             auto* evt = it.param<WindowResizeEvent>();
             auto* renderer = it.world().get_mut<Renderer>();
 

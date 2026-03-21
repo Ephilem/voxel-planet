@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdlib>
 #include <memory>
 #include <glm/glm.hpp>
 #include <unordered_map>
@@ -26,12 +27,18 @@ struct ChunkCoordinate : glm::ivec3 {
 
 struct ChunkLoader {
     glm::ivec3 lastVisitedChunk = glm::ivec3(INT32_MAX);
-    std::unordered_set<glm::ivec3, IVec3Hash> desiredChunks; // Set of chunk coordinates that should be loaded
     int loadRadius = 4;
     int unloadRadius = 6; // > loadRadius to avoid load/unload thrashing at boundaries
 
     [[nodiscard]] bool has_visited() const {
         return lastVisitedChunk != glm::ivec3(INT32_MAX);
+    }
+
+    [[nodiscard]] bool is_chunk_desired(const glm::ivec3& chunkPos) const {
+        glm::ivec3 rel = chunkPos - lastVisitedChunk;
+        return std::abs(rel.x) <= loadRadius &&
+               std::abs(rel.y) <= loadRadius &&
+               std::abs(rel.z) <= loadRadius;
     }
 };
 

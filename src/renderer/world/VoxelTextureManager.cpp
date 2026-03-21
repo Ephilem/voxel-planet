@@ -6,8 +6,10 @@
 
 #include <nvrhi/vulkan.h>
 #include "core/GameState.h"
+#include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
 #include "renderer/Renderer.h"
+#include "renderer/TracyVulkanIntegration.h"
 
 VoxelTextureManager::VoxelTextureManager(VulkanBackend* backend, ResourceSystem* resourceSystem) {
     m_backend = backend;
@@ -52,6 +54,7 @@ void VoxelTextureManager::Register(flecs::world &ecs) {
         .kind(flecs::PreStore)
         .each([textureManager](flecs::entity e, Renderer& renderer) {
             auto* gameState = e.world().get<GameState>();
+            VOXEL_ZONE_N("VoxelTextureManager-UploadPendingTextures");
             textureManager->upload_pending_textures_system(renderer, gameState->resourceSystem.get());
         });
 }
@@ -255,12 +258,17 @@ void VoxelTextureManager::upload_pending_textures_system(Renderer &renderer, Res
 
           // upload mip level 0
           constexpr size_t rowPitch = 32 * 4;
-          cmd->writeTexture(m_textureArray, slotIndex, 0,
-                           textureRes->get_data(), rowPitch);
+          {
+              VOXEL_VK_NVRHI_ZONE(renderer.backend->tracyVkCtx, cmd, "Upload texture");
+              cmd->writeTexture(m_textureArray, slotIndex, 0,
+                               textureRes->get_data(), rowPitch);
+          }
           LOG_DEBUG("VoxelTextureManager", "Uploaded texture {} to slot {}",
                     assetIdStr, slotIndex);
-
-          generate_mipmaps(cmd, slotIndex);
+          {
+              VOXEL_VK_NVRHI_ZONE(renderer.backend->tracyVkCtx, cmd, "Generate Mipmaps");
+              generate_mipmaps(cmd, slotIndex);
+          }
 
           LOG_DEBUG("VoxelTextureManager", "Generated mipmaps for slot {}", slotIndex);
 

@@ -2,12 +2,14 @@
 #include "imgui.h"
 #include "../../core/main_components.h"
 #include "../rendering_components.h"
+#include "core/TracyIntegration.h"
 
 void WorldF3Info::register_ecs(flecs::world &ecs) {
     ecs.system<const Camera3d, const Position, const Orientation>("WorldF3Info-DisplaySystem")
         .kind(flecs::PreStore)
         .each([this](flecs::iter& it, size_t, const Camera3d& camera, const Position& position, const Orientation& orientation) {
             if (!this->m_visible) return;
+            VOXEL_ZONE_N("WorldF3Info-Display");
 
             ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration |
                                            ImGuiWindowFlags_AlwaysAutoResize |

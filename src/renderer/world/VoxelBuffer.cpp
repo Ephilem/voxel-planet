@@ -5,6 +5,7 @@
 #include "VoxelBuffer.h"
 #include "../rendering_components.h"
 #include "core/log/Logger.h"
+#include "renderer/TracyVulkanIntegration.h"
 
 VoxelBuffer::VoxelBuffer(VulkanBackend* backend) {
     this->m_backend = backend;
@@ -164,6 +165,11 @@ bool VoxelBuffer::allocate(VoxelChunkMesh& mesh) {
     if (!m_freeDrawSlots.empty()) {
         drawSlot = m_freeDrawSlots.back();
         m_freeDrawSlots.pop_back();
+        // Prevent cleanup_freed_draw_slots to overwrite with instanceCount=0 in the same frame.
+        auto it = std::find(m_freedPendingDrawSlots.begin(), m_freedPendingDrawSlots.end(), drawSlot);
+        if (it != m_freedPendingDrawSlots.end()) {
+            m_freedPendingDrawSlots.erase(it);
+        }
     } else {
         drawSlot = m_nextDrawSlot++;
     }
@@ -173,54 +179,29 @@ bool VoxelBuffer::allocate(VoxelChunkMesh& mesh) {
     return true;
 }
 
-void VoxelBuffer::write(nvrhi::CommandListHandle cmd, VoxelChunkMesh& mesh, const TerrainOUB& oub) {
-    if (!mesh.is_allocated()) {
-        LOG_ERROR("VoxelBuffer", "Cannot write unallocated mesh to buffer");
-        return;
+bool VoxelBuffer::reallocate(VoxelChunkMesh& mesh) {
+    // Free the old face region regardless of new size
+    if (mesh.faceRegionStart != UINT32_MAX) {
+        free_regions(m_freeFaceRegions, mesh.faceRegionStart, mesh.faceRegionCount);
+        mesh.faceRegionStart = UINT32_MAX;
+        mesh.faceRegionCount = 0;
     }
 
+    // Empty mesh: no face region needed. write() will zero the indirect args.
     if (mesh.faceCount == 0) {
-        return;
+        return true;
     }
 
-    cmd->setBufferState(m_facesBuffer, nvrhi::ResourceStates::CopyDest);
-
-    // Write faces
-    uint64_t faceByteOffset = mesh.faceRegionStart * FACES_REGION_SIZE;
-    cmd->writeBuffer(m_facesBuffer, mesh.faces.data(),
-                     sizeof(TerrainFace3d) * mesh.faceCount, faceByteOffset);
-
-    cmd->setBufferState(m_facesBuffer, nvrhi::ResourceStates::ShaderResource);
-
-    // Write OUB
-    uint64_t oubByteOffset = mesh.drawSlotIndex * sizeof(TerrainOUB);
-    cmd->writeBuffer(m_oubBuffer, &oub, sizeof(TerrainOUB), oubByteOffset);
-
-    // Write Indirect Args
-    auto args = nvrhi::DrawIndirectArguments()
-            // .setIndexCount(mesh.faceCount * INDICES_PER_QUAD)
-            // .setStartIndexLocation(0)
-            .setVertexCount(mesh.faceCount * VERTICES_PER_QUAD)
-            .setStartVertexLocation(mesh.faceRegionStart * FACES_PER_REGION * VERTICES_PER_QUAD)
-            .setInstanceCount(1)
-            .setStartInstanceLocation(mesh.drawSlotIndex);  // Draw ID for gl_BaseInstance
-
-    uint64_t indirectByteOffset = mesh.drawSlotIndex * sizeof(nvrhi::DrawIndirectArguments);
-    cmd->writeBuffer(m_indirectBuffer, &args, sizeof(nvrhi::DrawIndirectArguments), indirectByteOffset);
-}
-
-void VoxelBuffer::cleanup_freed_draw_slots(nvrhi::CommandListHandle cmd) {
-    for (uint32_t drawSlot : m_freedPendingDrawSlots) {
-        auto args = nvrhi::DrawIndirectArguments()
-                // .setBaseVertexLocation(0)
-                // .setIndexCount(0)
-                // .setStartIndexLocation(0)
-                .setInstanceCount(0)
-                .setStartInstanceLocation(0);
-        uint64_t indirectByteOffset = drawSlot * sizeof(nvrhi::DrawIndirectArguments);
-        cmd->writeBuffer(m_indirectBuffer, &args, sizeof(nvrhi::DrawIndirectArguments), indirectByteOffset);
+    uint32_t faceRegionsNeeded = (mesh.faceCount + FACES_PER_REGION - 1) / FACES_PER_REGION;
+    uint32_t faceStart;
+    if (!allocate_regions(m_freeFaceRegions, faceRegionsNeeded, faceStart)) {
+        return false;
     }
-    m_freedPendingDrawSlots.clear();
+
+    mesh.faceRegionStart = faceStart;
+    mesh.faceRegionCount = faceRegionsNeeded;
+
+    return true;
 }
 
 void VoxelBuffer::free(VoxelChunkMesh& mesh) {
@@ -235,6 +216,7 @@ void VoxelBuffer::free(VoxelChunkMesh& mesh) {
 
     mesh.faceRegionStart = UINT32_MAX;
     mesh.faceRegionCount = 0;
+    mesh.drawSlotIndex = UINT32_MAX;
 }
 
 uint32_t VoxelBuffer::get_used_face_regions() const {

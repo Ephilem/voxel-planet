@@ -6,6 +6,8 @@
 #include <iomanip>
 #include <sstream>
 
+#include "core/TracyIntegration.h"
+
 LogConsole::LogConsole() {
     // Register as a sink to receive log messages
     m_sinkId = vp::Logger::addSink([this](const vp::Logger::LogEntry& entry) {
@@ -53,6 +55,7 @@ void LogConsole::register_ecs(flecs::world &ecs) {
     ecs.system<Renderer>("ImGuiDebugLogConsole")
         .kind(flecs::PreStore)
         .each([this](flecs::entity e, Renderer& renderer) {
+            VOXEL_ZONE_N("LogConsole-Draw");
             if (renderer.debugModuleManager) {
                 this->draw();
             }

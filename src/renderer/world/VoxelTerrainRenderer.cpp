@@ -15,6 +15,7 @@
 
 #include "VoxelChunkMesher.h"
 #include "VoxelTextureManager.h"
+#include "renderer/TracyVulkanIntegration.h"
 
 VoxelTerrainRenderer::VoxelTerrainRenderer(VulkanBackend *backend, ResourceSystem *resourceSystem, VoxelTextureManager* textureManager) {
     m_textureManager = textureManager;
@@ -115,12 +116,15 @@ void VoxelTerrainRenderer::init() {
             .addBindingLayout(m_faceBufferBindingLayout) // Set 2 - face buffer
             .addBindingLayout(m_textureManager->get_binding_layout()); // Set 3 - texture array
     m_pipeline = m_backend->device->createGraphicsPipeline(pipelineDesc, framebufferInfo);
+
+    m_meshUploader.init(m_backend);
 }
 
 void VoxelTerrainRenderer::destroy() {
     m_backend->device->waitForIdle();
     m_chunkBuffers.clear();
     m_chunkBufferBindingSets.clear();
+    m_meshUploader.destroy();
     m_pipeline = nullptr;
     m_pixelShader = nullptr;
     m_vertexShader = nullptr;
@@ -173,13 +177,13 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
             .kind(flecs::PreStore)
             .with<VoxelChunkMeshState, voxel_chunk_mesh_state::ReadyForUpload>()
             .each([voxelRenderer](flecs::entity e, VoxelChunkMesh &mesh, const Position& pos) {
+                VOXEL_ZONE_N("VoxelTerrainRenderer-UploadChunkMesh");
                 const auto *renderer = e.world().get<Renderer>();
                 if (!renderer) {
                     LOG_ERROR("VoxelTerrainRenderer", "Can't upload chunk mesh, Renderer not found in ECS");
                     return;
                 }
-                auto &commandList = renderer->frameContext.commandList;
-                voxelRenderer->upload_chunk_mesh_system(commandList, mesh, pos);
+                voxelRenderer->upload_chunk_mesh_system(renderer, mesh, pos);
                 e.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Clean>();
             });
 
@@ -187,6 +191,7 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
             .kind(flecs::OnStore)
             .each([voxelRenderer](flecs::entity e, Renderer &renderer) {
                 if (!renderer.frameContext.frameActive) return;
+                VOXEL_ZONE_N("VoxelTerrainRenderer-Render");
                 e.world().each<Camera3d>([&](flecs::entity cam_entity, Camera3d &camera) {
                     voxelRenderer->render(renderer.frameContext.commandList, camera, *renderer.backend);
                 });
@@ -195,19 +200,53 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
     ecs.observer<VoxelChunkMesh>("VoxelTerrainRenderer-CleanupVoxelChunkMesh")
             .event(flecs::OnRemove)
             .each([voxelRenderer](flecs::entity e, VoxelChunkMesh &mesh) {
+                VOXEL_ZONE_N("TerrainRenderer-CleanupChunkMesh")
                 if (mesh.is_allocated() && !voxelRenderer->m_chunkBuffers.empty()) {
                     int bufferIndex = mesh.bufferIndex;
+                    voxelRenderer->m_meshUploader.enqueue_free(mesh.drawSlotIndex, &voxelRenderer->m_chunkBuffers[bufferIndex]);
                     voxelRenderer->m_chunkBuffers[bufferIndex].free(mesh);
                 }
             });
 
 }
 
-bool VoxelTerrainRenderer::upload_chunk_mesh_system(nvrhi::CommandListHandle cmd, VoxelChunkMesh &mesh, const Position &pos) {
+bool VoxelTerrainRenderer::upload_chunk_mesh_system(const Renderer *renderer, VoxelChunkMesh &mesh, const Position &pos) {
+    auto &commandList = renderer->frameContext.commandList;
+    VOXEL_VK_NVRHI_ZONE(renderer->backend->tracyVkCtx, commandList, "GPU Upload Chunk Meshes");
     // TODO use the buffer with the position
     bool uploaded = false;
     if (m_chunkBuffers.empty()) {
         create_buffer();
+    }
+
+    // Mesh already has a draw slot, just reallocate face regions in the same buffer
+    if (mesh.is_allocated()) {
+        int oldBufferIndex = mesh.bufferIndex;
+        if (oldBufferIndex >= 0 && oldBufferIndex < static_cast<int>(m_chunkBuffers.size())) {
+            VoxelBuffer& buffer = m_chunkBuffers[oldBufferIndex];
+            uint32_t oldRegionStart = mesh.faceRegionStart;
+            if (buffer.reallocate(mesh)) {
+                // Stage-4 probe: log remesh uploads
+                // LOG_DEBUG("VoxelTerrainRenderer", "[UPLOAD remesh] ({:.0f},{:.0f},{:.0f}) faces={} slot={} region:{}->{} ",
+                          // pos.x, pos.y, pos.z, mesh.faceCount, mesh.drawSlotIndex, oldRegionStart, mesh.faceRegionStart);
+                TerrainOUB oub = {
+                    .model = {
+                        1.0f, 0.0f, 0.0f, 0.0f,
+                        0.0f, 1.0f, 0.0f, 0.0f,
+                        0.0f, 0.0f, 1.0f, 0.0f,
+                        pos.x, pos.y, pos.z, 1.0f
+                    }
+                };
+                m_meshUploader.enqueue(mesh, oub, &buffer);
+                return true;
+            }
+            LOG_WARN("VoxelTerrainRenderer", "[UPLOAD remesh FALLBACK] ({:.0f},{:.0f},{:.0f}) reallocate failed, doing free+alloc",
+                     pos.x, pos.y, pos.z);
+            // If reallocate failed (fragmentation), fall through to try other buffers
+            // But first free the draw slot since we'll allocate fresh
+            buffer.free(mesh);
+            // TODO check if we need to deallocate in the gpu also... (double draw?)
+        }
     }
 
     for (size_t i = 0; i < m_chunkBuffers.size() && !uploaded; i++) {
@@ -226,14 +265,14 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(nvrhi::CommandListHandle cmd
                 pos.x, pos.y, pos.z, 1.0f  // column 3 (translation)
             }
         };
-        buffer.write(cmd, mesh, oub);
+        m_meshUploader.enqueue(mesh, oub, &buffer);
         uploaded = true;
     }
 
     if (!uploaded) {
         LOG_WARN("VoxelTerrainRenderer", "Can't upload chunk mesh, creating new buffer");
         create_buffer();
-        upload_chunk_mesh_system(cmd, mesh, pos);
+        upload_chunk_mesh_system(renderer, mesh, pos);
     }
 
     return true;
@@ -241,17 +280,15 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(nvrhi::CommandListHandle cmd
 
 void VoxelTerrainRenderer::render(nvrhi::CommandListHandle commandList, Camera3d &camera, VulkanBackend &backend) {
 
-
     if (camera.viewMatrix != m_ubo.view)
         m_ubo.view = camera.viewMatrix;
     if (camera.projectionMatrix != m_ubo.projection)
         m_ubo.projection = camera.projectionMatrix;
 
 
-    // Before rendering, clean up freed draw slots
-    for (auto& chunkBuffer : m_chunkBuffers) {
-        chunkBuffer.cleanup_freed_draw_slots(commandList);
-    }
+    // Before rendering, flush upload batcher to ensure all pending uploads are executed
+    auto* vkCmdBuf = static_cast<VkCommandBuffer>(commandList->getNativeObject(nvrhi::ObjectTypes::VK_CommandBuffer));
+    m_meshUploader.flush(vkCmdBuf); // execute upload commands
 
     commandList->writeBuffer(
         m_uboBuffer,
@@ -259,26 +296,29 @@ void VoxelTerrainRenderer::render(nvrhi::CommandListHandle commandList, Camera3d
 
     auto extent = m_backend->get_swapchain_extent();
 
-    int i = 0;
-    for (auto& chunkBuffer : m_chunkBuffers) {
-        auto& bufferBindingSet = m_chunkBufferBindingSets[i];
+    {
+        VOXEL_VK_NVRHI_ZONE(backend.tracyVkCtx, commandList, "GPU Draw Terrain Buffer");
+        int i = 0;
+        for (auto& chunkBuffer : m_chunkBuffers) {
+            auto& bufferBindingSet = m_chunkBufferBindingSets[i];
 
-        auto graphicsState = nvrhi::GraphicsState()
-                .setPipeline(m_pipeline)
-                .setViewport(nvrhi::ViewportState().addViewportAndScissorRect(nvrhi::Viewport(extent.width, extent.height)))
-                .setFramebuffer(m_backend->get_current_framebuffer())
-                .addBindingSet(m_frameBindingSet)    // Set 0: Per-frame data (camera)
-                .addBindingSet(bufferBindingSet)     // Set 1: Per-buffer data (chunks)
-                .addBindingSet(m_chunkFaceBindingSets[i]) // Set 2: face buffer
-                .addBindingSet(m_textureManager->get_binding_set()) // Set 3: texture array
-                .setIndirectParams(chunkBuffer.get_indirect_buffer());
-        commandList->setGraphicsState(graphicsState);
+            auto graphicsState = nvrhi::GraphicsState()
+                    .setPipeline(m_pipeline)
+                    .setViewport(nvrhi::ViewportState().addViewportAndScissorRect(nvrhi::Viewport(extent.width, extent.height)))
+                    .setFramebuffer(m_backend->get_current_framebuffer())
+                    .addBindingSet(m_frameBindingSet)    // Set 0: Per-frame data (camera)
+                    .addBindingSet(bufferBindingSet)     // Set 1: Per-buffer data (chunks)
+                    .addBindingSet(m_chunkFaceBindingSets[i]) // Set 2: face buffer
+                    .addBindingSet(m_textureManager->get_binding_set()) // Set 3: texture array
+                    .setIndirectParams(chunkBuffer.get_indirect_buffer());
+            commandList->setGraphicsState(graphicsState);
 
-        uint32_t drawCount = chunkBuffer.get_draw_count();
-        if (drawCount > 0) {
-            commandList->drawIndirect(0, drawCount);
+            uint32_t drawCount = chunkBuffer.get_draw_count();
+            if (drawCount > 0) {
+                commandList->drawIndirect(0, drawCount);
+            }
+            i++;
         }
-        i++;
     }
 
     commandList->clearState();

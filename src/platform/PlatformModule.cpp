@@ -5,6 +5,7 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 
+#include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
 
 PlatformModule::PlatformModule(flecs::world& ecs) {
@@ -24,6 +25,7 @@ PlatformModule::PlatformModule(flecs::world& ecs) {
     ecs.system("PlatformUpdateSystem")
         .kind(flecs::PreUpdate)
         .run([](flecs::iter& it) {
+            VOXEL_ZONE_N("PlatformModule-Update");
             auto* gameState = it.world().get_mut<GameState>();
             auto* platform = it.world().get_mut<PlatformState>();
             if (!gameState || !platform || !platform->window) return;

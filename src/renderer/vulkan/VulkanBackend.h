@@ -1,5 +1,5 @@
 #pragma once
-#include <memory>
+
 #include <queue>
 #include <chrono>
 
@@ -9,9 +9,11 @@
 #include <nvrhi/nvrhi.h>
 #include <nvrhi/vulkan.h>
 
-#include "core/resource/ResourceSystem.h"
+#ifdef TRACY_ENABLE
+#include <tracy/TracyVulkan.hpp>
+#endif
 
-#define MAX_FRAMES_IN_FLIGHT 2
+#include "core/resource/ResourceSystem.h"
 
 typedef struct RenderParameters {
     uint32_t width;
@@ -21,6 +23,10 @@ typedef struct RenderParameters {
 class VulkanBackend {
 public:
     // ResourceSystem resourceSystem;
+
+#ifdef TRACY_ENABLE
+    tracy::VkCtx* tracyVkCtx = nullptr;
+#endif
 
     RenderParameters renderParameters;
 
@@ -55,6 +61,15 @@ public:
     nvrhi::TextureHandle get_current_texture() const { return m_swapchainTextures[m_imageIndex]; }
     VkExtent2D get_swapchain_extent() const { return m_swapchain.extent; }
 
+    VmaAllocator get_vma_allocator() const { return m_vmaAllocator; }
+
+    /**
+     * Index of the current frame in flight, mapped to MAX_FRAMES_IN_FLIGHT. This is used for syncing and command list management.
+     * Can be used for double/triple buffering logic in the renderer, but should not be used for indexing swapchain images directly, as the swapchain image index can be different from the frame in flight index.
+     * @return Index of the current frame in flight, mapped to MAX_FRAMES_IN_FLIGHT
+     */
+    uint32_t get_frame_in_flight_index() const { return m_commandListIndex; }
+
     void handle_resize(uint32_t width, uint32_t height);
 
 private:
@@ -69,6 +84,8 @@ private:
     uint32_t m_imageIndex;
     uint32_t m_acquiredSemaphoreIndex = 0;
     uint32_t m_commandListIndex = 0; // mapped to MAX_FRAMES_IN_FLIGHT
+
+    VmaAllocator m_vmaAllocator;
 
     bool m_windowVisible = true;
 

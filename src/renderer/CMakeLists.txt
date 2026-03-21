@@ -32,6 +32,9 @@ add_library(VoxelPlanetRenderer STATIC
         world/VoxelTextureManager.h
         world/VoxelChunkMesher.cpp
         world/VoxelChunkMesher.h
+        TracyVulkanIntegration.h
+        world/VoxelMeshUploadBatcher.cpp
+        world/VoxelMeshUploadBatcher.h
 )
 
 add_library(VoxelPlanet::Renderer ALIAS VoxelPlanetRenderer)
@@ -54,4 +57,5 @@ target_link_libraries(VoxelPlanetRenderer
         PRIVATE
             VoxelPlanet::Core
             VoxelPlanet::Platform
+            VoxelPlanet::Utils
 )

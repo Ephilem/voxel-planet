@@ -56,8 +56,7 @@ public:
 
     bool can_allocate(uint32_t faceCount);
     bool allocate(struct VoxelChunkMesh& mesh);
-    void write(nvrhi::CommandListHandle cmd, struct VoxelChunkMesh& mesh, const TerrainOUB& oub);
-    void cleanup_freed_draw_slots(nvrhi::CommandListHandle cmd);
+    bool reallocate(struct VoxelChunkMesh& mesh);
     void free(struct VoxelChunkMesh& mesh);
 
     nvrhi::BufferHandle get_faces_buffer() const { return m_facesBuffer; }
@@ -70,5 +69,5 @@ public:
 
     uint32_t get_used_face_regions() const;
     uint32_t get_largest_free_face_block() const;
-    uint32_t get_draw_count() const { return m_nextDrawSlot - static_cast<uint32_t>(m_freeDrawSlots.size()); }
+    uint32_t get_draw_count() const { return m_nextDrawSlot; }
 };

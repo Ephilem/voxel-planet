@@ -4,8 +4,11 @@
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 
+#include "core/TracyIntegration.h"
 #include "platform/PlatformState.h"
 #include "renderer/Renderer.h"
+#include "renderer/rendering_components.h"
+#include "renderer/TracyVulkanIntegration.h"
 #include "renderer/vulkan/VulkanBackend.h"
 
 ImGuiManager::~ImGuiManager() {
@@ -51,7 +54,6 @@ void ImGuiManager::init(GLFWwindow* window, VulkanBackend* backend) {
 
     ImGui_ImplGlfw_InitForVulkan(window, true);
 
-    // Use Dynamic Rendering (Vulkan 1.3+) - no render pass needed!
     ImGui_ImplVulkan_InitInfo initInfo {};
     initInfo.Instance = backend->instance;
     initInfo.PhysicalDevice = backend->vkDevice.physical_device;
@@ -66,7 +68,6 @@ void ImGuiManager::init(GLFWwindow* window, VulkanBackend* backend) {
     initInfo.Allocator = nullptr;
     initInfo.CheckVkResultFn = nullptr;
 
-    // Dynamic rendering setup - no VkRenderPass!
     initInfo.UseDynamicRendering = true;
     initInfo.PipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
     initInfo.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
@@ -153,6 +154,7 @@ void ImGuiManager::Register(flecs::world& ecs) {
     ecs.system<Renderer>("BeginImGuiFrameSystem")
         .kind(flecs::OnLoad)
         .each([](flecs::entity e, Renderer& renderer) {
+            VOXEL_ZONE_N("ImGuiManager-BeginFrame");
             if (renderer.imguiManager) {
                 renderer.imguiManager->begin_frame();
             }
@@ -163,7 +165,9 @@ void ImGuiManager::Register(flecs::world& ecs) {
     ecs.system<Renderer>("RenderImGuiSystem")
         .kind(flecs::OnStore)
         .each([](flecs::entity e, Renderer& renderer) {
+            VOXEL_ZONE_N("ImGuiManager-Render");
             auto& ctx = renderer.frameContext;
+            VOXEL_VK_NVRHI_ZONE(renderer.backend->tracyVkCtx, ctx.commandList, "RenderImGui-Render");
             if (!ctx.frameActive || !ctx.commandList) {
                 // need to close the begin frame first
                 ImGui::EndFrame();

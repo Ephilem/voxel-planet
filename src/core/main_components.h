@@ -15,5 +15,18 @@ struct Orientation {
 
     Orientation(float p = 0, float y = 0, float r = 0) : vec(p, y, r) {}
 
+    glm::vec3 forward() const {
+        float cosPitch = cos(glm::radians(pitch));
+        float sinPitch = sin(glm::radians(pitch));
+        float cosYaw = cos(glm::radians(yaw));
+        float sinYaw = sin(glm::radians(yaw));
+
+        return {
+            cosPitch * sinYaw,
+            -sinPitch,
+            cosPitch * cosYaw
+        };
+    }
+
     operator glm::vec3() const { return vec; }
 };
