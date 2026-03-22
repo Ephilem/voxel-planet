@@ -14,6 +14,8 @@ add_library(VoxelPlanetClient STATIC
         debug/renderer/VoxelBufferVisualizer.cpp
         debug/entities/PlayerPanel.cpp
         debug/entities/PlayerPanel.h
+        debug/world/ChunkManagerPanel.cpp
+        debug/world/ChunkManagerPanel.h
 )
 
 add_library(VoxelPlanet::Client ALIAS VoxelPlanetClient)

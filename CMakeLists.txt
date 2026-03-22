@@ -175,6 +175,20 @@ target_include_directories(imgui PUBLIC
 target_link_libraries(imgui PUBLIC glfw Vulkan::Vulkan)
 
 FetchContent_Declare(
+        implot
+        GIT_REPOSITORY https://github.com/epezent/implot.git
+        GIT_TAG v0.17
+)
+FetchContent_MakeAvailable(implot)
+
+add_library(implot STATIC
+        ${implot_SOURCE_DIR}/implot.cpp
+        ${implot_SOURCE_DIR}/implot_items.cpp
+)
+target_include_directories(implot PUBLIC ${implot_SOURCE_DIR})
+target_link_libraries(implot PUBLIC imgui)
+
+FetchContent_Declare(
         nvrhi
         GIT_REPOSITORY https://github.com/NVIDIA-RTX/NVRHI.git
         GIT_TAG 2ac4b58c355f53827c2e1d0740849ce4d09d5dd6
@@ -255,6 +269,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         glm::glm
         flecs::flecs_static
         imgui
+        implot
         FastNoise2
         stb
 )

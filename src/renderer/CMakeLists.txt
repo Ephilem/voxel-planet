@@ -42,6 +42,7 @@ target_link_libraries(VoxelPlanetRenderer
             nvrhi_vk
             nvrhi
             imgui
+            implot
             flecs::flecs_static
         PRIVATE
             VoxelPlanet::Core

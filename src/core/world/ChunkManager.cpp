@@ -29,6 +29,29 @@ void ChunkManager::shutdown() {
     LOG_INFO("ChunkManager", "All generation worker threads shut down");
 }
 
+ChunkManagerStats ChunkManager::get_stats() const {
+    ChunkManagerStats stats{};
+    stats.loadedChunkCount = m_loadedChunks.size();
+    stats.loadingChunkCount = m_loadingChunks.size();
+    stats.emptyChunkCount = m_emptyChunks.size();
+    stats.candidateChunkCount = m_candidateHeap.size();
+    stats.unloadChunkCount = m_unloadQueue.size();
+
+    stats.chunksGenerated = m_chunksGenerated.load(std::memory_order_relaxed);
+    stats.chunksUnloaded = m_chunksUnloaded.load(std::memory_order_relaxed);
+
+    return stats;
+}
+
+ChunkState ChunkManager::get_chunk_state(const glm::ivec3& pos) const {
+    if (m_loadedChunks.contains(pos))   return ChunkState::Loaded;
+    if (m_emptyChunks.contains(pos))    return ChunkState::Empty;
+    if (m_loadingChunks.contains(pos))  return ChunkState::Loading;
+    if (m_inCandidateHeap.contains(pos)) return ChunkState::Candidate;
+    if (m_cancelledChunks.contains(pos)) return ChunkState::Cancelled;
+    return ChunkState::None;
+}
+
 void ChunkManager::init(flecs::world &ecs) {
     ecs.component<VoxelChunkState>()
             .add(flecs::Exclusive);
@@ -63,31 +86,6 @@ void ChunkManager::init(flecs::world &ecs) {
                 VOXEL_ZONE_N("ChunkManager-UnloadQueue");
                 process_unload_queue_system(it);
             });
-
-    // Debug UI
-    // ecs.system("ChunkManager-DebugInfo")
-    //         .kind(flecs::OnStore)
-    //         .run([this](flecs::iter &it) {
-    //             VOXEL_ZONE_N("ChunkManager-DebugInfo");
-    //             ImGui::Begin("Chunk Debug");
-    //             ImGui::Text("Loading: %zu", m_loadingChunks.size());
-    //             ImGui::Text("Loaded: %zu", m_loadedChunks.size());
-    //             ImGui::Text("Empty: %zu", m_emptyChunks.size());
-    //             ImGui::Text("Cancelled: %zu", m_cancelledChunks.size());
-    //             ImGui::Text("Unload Queue: %zu", m_unloadQueue.size());
-    //             {
-    //                 std::lock_guard lock(m_generationMutex);
-    //                 ImGui::Text("Generation Queue: %zu", m_generationQueue.size());
-    //             }
-    //             ImGui::Text("Candidate Heap: %zu", m_candidateHeap.size());
-    //             {
-    //                 int pending = 0;
-    //                 for (const auto& wr : m_workerResults)
-    //                     pending += wr->pendingCount.load(std::memory_order_relaxed);
-    //                 ImGui::Text("Results Pending: %d", pending);
-    //             }
-    //             ImGui::End();
-    //         });
 
     // init threads
     size_t numThreads = std::max(1u, std::thread::hardware_concurrency()/2);
@@ -333,6 +331,7 @@ void ChunkManager::process_unload_queue_system(flecs::iter &it) {
             }
         }
     }
+    m_chunksUnloaded.fetch_add(chunksUnloaded, std::memory_order_relaxed);
 }
 
 bool ChunkManager::is_chunk_still_needed(const glm::ivec3 &chunkPos, const flecs::world &world) const {
@@ -381,6 +380,7 @@ void ChunkManager::poll_generation_results_system(flecs::iter &it) {
         } else {
             m_emptyChunks.insert(result.chunkCoord);
         }
+        m_chunksGenerated.fetch_add(1, std::memory_order_relaxed);
     }
 }
 

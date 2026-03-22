@@ -3,6 +3,7 @@
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
+#include <implot.h>
 
 #include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
@@ -48,6 +49,7 @@ void ImGuiManager::init(GLFWwindow* window, VulkanBackend* backend) {
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    ImPlot::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
@@ -86,6 +88,7 @@ void ImGuiManager::shutdown() {
         throw std::runtime_error("Failed to wait device idle in ImGui shutdown!");
     }
 
+    ImPlot::DestroyContext();
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
