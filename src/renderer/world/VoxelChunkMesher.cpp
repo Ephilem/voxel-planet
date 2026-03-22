@@ -83,15 +83,15 @@ void VoxelChunkMesher::init(flecs::world &ecs) {
                 poll_meshing_results_system(it);
             });
 
-    ecs.system("VoxelChunkMesher-DebugInfo")
-            .kind(flecs::OnStore)
-            .run([this](flecs::iter &it) {
-                VOXEL_ZONE_N("Mesher-Debug");
-                ImGui::Begin("Voxel Chunk Mesher");
-                ImGui::Text("Pending Tasks: %zu", pending_count());
-                ImGui::Text("Completed Results: %zu", completed_count());
-                ImGui::End();
-            });
+    // ecs.system("VoxelChunkMesher-DebugInfo")
+    //         .kind(flecs::OnStore)
+    //         .run([this](flecs::iter &it) {
+    //             VOXEL_ZONE_N("Mesher-Debug");
+    //             ImGui::Begin("Voxel Chunk Mesher");
+    //             ImGui::Text("Pending Tasks: %zu", pending_count());
+    //             ImGui::Text("Completed Results: %zu", completed_count());
+    //             ImGui::End();
+    //         });
 
     ecs.system<Camera3d, const Position, const Orientation>("VoxelChunkMesher-UpdateFrustum")
             .kind(flecs::PreUpdate)

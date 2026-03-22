@@ -1,11 +1,17 @@
-#include "WorldF3Info.h"
+#include "WorldInfo.h"
 
 #include "imgui.h"
 #include "core/main_components.h"
 #include "renderer/rendering_components.h"
 #include "core/TracyIntegration.h"
 
-void WorldF3Info::render(flecs::world& ecs) {
+void WorldInfo::pre_render() {
+    ImGuiIO& io = ImGui::GetIO();
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 10, 25), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+    ImGui::SetNextWindowBgAlpha(0.35f);
+}
+
+void WorldInfo::render(flecs::world& ecs) {
     VOXEL_ZONE_N("WorldF3Info-Display");
 
     ecs.each([](const Camera3d& camera, const Position& position, const Orientation& orientation) {

@@ -9,6 +9,8 @@ public:
     const std::string name() const override { return "Voxel Buffer Visualizer"; }
     const std::string category() const override { return "Memory"; }
 
+
+
 private:
     void draw(VoxelTerrainRenderer* voxelRenderer);
     void draw_memory_map(VoxelTerrainRenderer* voxelRenderer, float width, float height);

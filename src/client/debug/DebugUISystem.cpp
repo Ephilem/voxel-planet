@@ -59,8 +59,10 @@ void DebugUISystem::render_panels(flecs::world& ecs) {
     for (auto& panel : m_panels) {
         if (!panel->is_visible) continue;
 
-        if (ImGui::Begin(panel->name().c_str(), &panel->is_visible)) {
-            panel->render(ecs);  // accès complet au monde ici
+        panel->pre_render();
+
+        if (ImGui::Begin(panel->name().c_str(), &panel->is_visible, panel->window_flags())) {
+            panel->render(ecs);
         }
         ImGui::End();
     }

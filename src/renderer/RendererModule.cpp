@@ -13,13 +13,12 @@
 #include "Camera3dSystems.h"
 #include "rendering_components.h"
 #include "core/TracyIntegration.h"
+#include "core/log/Logger.h"
 #include "world/SkyRenderer.h"
 #include "world/VoxelTerrainRenderer.h"
-#include "core/main_components.h"
 #include "core/world/world_components.h"
 #include "core/world/ChunkManager.h"
 #include "debug/ImGuiManager.h"
-#include "debug/LogConsole.h"
 #include "nvrhi/utils.h"
 
 

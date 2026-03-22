@@ -6,14 +6,14 @@ add_library(VoxelPlanetClient STATIC
         debug/DebugUISystem.h
         debug/LogConsole.h
         debug/LogConsole.cpp
-        debug/WorldF3Info.h
-        debug/WorldF3Info.cpp
+        debug/world/WorldInfo.h
+        debug/world/WorldInfo.cpp
         debug/performance/FpsCounter.h
         debug/performance/FpsCounter.cpp
         debug/renderer/VoxelBufferVisualizer.h
         debug/renderer/VoxelBufferVisualizer.cpp
-        debug/player/TeleportPanel.cpp
-        debug/player/TeleportPanel.h
+        debug/entities/PlayerPanel.cpp
+        debug/entities/PlayerPanel.h
 )
 
 add_library(VoxelPlanet::Client ALIAS VoxelPlanetClient)

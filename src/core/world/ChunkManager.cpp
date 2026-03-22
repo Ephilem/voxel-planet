@@ -65,29 +65,29 @@ void ChunkManager::init(flecs::world &ecs) {
             });
 
     // Debug UI
-    ecs.system("ChunkManager-DebugInfo")
-            .kind(flecs::OnStore)
-            .run([this](flecs::iter &it) {
-                VOXEL_ZONE_N("ChunkManager-DebugInfo");
-                ImGui::Begin("Chunk Debug");
-                ImGui::Text("Loading: %zu", m_loadingChunks.size());
-                ImGui::Text("Loaded: %zu", m_loadedChunks.size());
-                ImGui::Text("Empty: %zu", m_emptyChunks.size());
-                ImGui::Text("Cancelled: %zu", m_cancelledChunks.size());
-                ImGui::Text("Unload Queue: %zu", m_unloadQueue.size());
-                {
-                    std::lock_guard lock(m_generationMutex);
-                    ImGui::Text("Generation Queue: %zu", m_generationQueue.size());
-                }
-                ImGui::Text("Candidate Heap: %zu", m_candidateHeap.size());
-                {
-                    int pending = 0;
-                    for (const auto& wr : m_workerResults)
-                        pending += wr->pendingCount.load(std::memory_order_relaxed);
-                    ImGui::Text("Results Pending: %d", pending);
-                }
-                ImGui::End();
-            });
+    // ecs.system("ChunkManager-DebugInfo")
+    //         .kind(flecs::OnStore)
+    //         .run([this](flecs::iter &it) {
+    //             VOXEL_ZONE_N("ChunkManager-DebugInfo");
+    //             ImGui::Begin("Chunk Debug");
+    //             ImGui::Text("Loading: %zu", m_loadingChunks.size());
+    //             ImGui::Text("Loaded: %zu", m_loadedChunks.size());
+    //             ImGui::Text("Empty: %zu", m_emptyChunks.size());
+    //             ImGui::Text("Cancelled: %zu", m_cancelledChunks.size());
+    //             ImGui::Text("Unload Queue: %zu", m_unloadQueue.size());
+    //             {
+    //                 std::lock_guard lock(m_generationMutex);
+    //                 ImGui::Text("Generation Queue: %zu", m_generationQueue.size());
+    //             }
+    //             ImGui::Text("Candidate Heap: %zu", m_candidateHeap.size());
+    //             {
+    //                 int pending = 0;
+    //                 for (const auto& wr : m_workerResults)
+    //                     pending += wr->pendingCount.load(std::memory_order_relaxed);
+    //                 ImGui::Text("Results Pending: %d", pending);
+    //             }
+    //             ImGui::End();
+    //         });
 
     // init threads
     size_t numThreads = std::max(1u, std::thread::hardware_concurrency()/2);

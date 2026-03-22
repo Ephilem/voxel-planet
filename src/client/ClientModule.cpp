@@ -14,19 +14,19 @@
 #include "renderer/rendering_components.h"
 #include "debug/DebugUISystem.h"
 #include "debug/LogConsole.h"
-#include "debug/WorldF3Info.h"
+#include "debug/world/WorldInfo.h"
+#include "debug/entities/PlayerPanel.h"
 #include "debug/performance/FpsCounter.h"
 #include "debug/renderer/VoxelBufferVisualizer.h"
-#include "debug/player/TeleportPanel.h"
 
 ClientModule::ClientModule(flecs::world &ecs) {
     DebugUISystem::Register(ecs);
     auto* debugUI = ecs.get_mut<DebugUISystem>();
     debugUI->add_panel<FpsCounter>();
-    debugUI->add_panel<WorldF3Info>();
+    debugUI->add_panel<WorldInfo>();
     debugUI->add_panel<LogConsole>();
     debugUI->add_panel<VoxelBufferVisualizer>();
-    debugUI->add_panel<TeleportPanel>();
+    debugUI->add_panel<PlayerPanel>();
 
     ecs.system<Orientation>("MouseLookSystem")
         .kind(flecs::OnUpdate)
