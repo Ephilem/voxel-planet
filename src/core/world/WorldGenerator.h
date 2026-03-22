@@ -19,8 +19,27 @@ public:
      */
     bool generate_chunk(VoxelChunk& chunk, glm::ivec3 chunkPosition);
 
+    struct ColumnBounds {
+        int yMax; // highest world Y that may contain terrain (exclusive)
+    };
+
+    /**
+     * Evaluate a single X/Z column to get the Y range that may contain terrain.
+     * Uses 1 low-frequency noise sample + Lipschitz bound to conservatively
+     * bracket the terrain height across the chunk column.
+     * @param columnChunkPos The X/Z position of the column in chunk coordinates
+     * @return Conservative [yMin, yMax) world-Y bounds for terrain in this column
+     */
+    ColumnBounds evaluate_column(glm::ivec2 columnChunkPos);
+
+
 private:
     int64_t m_seed;
 
+    float m_frequency = 0.01f;
+    uint16_t m_baseHeight = 100;
+    uint16_t m_heightAmplitude = 32;
+
     FastNoise::SmartNode<FastNoise::FractalFBm> m_terrainNoise; // determine terrain height
+    FastNoise::SmartNode<FastNoise::FractalFBm> m_roughNoise;
 };

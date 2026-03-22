@@ -1,4 +1,5 @@
 #pragma once
+#include <chrono>
 #include <deque>
 #include <semaphore>
 #include <unordered_set>
@@ -17,6 +18,10 @@ struct ChunkCandidate {
     glm::ivec3 pos;
     float priority;
 };
+
+inline bool operator>(const ChunkCandidate& a, const ChunkCandidate& b) {
+    return a.priority > b.priority;
+}
 
 struct TaskGeneratingInput {
     glm::ivec3 chunkCoord;
@@ -65,7 +70,7 @@ private:
 
     std::unordered_set<glm::ivec3, IVec3Hash> m_cancelledChunks;
 
-    static constexpr int MAX_CHUNKS_PER_FRAME = 50;
+    static constexpr std::chrono::microseconds DRAIN_TIME_BUDGET{500};
     static constexpr int MAX_UNLOADS_PER_FRAME = 50;
     static constexpr int MAX_GENERATION_RESULTS_PER_FRAME = 100;
     static constexpr size_t GENERATION_BATCH_SIZE = 4;
@@ -76,10 +81,10 @@ private:
     void update_chunks_system(flecs::entity e, ChunkLoader& loader, const Position& position, WorldGenerator* generator);
     void poll_generation_results_system(flecs::iter& it);
     void process_unload_queue_system(flecs::iter& it);
+    void drain_candidate_buffer_system();
 
     // Actions
     void request_chunks_in_radius(const glm::ivec3& center, const glm::ivec3& oldCenter, int radius, WorldGenerator* generator);
-    void enqueue_chunks_generation(const std::vector<ChunkCandidate>& candidates, WorldGenerator* generator);
     void cancel_chunk_generation(const glm::ivec3& chunkPos);
     void update_unload_queue(const ChunkLoader& loader, const glm::ivec3& centerChunk);
 
@@ -99,7 +104,7 @@ private:
     }
 
     bool is_chunk_in_progress(const glm::ivec3& pos) const {
-        return m_loadingChunks.contains(pos);
+        return m_loadingChunks.contains(pos) || m_inCandidateHeap.contains(pos);
     }
 
     bool is_chunk_cancelled(const glm::ivec3& pos) const {
@@ -117,6 +122,13 @@ private:
     std::atomic<bool> m_stopGeneration{false};
 
     std::vector<std::unique_ptr<GenerationWorkerResult>> m_workerResults; // one per worker thread
+
+    // Candidate staging heap (main thread only)
+    std::vector<ChunkCandidate> m_candidateHeap;
+    std::unordered_set<glm::ivec3, IVec3Hash> m_inCandidateHeap;
+    glm::ivec3 m_currentCenter{};
+    int m_currentLoadRadius = 0;
+    WorldGenerator* m_cachedGenerator = nullptr;
 
     void generation_worker_loop(size_t id);
 };

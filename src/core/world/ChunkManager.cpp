@@ -43,6 +43,13 @@ void ChunkManager::init(flecs::world &ecs) {
                 update_chunks_system(e, loader, position, generator);
             });
 
+    ecs.system("ChunkManager-DrainCandidateBuffer")
+            .kind(flecs::OnUpdate)
+            .run([this](flecs::iter &it) {
+                VOXEL_ZONE_N("ChunkManager-DrainCandidates");
+                drain_candidate_buffer_system();
+            });
+
     ecs.system("ChunkManager-PollGenerationResults")
             .kind(flecs::OnStore)
             .run([this](flecs::iter &it) {
@@ -72,6 +79,7 @@ void ChunkManager::init(flecs::world &ecs) {
                     std::lock_guard lock(m_generationMutex);
                     ImGui::Text("Generation Queue: %zu", m_generationQueue.size());
                 }
+                ImGui::Text("Candidate Heap: %zu", m_candidateHeap.size());
                 {
                     int pending = 0;
                     for (const auto& wr : m_workerResults)
@@ -82,8 +90,9 @@ void ChunkManager::init(flecs::world &ecs) {
             });
 
     // init threads
-    size_t numThreads = std::max(1u, std::thread::hardware_concurrency() - 1);
+    size_t numThreads = std::max(1u, std::thread::hardware_concurrency()/2);
     // size_t numThreads = 2;
+
     m_workerResults.reserve(numThreads);
     for (size_t i = 0; i < numThreads; i++) {
         m_workerResults.push_back(std::make_unique<GenerationWorkerResult>());
@@ -140,87 +149,110 @@ void ChunkManager::update_chunks_system(flecs::entity e, ChunkLoader &loader,
 
 void ChunkManager::request_chunks_in_radius(const glm::ivec3& center, const glm::ivec3& oldCenter, int radius, WorldGenerator* generator) {
     VOXEL_ZONE_N("RequestChunksInRadius");
-    std::vector<ChunkCandidate> candidates;
+
+    m_currentCenter = center;
+    m_currentLoadRadius = radius;
+    m_cachedGenerator = generator;
+
+    if (!m_candidateHeap.empty()) {
+        VOXEL_ZONE_N("RequestChunks-UpdatePriorities");
+        for (auto& c : m_candidateHeap)
+            c.priority = calculate_priority(c.pos, center);
+    }
+
+    std::vector<ChunkCandidate> newCandidates;
 
     {
         VOXEL_ZONE_N("RequestChunks-IterateAndFilter");
         for (int x = -radius; x <= radius; x++) {
-            for (int y = -radius; y <= radius; y++) {
-                for (int z = -radius; z <= radius; z++) {
+            for (int z = -radius; z <= radius; z++) {
+                const glm::ivec2 relToOld = {center.x + x - oldCenter.x, center.z + z - oldCenter.z};
+                if (std::abs(relToOld.x) <= radius && std::abs(relToOld.y) <= radius) continue;
 
+                for (int y = -radius; y <= radius; y++) {
                     glm::ivec3 chunkPos = center + glm::ivec3(x, y, z);
-
-                    {
-                        VOXEL_ZONE_N("RequestChunks-HashLookups");
-                        if (is_chunk_processed(chunkPos) || is_chunk_in_progress(chunkPos)) {
-                            continue;
-                        }
-                    }
-
-                    // Skip chunks that were already in the old radius
-                    const bool isCancelled = m_cancelledChunks.contains(chunkPos);
-                    if (!isCancelled) {
-                        glm::ivec3 relToOld = chunkPos - oldCenter;
-                        if (std::abs(relToOld.x) <= radius &&
-                            std::abs(relToOld.y) <= radius &&
-                            std::abs(relToOld.z) <= radius) {
-                            continue;
-                        }
-                    }
-
+                    if (is_chunk_processed(chunkPos) || is_chunk_in_progress(chunkPos)) continue;
                     m_cancelledChunks.erase(chunkPos);
-
-                    float priority = calculate_priority(chunkPos, center);
-                    candidates.push_back({chunkPos, priority});
+                    newCandidates.push_back({chunkPos, calculate_priority(chunkPos, center)});
                 }
             }
         }
     }
 
-    if (!candidates.empty()) {
-        {
-            VOXEL_ZONE_N("RequestChunks-Sort");
-            std::ranges::sort(candidates, [](const auto& a, const auto& b) {
-                return a.priority < b.priority;
-            });
-        }
-
-        {
-            VOXEL_ZONE_N("RequestChunks-Enqueue");
-            std::lock_guard lock(m_generationMutex);
-
-            for (auto& task : m_generationQueue) {
-                task.priority = calculate_priority(task.chunkCoord, center);
-            }
-
-            for (const auto& candidate : candidates) {
-                m_loadingChunks.insert(candidate.pos);
-                m_generationQueue.push_back(TaskGeneratingInput{
-                    .chunkCoord = candidate.pos,
-                    .generator = generator,
-                    .priority = candidate.priority
-                });
-            }
-
-            std::make_heap(m_generationQueue.begin(), m_generationQueue.end(), std::greater<TaskGeneratingInput>{});
-
-            m_generationSemaphore.release(std::min((candidates.size() + GENERATION_BATCH_SIZE - 1) / GENERATION_BATCH_SIZE, m_generationThreads.size()));
-
-        }
-        LOG_DEBUG("ChunkManager", "Enqueued {} chunks for generation", candidates.size());
+    for (const auto& c : newCandidates) {
+        m_candidateHeap.push_back(c);
+        m_inCandidateHeap.insert(c.pos);
     }
+
+    if (!m_candidateHeap.empty())
+        std::make_heap(m_candidateHeap.begin(), m_candidateHeap.end(), std::greater<ChunkCandidate>{});
+
+    LOG_DEBUG("ChunkManager", "Added {} candidates to heap (total: {})", newCandidates.size(), m_candidateHeap.size());
 }
 
 float ChunkManager::calculate_priority(const glm::ivec3& chunkPos, const glm::ivec3& center) {
     glm::vec3 diff = glm::vec3(chunkPos - center);
     float distSq = glm::dot(diff, diff);
-
-    // Give a bonus to chunks at player height (similar Y)
-    if (center.y - 1 <= chunkPos.y && chunkPos.y <= center.y + 1) {
+    if (center.y - 1 <= chunkPos.y && chunkPos.y <= center.y + 1)
         distSq *= 0.5f;
+    return distSq;
+}
+
+void ChunkManager::drain_candidate_buffer_system() {
+    if (m_candidateHeap.empty() || !m_cachedGenerator) return;
+
+    auto startTime = std::chrono::steady_clock::now();
+    std::unordered_map<int64_t, int> columnCache;
+    std::vector<TaskGeneratingInput> toEnqueue;
+
+    while (!m_candidateHeap.empty()) {
+        if (!toEnqueue.empty() && std::chrono::steady_clock::now() - startTime >= DRAIN_TIME_BUDGET)
+            break;
+
+        std::pop_heap(m_candidateHeap.begin(), m_candidateHeap.end(), std::greater<ChunkCandidate>{});
+        ChunkCandidate candidate = m_candidateHeap.back();
+        m_candidateHeap.pop_back();
+        m_inCandidateHeap.erase(candidate.pos);
+
+        if (is_chunk_processed(candidate.pos) || m_loadingChunks.contains(candidate.pos))
+            continue;
+
+        glm::ivec3 diff = candidate.pos - m_currentCenter;
+        if (std::max({std::abs(diff.x), std::abs(diff.y), std::abs(diff.z)}) > m_currentLoadRadius)
+            continue;
+
+        if (m_cancelledChunks.contains(candidate.pos)) {
+            m_cancelledChunks.erase(candidate.pos);
+            continue;
+        }
+
+        int64_t colKey = ((int64_t)candidate.pos.x << 32) | (uint32_t)candidate.pos.z;
+        auto [colIt, inserted] = columnCache.emplace(colKey, 0);
+        if (inserted) {
+            int yMax = m_cachedGenerator->evaluate_column({candidate.pos.x, candidate.pos.z}).yMax;
+            colIt->second = (yMax + CHUNK_SIZE - 1) / CHUNK_SIZE;
+        }
+        int surfaceChunkY = colIt->second;
+
+        if (candidate.pos.y >= surfaceChunkY)
+            continue;
+
+        float depth = static_cast<float>(std::max(0, surfaceChunkY - candidate.pos.y));
+        float priority = candidate.priority + depth * 4.0f;
+
+        m_loadingChunks.insert(candidate.pos);
+        toEnqueue.push_back({.chunkCoord = candidate.pos, .generator = m_cachedGenerator, .priority = priority});
     }
 
-    return distSq;
+    if (!toEnqueue.empty()) {
+        std::lock_guard lock(m_generationMutex);
+        for (auto& task : toEnqueue)
+            m_generationQueue.push_back(std::move(task));
+        std::make_heap(m_generationQueue.begin(), m_generationQueue.end(), std::greater<TaskGeneratingInput>{});
+        m_generationSemaphore.release(
+            std::min((toEnqueue.size() + GENERATION_BATCH_SIZE - 1) / GENERATION_BATCH_SIZE,
+                     static_cast<size_t>(3)));
+    }
 }
 
 void ChunkManager::cancel_chunk_generation(const glm::ivec3& chunkPos) {
@@ -267,6 +299,20 @@ void ChunkManager::update_unload_queue(const ChunkLoader& loader, const glm::ive
     }
     for (const auto& pos : cancelledToRemove) {
         m_cancelledChunks.erase(pos);
+    }
+
+    // Clean up candidate heap tracking set (heap entries become orphaned but are lazily skipped on drain)
+    std::vector<glm::ivec3> heapToRemove;
+    for (const auto& chunkPos : m_inCandidateHeap) {
+        glm::ivec3 diff = chunkPos - centerChunk;
+        int maxComp = std::max({ std::abs(diff.x), std::abs(diff.y), std::abs(diff.z) });
+
+        if (maxComp > unloadRadius) {
+            heapToRemove.push_back(chunkPos);
+        }
+    }
+    for (const auto& pos : heapToRemove) {
+        m_inCandidateHeap.erase(pos);
     }
 }
 

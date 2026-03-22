@@ -105,7 +105,7 @@ void VoxelChunkMesher::init(flecs::world &ecs) {
             });
 
     // init workers
-    size_t numThreads = std::max(1u, std::thread::hardware_concurrency() - 1);
+    size_t numThreads = std::max(1u, std::thread::hardware_concurrency()/2);
     // size_t numThreads = 2;
 
     m_workerResults.reserve(numThreads);
@@ -206,7 +206,7 @@ void VoxelChunkMesher::enqueue_chunks_build_system(flecs::iter &it) {
 
     if (enqueued > 0) {
         VOXEL_ZONE_N("Release Semaphore")
-        m_taskSemaphore.release(std::min((enqueued + MESHING_BATCH_SIZE - 1) / MESHING_BATCH_SIZE, m_workerThreads.size()));
+        m_taskSemaphore.release(std::min((enqueued + MESHING_BATCH_SIZE - 1) / MESHING_BATCH_SIZE, static_cast<size_t>(3)));
     }
 }
 
