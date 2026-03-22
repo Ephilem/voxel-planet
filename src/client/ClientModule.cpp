@@ -19,6 +19,7 @@
 #include "debug/performance/FpsCounter.h"
 #include "debug/renderer/VoxelBufferVisualizer.h"
 #include "debug/world/ChunkManagerPanel.h"
+#include "debug/world/WorldGenPanel.h"
 
 ClientModule::ClientModule(flecs::world &ecs) {
     DebugUISystem::Register(ecs);
@@ -28,6 +29,7 @@ ClientModule::ClientModule(flecs::world &ecs) {
     debugUI->add_panel<LogConsole>();
     debugUI->add_panel<VoxelBufferVisualizer>();
     debugUI->add_panel<ChunkManagerPanel>();
+    debugUI->add_panel<WorldGenPanel>();
     debugUI->add_panel<PlayerPanel>();
 
     ecs.system<Orientation>("MouseLookSystem")

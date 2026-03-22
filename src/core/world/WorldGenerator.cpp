@@ -3,24 +3,47 @@
 #include "core/TracyIntegration.h"
 #include "core/resource/asset_id.h"
 
-WorldGenerator::WorldGenerator(const int64_t seed) : m_seed(seed) {
-    auto simplex = FastNoise::New<FastNoise::Simplex>();
+WorldGenerator::WorldGenerator(const int64_t seed) {
+    m_params.seed = seed;
+    rebuild_noise();
+}
 
-    auto makeFBm = [](int octaves) {
+WorldGenerator::~WorldGenerator() = default;
+
+void WorldGenerator::rebuild_noise() {
+    auto makeFBm = [&](int octaves) {
         auto simplex = FastNoise::New<FastNoise::Simplex>();
         auto fbm = FastNoise::New<FastNoise::FractalFBm>();
         fbm->SetSource(simplex);
         fbm->SetOctaveCount(octaves);
-        fbm->SetLacunarity(2.0f);
-        fbm->SetGain(0.5f);
+        fbm->SetLacunarity(m_params.lacunarity);
+        fbm->SetGain(m_params.gain);
         return fbm;
     };
 
     m_roughNoise   = makeFBm(1);
-    m_terrainNoise = makeFBm(5);
+    m_terrainNoise = makeFBm(m_params.octaves);
 }
 
-WorldGenerator::~WorldGenerator() = default;
+void WorldGenerator::set_params(const NoiseParams& params) {
+    m_params = params;
+    rebuild_noise();
+}
+
+void WorldGenerator::sample_heightmap(int worldX, int worldZ, int width, int height, float* outHeights) const {
+    std::vector<float> noise(width * height);
+    m_terrainNoise->GenUniformGrid2D(
+        noise.data(),
+        worldX, worldZ,
+        width, height,
+        m_params.frequency,
+        m_params.seed
+    );
+
+    for (int i = 0; i < width * height; i++) {
+        outHeights[i] = static_cast<float>(m_params.baseHeight) + noise[i] * static_cast<float>(m_params.heightAmplitude);
+    }
+}
 
 WorldGenerator::ColumnBounds WorldGenerator::evaluate_column(glm::ivec2 col) {
     VOXEL_ZONE_N("EvaluateColumn");
@@ -30,30 +53,33 @@ WorldGenerator::ColumnBounds WorldGenerator::evaluate_column(glm::ivec2 col) {
     const int worldZ = col.y * CHUNK_SIZE + CHUNK_SIZE / 2;
 
     float roughSample;
-    m_roughNoise->GenUniformGrid2D(&roughSample, worldX, worldZ, 1, 1, m_frequency, m_seed);
+    m_roughNoise->GenUniformGrid2D(&roughSample, worldX, worldZ, 1, 1, m_params.frequency, m_params.seed);
 
-    // Lipschitz bound: max rate of change of octave 1 per world unit.
-    // m_roughNoise is 1-octave FBm (= raw simplex), output in [-1, 1].
-    // m_terrainNoise is 5-octave FBm, gain=0.5, also normalized to [-1, 1].
-    // Octave 1 weight in the 5-octave sum = 1.0 / (1+0.5+0.25+0.125+0.0625) = 1/1.9375 ≈ 0.516
-    // L_octave1 = 2π × frequency × 0.516 ≈ 0.0324
+    // Lipschitz bound: max FBm value anywhere in the chunk, given the center sample.
     //
-    // For a single chunk column, the max XZ distance from center to any corner
-    // is halfDiag = CHUNK_SIZE × √2 / 2 ≈ 22.6
-    // Spatial margin = L × halfDiag ≈ 0.0324 × 22.6 ≈ 0.73
+    // W = sum of octave weights = (1 - gain^n) / (1 - gain)  [geometric series]
+    // L_simplex_2D ≈ 2π × frequency  (Lipschitz constant of 2D simplex per world unit)
+    // L_octave1_in_fbm = L_simplex_2D / W  (octave 1 weight in normalized FBm)
+    // spatial_margin   = L_octave1_in_fbm × halfDiag  (max variation of octave 1 across chunk)
+    // high_freq_margin = 1 - 1/W  (max contribution of octaves 2..n)
+    // total_margin     = spatial_margin + high_freq_margin
     //
-    // Higher octaves (2-5) can contribute up to ±0.484 of the normalized range.
-    // Total margin = spatial + high_freq
-    constexpr float L_OCTAVE1 = 0.0324f;
+    // Note: K_SIMPLEX_2D ≈ 2π is a theoretical upper bound. FastNoise2 does not
+    // expose its exact Lipschitz constant, so this bound is conservative (never too tight).
+    const float W = (m_params.gain == 1.0f)
+        ? static_cast<float>(m_params.octaves)
+        : (1.0f - std::pow(m_params.gain, m_params.octaves)) / (1.0f - m_params.gain);
+    constexpr float K_SIMPLEX_2D = 6.2832f; // 2π
     constexpr float HALF_DIAG = CHUNK_SIZE * 0.7071f;
-    constexpr float SPATIAL_MARGIN = L_OCTAVE1 * HALF_DIAG;
-    constexpr float HIGH_FREQ_MARGIN = 0.484f;
-    constexpr float TOTAL_MARGIN = SPATIAL_MARGIN + HIGH_FREQ_MARGIN;
+    const float L_octave1_in_fbm = (K_SIMPLEX_2D * m_params.frequency) / W;
+    const float SPATIAL_MARGIN   = L_octave1_in_fbm * HALF_DIAG;
+    const float HIGH_FREQ_MARGIN = 1.0f - (1.0f / W);
+    const float TOTAL_MARGIN     = SPATIAL_MARGIN + HIGH_FREQ_MARGIN;
 
     const float noiseMax = std::min(roughSample + TOTAL_MARGIN,  1.0f);
 
     return {
-        m_baseHeight + static_cast<int>(noiseMax * m_heightAmplitude) + 1
+        m_params.baseHeight + static_cast<int>(noiseMax * m_params.heightAmplitude) + 1
     };
 }
 
@@ -69,8 +95,8 @@ bool WorldGenerator::generate_chunk(VoxelChunk &chunk, glm::ivec3 chunkPosition)
         heightmap.data(),
         worldX, worldZ,
         CHUNK_SIZE, CHUNK_SIZE,
-        m_frequency,
-        m_seed
+        m_params.frequency,
+        m_params.seed
     );
 
     chunk.textureIDs = {
@@ -83,7 +109,7 @@ bool WorldGenerator::generate_chunk(VoxelChunk &chunk, glm::ivec3 chunkPosition)
     for (int x = 0; x < CHUNK_SIZE; x++) {
         for (int z = 0; z < CHUNK_SIZE; z++) {
             float noiseValue = heightmap[x + z * CHUNK_SIZE]; // value in [-1, 1]
-            int terrainHeight = m_baseHeight + static_cast<int>(noiseValue * m_heightAmplitude);
+            int terrainHeight = m_params.baseHeight + static_cast<int>(noiseValue * m_params.heightAmplitude);
 
             for (int y = 0; y < CHUNK_SIZE; y++) {
                 int worldYPos = worldY + y;

@@ -16,6 +16,8 @@ add_library(VoxelPlanetClient STATIC
         debug/entities/PlayerPanel.h
         debug/world/ChunkManagerPanel.cpp
         debug/world/ChunkManagerPanel.h
+        debug/world/WorldGenPanel.cpp
+        debug/world/WorldGenPanel.h
 )
 
 add_library(VoxelPlanet::Client ALIAS VoxelPlanetClient)
