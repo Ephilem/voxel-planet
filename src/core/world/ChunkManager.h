@@ -79,10 +79,19 @@ public:
     uint64_t get_total_generated() const { return m_chunksGenerated.load(std::memory_order_relaxed); }
     uint64_t get_total_unloaded() const { return m_chunksUnloaded.load(std::memory_order_relaxed); }
 
+    // Debug methods
+    void unload_all_chunks(flecs::world& ecs);
+
+    // Debugs flags
+    bool enqueueCandidates = true;
+    bool loadingEnabled = true;
+    bool unloadQueueEnabled = true;
+
 private:
     // Stats
     std::atomic<uint64_t> m_chunksGenerated{0};
     std::atomic<uint64_t> m_chunksUnloaded{0};
+
 
     std::deque<glm::ivec3> m_unloadQueue;
     std::unordered_set<glm::ivec3, IVec3Hash> m_unloadQueueSet;

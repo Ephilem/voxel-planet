@@ -16,7 +16,7 @@ public:
 
     void render_stats(flecs::world &ecs, const ChunkManager* cm);
     void render_slice_view(flecs::world &ecs, const ChunkManager* cm);
-    void render_controls(flecs::world &ecs);
+    void render_controls(flecs::world &ecs, ChunkManager* cm);
 
     // Slice view
     int m_sliceY = 0;

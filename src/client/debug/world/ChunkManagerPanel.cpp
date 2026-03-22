@@ -9,7 +9,7 @@ static ImPlotColormap chunkColormap = -1;
 
 void ChunkManagerPanel::render(flecs::world &ecs) {
     VOXEL_ZONE_N("ChunkManagerPanel-Display");
-    const auto* cm = ecs.get<ChunkManager>();
+    auto* cm = ecs.get_mut<ChunkManager>();
     if (!cm) return;
 
     if (ImGui::BeginTable("##layout", 2, ImGuiTableFlags_None)) {
@@ -21,7 +21,7 @@ void ChunkManagerPanel::render(flecs::world &ecs) {
     }
 
     ImGui::Separator();
-    render_controls(ecs);
+    render_controls(ecs, cm);
 }
 
 void ChunkManagerPanel::render_stats(flecs::world &ecs, const ChunkManager* cm) {
@@ -147,5 +147,16 @@ void ChunkManagerPanel::render_slice_view(flecs::world &ecs, const ChunkManager*
     dot({1.0f, 0.3f, 0.3f, 1}, "Cancelled");
 }
 
-void ChunkManagerPanel::render_controls(flecs::world &ecs) {
+void ChunkManagerPanel::render_controls(flecs::world &ecs, ChunkManager* cm) {
+    ImGui::SliderInt("Slice Y", &m_sliceY, -5, 5);
+    ImGui::SliderInt("View Radius", &m_viewRadius, 1, 20);
+
+    if (ImGui::Button("Unload All Chunks")) {
+        cm->unload_all_chunks(ecs);
+    }
+
+    // Checkboxes
+    ImGui::Checkbox("Enqueue Candidates", &cm->enqueueCandidates);
+    ImGui::Checkbox("Enable Loading", &cm->loadingEnabled);
+    ImGui::Checkbox("Enable Unload Queue", &cm->unloadQueueEnabled);
 }
