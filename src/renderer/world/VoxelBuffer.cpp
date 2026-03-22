@@ -168,10 +168,10 @@ bool VoxelBuffer::allocate(VoxelChunkMesh& mesh) {
         drawSlot = m_freeDrawSlots.back();
         m_freeDrawSlots.pop_back();
         // Prevent cleanup_freed_draw_slots to overwrite with instanceCount=0 in the same frame.
-        auto it = std::find(m_freedPendingDrawSlots.begin(), m_freedPendingDrawSlots.end(), drawSlot);
-        if (it != m_freedPendingDrawSlots.end()) {
-            m_freedPendingDrawSlots.erase(it);
-        }
+        // auto it = std::find(m_freedPendingDrawSlots.begin(), m_freedPendingDrawSlots.end(), drawSlot);
+        // if (it != m_freedPendingDrawSlots.end()) {
+            // m_freedPendingDrawSlots.erase(it);
+        // }
     } else {
         drawSlot = m_nextDrawSlot++;
     }
@@ -216,7 +216,7 @@ void VoxelBuffer::free(VoxelChunkMesh& mesh) {
     free_regions(m_freeFaceRegions, mesh.faceRegionStart, mesh.faceRegionCount);
 
     m_freeDrawSlots.push_back(mesh.drawSlotIndex);
-    m_freedPendingDrawSlots.push_back(mesh.drawSlotIndex);
+    // m_freedPendingDrawSlots.insert(mesh.drawSlotIndex);
 
     mesh.faceRegionStart = UINT32_MAX;
     mesh.faceRegionCount = 0;
