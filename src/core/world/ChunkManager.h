@@ -5,6 +5,8 @@
 #include <unordered_set>
 #include <flecs.h>
 #include <vector>
+#include <atomic>
+#include <thread>
 
 #include "world_components.h"
 #include "core/main_components.h"
