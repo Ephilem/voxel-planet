@@ -5,6 +5,7 @@
 #include <imgui_impl_vulkan.h>
 
 #include "core/TracyIntegration.h"
+#include "core/log/Logger.h"
 #include "platform/PlatformState.h"
 #include "renderer/Renderer.h"
 #include "renderer/rendering_components.h"

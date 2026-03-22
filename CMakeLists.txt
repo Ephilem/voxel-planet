@@ -66,6 +66,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(ENABLE_WARNINGS "Enable compiler warnings" ON)
 option(ENABLE_ASAN "Enable Address Sanitizer (Debug)" OFF)
+option(ENABLE_IWYU "Enable include-what-you-use" OFF)
+
+if(ENABLE_IWYU)
+    find_program(IWYU_PATH NAMES include-what-you-use iwyu REQUIRED)
+    set(CMAKE_CXX_INCLUDE_WHAT_YOU_USE "${IWYU_PATH};-Xiwyu;--no_fwd_decls")
+endif()
 
 
 set(ORIGINAL_FLAGS ${CMAKE_CXX_FLAGS})

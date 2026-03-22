@@ -3,7 +3,6 @@
 #include <vector>
 
 #include "IRenderPass.h"
-#include "debug/ImGuiDebugModuleManager.h"
 #include "debug/ImGuiManager.h"
 #include "nvrhi/nvrhi.h"
 #include "vulkan/VulkanBackend.h"
@@ -17,7 +16,6 @@ struct Renderer {
     std::unique_ptr<VulkanBackend> backend;
 
     std::unique_ptr<ImGuiManager> imguiManager;
-    std::unique_ptr<ImGuiDebugModuleManager> debugModuleManager;
 
     std::vector<std::unique_ptr<IRenderPass>> renderPasses;
 
