@@ -1,5 +1,7 @@
 #pragma once
 
+#include <unordered_set>
+
 #include "nvrhi/nvrhi.h"
 #include "renderer/render_types.h"
 #include "renderer/vulkan/VulkanBackend.h"
@@ -36,7 +38,7 @@ class VoxelBuffer {
     std::vector<uint32_t> m_freeDrawSlots;
     uint32_t m_nextDrawSlot = 0;
     std::vector<std::pair<uint32_t, uint32_t>> m_freeFaceRegions;
-    std::vector<uint32_t> m_freedPendingDrawSlots;
+    // std::unordered_set<uint32_t> m_freedPendingDrawSlots;
 
     void init();
 

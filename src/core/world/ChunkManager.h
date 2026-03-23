@@ -14,8 +14,6 @@
 
 class WorldGenerator;
 
-
-
 struct ChunkCandidate {
     glm::ivec3 pos;
     float priority;
@@ -46,6 +44,20 @@ struct alignas(64) GenerationWorkerResult {
     std::atomic<int> pendingCount{0};
 };
 
+struct ChunkManagerStats {
+    size_t loadedChunkCount = 0;
+    size_t loadingChunkCount = 0;
+    size_t emptyChunkCount = 0;
+    size_t cancelledChunkCount = 0;
+    size_t candidateChunkCount = 0;
+    size_t unloadChunkCount = 0;
+
+    uint64_t chunksGenerated = 0;
+    uint64_t chunksUnloaded = 0;
+};
+
+enum class ChunkState { None, Loaded, Empty, Loading, Candidate, Cancelled };
+
 /**
  * Class with the responsibility to manage chunk loading, unloading, and overall chunk lifecycle.
  */
@@ -62,7 +74,27 @@ public:
     flecs::entity get_chunk_entity(const glm::ivec3& chunkPos) const;
     bool can_mesh(const glm::ivec3& chunkPos) const;
 
+    // Stats
+    ChunkManagerStats get_stats() const;
+    ChunkState get_chunk_state(const glm::ivec3& pos) const;
+    glm::ivec3 get_current_center() const { return m_currentCenter; }
+    uint64_t get_total_generated() const { return m_chunksGenerated.load(std::memory_order_relaxed); }
+    uint64_t get_total_unloaded() const { return m_chunksUnloaded.load(std::memory_order_relaxed); }
+
+    // Debug methods
+    void unload_all_chunks(flecs::world& ecs);
+
+    // Debugs flags
+    bool enqueueCandidates = true;
+    bool loadingEnabled = true;
+    bool unloadQueueEnabled = true;
+
 private:
+    // Stats
+    std::atomic<uint64_t> m_chunksGenerated{0};
+    std::atomic<uint64_t> m_chunksUnloaded{0};
+
+
     std::deque<glm::ivec3> m_unloadQueue;
     std::unordered_set<glm::ivec3, IVec3Hash> m_unloadQueueSet;
 

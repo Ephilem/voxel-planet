@@ -1,4 +1,5 @@
 #include "VoxelBufferVisualizer.h"
+
 #include "imgui.h"
 #include "renderer/Renderer.h"
 #include "renderer/world/VoxelTerrainRenderer.h"
@@ -7,59 +8,49 @@
 
 #include "core/TracyIntegration.h"
 
-void VoxelBufferVisualizer::register_ecs(flecs::world &ecs) {
-    ecs.system<Renderer>("VoxelBufferVisualizer-DisplaySystem")
-        .kind(flecs::PreStore)
-        .each([this](flecs::iter& it, size_t, Renderer& renderer) {
-            if (!this->m_visible) return;
-            VOXEL_ZONE_N("VoxelBufferVisualizer-Display");
+void VoxelBufferVisualizer::render(flecs::world& ecs) {
+    VOXEL_ZONE_N("VoxelBufferVisualizer-Display");
 
-            VoxelTerrainRenderer* voxelRenderer = nullptr;
-            for (auto& pass : renderer.renderPasses) {
-                voxelRenderer = dynamic_cast<VoxelTerrainRenderer*>(pass.get());
-                if (voxelRenderer) break;
-            }
-            if (!voxelRenderer) return;
+    auto* renderer = ecs.get_mut<Renderer>();
+    if (!renderer) return;
 
-            this->draw(voxelRenderer);
-        });
+    VoxelTerrainRenderer* voxelRenderer = nullptr;
+    for (auto& pass : renderer->renderPasses) {
+        voxelRenderer = dynamic_cast<VoxelTerrainRenderer*>(pass.get());
+        if (voxelRenderer) break;
+    }
+    if (!voxelRenderer) return;
+
+    draw(voxelRenderer);
 }
 
 void VoxelBufferVisualizer::draw(VoxelTerrainRenderer* voxelRenderer) {
     ImGui::SetNextWindowSize(ImVec2(900, 600), ImGuiCond_FirstUseEver);
 
-    if (ImGui::Begin("Voxel Buffer Visualizer", &m_visible)) {
-        const auto& buffers = voxelRenderer->get_voxel_buffers();
+    const auto& buffers = voxelRenderer->get_voxel_buffers();
 
-        if (buffers.empty()) {
-            ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "No voxel buffers allocated yet");
-            ImGui::End();
-            return;
-        }
-
-        ImGui::Text("Total Buffers: %zu", buffers.size());
-        ImGui::Separator();
-
-        ImGui::Spacing();
-        ImGui::Separator();
-
-        ImGui::Text("Face Buffer Memory Map");
-        ImGui::Spacing();
-
-        float availWidth = ImGui::GetContentRegionAvail().x;
-        draw_memory_map(voxelRenderer, availWidth, 120.0f);
-
-        ImGui::Spacing();
-        ImGui::Separator();
-
-        draw_statistics(voxelRenderer);
-
-        ImGui::Spacing();
-        ImGui::Separator();
-
-        draw_fragmentation_info(voxelRenderer);
+    if (buffers.empty()) {
+        ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "No voxel buffers allocated yet");
+        return;
     }
-    ImGui::End();
+
+    ImGui::Text("Total Buffers: %zu", buffers.size());
+    ImGui::Separator();
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Text("Face Buffer Memory Map");
+    ImGui::Spacing();
+
+    float availWidth = ImGui::GetContentRegionAvail().x;
+    draw_memory_map(voxelRenderer, availWidth, 120.0f);
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    draw_statistics(voxelRenderer);
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    draw_fragmentation_info(voxelRenderer);
 }
 
 void VoxelBufferVisualizer::draw_memory_map(VoxelTerrainRenderer* voxelRenderer, float width, float height) {
@@ -113,7 +104,6 @@ void VoxelBufferVisualizer::draw_memory_map(VoxelTerrainRenderer* voxelRenderer,
         IM_COL32(255, 255, 255, 255), "FACES");
 
     ImGui::Dummy(ImVec2(width, height));
-
     ImGui::Spacing();
     ImGui::Text("Legend:");
     ImGui::SameLine();
@@ -222,12 +212,12 @@ void VoxelBufferVisualizer::draw_fragmentation_info(VoxelTerrainRenderer* voxelR
     ImGui::Separator();
 
     if (totalFaceFragments > 50) {
-        ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "⚠ High fragmentation detected!");
+        ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "Warning: High fragmentation detected!");
         ImGui::Text("  Consider defragmentation if allocations are failing.");
     } else if (totalFaceFragments > 20) {
-        ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "⚠ Moderate fragmentation");
+        ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "Warning: Moderate fragmentation");
     } else {
-        ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "✓ Low fragmentation");
+        ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "OK: Low fragmentation");
     }
 
     ImGui::Spacing();

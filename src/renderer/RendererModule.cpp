@@ -13,13 +13,12 @@
 #include "Camera3dSystems.h"
 #include "rendering_components.h"
 #include "core/TracyIntegration.h"
+#include "core/log/Logger.h"
 #include "world/SkyRenderer.h"
 #include "world/VoxelTerrainRenderer.h"
-#include "core/main_components.h"
 #include "core/world/world_components.h"
 #include "core/world/ChunkManager.h"
 #include "debug/ImGuiManager.h"
-#include "debug/LogConsole.h"
 #include "nvrhi/utils.h"
 
 
@@ -95,7 +94,6 @@ RendererModule::RendererModule(flecs::world& ecs) {
     SkyRenderer::Register(ecs);
     VoxelTerrainRenderer::Register(ecs);
     ImGuiManager::Register(ecs);
-    ImGuiDebugModuleManager::Register(ecs);
 
     Camera3dSystems::Register(ecs);
 
@@ -148,9 +146,6 @@ void shutdown_renderer(flecs::world& ecs) {
         // TODO please find a better way to do this
         if (auto* vtm = ecs.get_mut<VoxelTextureManager>()) {
             vtm->release_resources();
-        }
-        if (renderer->debugModuleManager) {
-            renderer->debugModuleManager.reset();
         }
         if (renderer->imguiManager) {
             renderer->imguiManager.reset();

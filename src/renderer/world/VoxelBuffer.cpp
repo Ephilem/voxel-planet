@@ -4,6 +4,7 @@
 
 #include "VoxelBuffer.h"
 #include "../rendering_components.h"
+#include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
 #include "renderer/TracyVulkanIntegration.h"
 
@@ -150,6 +151,7 @@ void VoxelBuffer::free_regions(std::vector<std::pair<uint32_t, uint32_t>>& freeL
 }
 
 bool VoxelBuffer::allocate(VoxelChunkMesh& mesh) {
+    VOXEL_ZONE_N("VoxelBuffer-Allocate");
     uint32_t faceRegionsNeeded = (mesh.faceCount + FACES_PER_REGION - 1) / FACES_PER_REGION;
 
     uint32_t faceStart;
@@ -166,10 +168,10 @@ bool VoxelBuffer::allocate(VoxelChunkMesh& mesh) {
         drawSlot = m_freeDrawSlots.back();
         m_freeDrawSlots.pop_back();
         // Prevent cleanup_freed_draw_slots to overwrite with instanceCount=0 in the same frame.
-        auto it = std::find(m_freedPendingDrawSlots.begin(), m_freedPendingDrawSlots.end(), drawSlot);
-        if (it != m_freedPendingDrawSlots.end()) {
-            m_freedPendingDrawSlots.erase(it);
-        }
+        // auto it = std::find(m_freedPendingDrawSlots.begin(), m_freedPendingDrawSlots.end(), drawSlot);
+        // if (it != m_freedPendingDrawSlots.end()) {
+            // m_freedPendingDrawSlots.erase(it);
+        // }
     } else {
         drawSlot = m_nextDrawSlot++;
     }
@@ -180,6 +182,7 @@ bool VoxelBuffer::allocate(VoxelChunkMesh& mesh) {
 }
 
 bool VoxelBuffer::reallocate(VoxelChunkMesh& mesh) {
+    VOXEL_ZONE_N("VoxelBuffer-Reallocate");
     // Free the old face region regardless of new size
     if (mesh.faceRegionStart != UINT32_MAX) {
         free_regions(m_freeFaceRegions, mesh.faceRegionStart, mesh.faceRegionCount);
@@ -205,6 +208,7 @@ bool VoxelBuffer::reallocate(VoxelChunkMesh& mesh) {
 }
 
 void VoxelBuffer::free(VoxelChunkMesh& mesh) {
+    VOXEL_ZONE_N("VoxelBuffer-Free");
     if (!mesh.is_allocated()) {
         return;
     }
@@ -212,7 +216,7 @@ void VoxelBuffer::free(VoxelChunkMesh& mesh) {
     free_regions(m_freeFaceRegions, mesh.faceRegionStart, mesh.faceRegionCount);
 
     m_freeDrawSlots.push_back(mesh.drawSlotIndex);
-    m_freedPendingDrawSlots.push_back(mesh.drawSlotIndex);
+    // m_freedPendingDrawSlots.insert(mesh.drawSlotIndex);
 
     mesh.faceRegionStart = UINT32_MAX;
     mesh.faceRegionCount = 0;

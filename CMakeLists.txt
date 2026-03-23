@@ -66,6 +66,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(ENABLE_WARNINGS "Enable compiler warnings" ON)
 option(ENABLE_ASAN "Enable Address Sanitizer (Debug)" OFF)
+option(ENABLE_IWYU "Enable include-what-you-use" OFF)
+
+if(ENABLE_IWYU)
+    find_program(IWYU_PATH NAMES include-what-you-use iwyu REQUIRED)
+    set(CMAKE_CXX_INCLUDE_WHAT_YOU_USE "${IWYU_PATH};-Xiwyu;--no_fwd_decls")
+endif()
 
 
 set(ORIGINAL_FLAGS ${CMAKE_CXX_FLAGS})
@@ -169,6 +175,20 @@ target_include_directories(imgui PUBLIC
 target_link_libraries(imgui PUBLIC glfw Vulkan::Vulkan)
 
 FetchContent_Declare(
+        implot
+        GIT_REPOSITORY https://github.com/epezent/implot.git
+        GIT_TAG v0.17
+)
+FetchContent_MakeAvailable(implot)
+
+add_library(implot STATIC
+        ${implot_SOURCE_DIR}/implot.cpp
+        ${implot_SOURCE_DIR}/implot_items.cpp
+)
+target_include_directories(implot PUBLIC ${implot_SOURCE_DIR})
+target_link_libraries(implot PUBLIC imgui)
+
+FetchContent_Declare(
         nvrhi
         GIT_REPOSITORY https://github.com/NVIDIA-RTX/NVRHI.git
         GIT_TAG 2ac4b58c355f53827c2e1d0740849ce4d09d5dd6
@@ -249,6 +269,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         glm::glm
         flecs::flecs_static
         imgui
+        implot
         FastNoise2
         stb
 )

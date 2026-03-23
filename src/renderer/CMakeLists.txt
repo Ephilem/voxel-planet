@@ -7,17 +7,6 @@ add_library(VoxelPlanetRenderer STATIC
         vulkan/vulkan_type.inl
         debug/ImGuiManager.h
         debug/ImGuiManager.cpp
-        debug/LogConsole.h
-        debug/LogConsole.cpp
-        debug/IImGuiDebugModule.h
-        debug/ImGuiDebugModuleManager.cpp
-        debug/ImGuiDebugModuleManager.h
-        debug/FpsCounter.cpp
-        debug/FpsCounter.h
-        debug/WorldF3Info.cpp
-        debug/WorldF3Info.h
-        debug/VoxelBufferVisualizer.cpp
-        debug/VoxelBufferVisualizer.h
         world/SkyRenderer.cpp
         world/SkyRenderer.h
         world/VoxelTerrainRenderer.cpp
@@ -53,6 +42,7 @@ target_link_libraries(VoxelPlanetRenderer
             nvrhi_vk
             nvrhi
             imgui
+            implot
             flecs::flecs_static
         PRIVATE
             VoxelPlanet::Core

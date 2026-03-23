@@ -7,7 +7,17 @@
 
 class WorldGenerator {
 public:
-    WorldGenerator(const int64_t seed = 0);
+    struct NoiseParams {
+        int64_t seed          = 0;
+        float   frequency     = 0.01f;
+        int     octaves       = 5;
+        float   lacunarity    = 2.0f;
+        float   gain          = 0.5f;
+        int     baseHeight    = 100;
+        int     heightAmplitude = 32;
+    };
+
+    WorldGenerator(int64_t seed = 0);
     ~WorldGenerator();
 
     /**
@@ -32,14 +42,33 @@ public:
      */
     ColumnBounds evaluate_column(glm::ivec2 columnChunkPos);
 
+    // --- Debug / preview API ---
+
+    NoiseParams get_params() const { return m_params; }
+
+    /**
+     * Update noise parameters and rebuild the noise graph.
+     * Thread-unsafe: do not call while generation workers are running.
+     */
+    void set_params(const NoiseParams& params);
+
+    /**
+     * Sample the terrain heightmap at arbitrary world-space positions.
+     * Fills outHeights[z * width + x] with the terrain height (world Y, in voxels)
+     * for each (worldX + x, worldZ + z) position.
+     * @param worldX  Starting world X coordinate
+     * @param worldZ  Starting world Z coordinate
+     * @param width   Number of samples along X
+     * @param height  Number of samples along Z
+     * @param outHeights  Output buffer, must be at least width * height floats
+     */
+    void sample_heightmap(int worldX, int worldZ, int width, int height, float* outHeights) const;
 
 private:
-    int64_t m_seed;
+    NoiseParams m_params;
 
-    float m_frequency = 0.01f;
-    uint16_t m_baseHeight = 100;
-    uint16_t m_heightAmplitude = 32;
-
-    FastNoise::SmartNode<FastNoise::FractalFBm> m_terrainNoise; // determine terrain height
+    FastNoise::SmartNode<FastNoise::FractalFBm> m_terrainNoise;
     FastNoise::SmartNode<FastNoise::FractalFBm> m_roughNoise;
+
+    void rebuild_noise();
 };

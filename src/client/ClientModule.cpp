@@ -12,8 +12,26 @@
 #include "core/world/world_components.h"
 #include "platform/inputs/input_state.h"
 #include "renderer/rendering_components.h"
+#include "debug/DebugUISystem.h"
+#include "debug/LogConsole.h"
+#include "debug/world/WorldInfo.h"
+#include "debug/entities/PlayerPanel.h"
+#include "debug/performance/FpsCounter.h"
+#include "debug/renderer/VoxelBufferVisualizer.h"
+#include "debug/world/ChunkManagerPanel.h"
+#include "debug/world/WorldGenPanel.h"
 
 ClientModule::ClientModule(flecs::world &ecs) {
+    DebugUISystem::Register(ecs);
+    auto* debugUI = ecs.get_mut<DebugUISystem>();
+    debugUI->add_panel<FpsCounter>();
+    debugUI->add_panel<WorldInfo>();
+    debugUI->add_panel<LogConsole>();
+    debugUI->add_panel<VoxelBufferVisualizer>();
+    debugUI->add_panel<ChunkManagerPanel>();
+    debugUI->add_panel<WorldGenPanel>();
+    debugUI->add_panel<PlayerPanel>();
+
     ecs.system<Orientation>("MouseLookSystem")
         .kind(flecs::OnUpdate)
         .with<Camera3d>()

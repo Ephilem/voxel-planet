@@ -34,6 +34,7 @@ void VoxelMeshUploadBatcher::destroy() {
 }
 
 bool VoxelMeshUploadBatcher::enqueue(const VoxelChunkMesh &meshData, const TerrainOUB &oub, VoxelBuffer* targetBuffer) {
+    VOXEL_ZONE_N("VoxelMeshUploadBatcher-Enqueue");
     // Size test
     size_t totalSizeNeeded = meshData.faces.size() * sizeof(TerrainFace3d) + sizeof(TerrainOUB) + sizeof(VkDrawIndirectCommand);
     if (m_currentTotalSize + totalSizeNeeded > MAX_STAGING_BUFFER_SIZE) {

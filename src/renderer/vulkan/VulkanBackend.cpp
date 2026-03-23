@@ -154,11 +154,12 @@ VulkanBackend::VulkanBackend(GLFWwindow *window, RenderParameters renderParamete
 
 VulkanBackend::~VulkanBackend() {
 
-    // Drain all frames in flight - wait for all pending NVRHI queries
-    while (!m_framesInFlight.empty()) {
-        auto query = m_framesInFlight.front();
-        m_framesInFlight.pop();
-        device->waitEventQuery(query);
+    // Drain all frame slot queries before destroying resources
+    for (auto& query : m_frameSlotQueries) {
+        if (query) {
+            device->waitEventQuery(query);
+            query.Reset();
+        }
     }
 
 #ifdef TRACY_ENABLE
@@ -468,13 +469,21 @@ bool VulkanBackend::begin_frame(nvrhi::CommandListHandle &out_currentCommandList
 
     m_acquiredSemaphoreIndex = (m_acquiredSemaphoreIndex + 1) % m_acquireImageSemaphores.size();
 
+    // Wait for the frame that previously used this slot to finish before reusing it.
+    // This guarantees that we don't send data when the gpu isn't ready
+    if (m_frameSlotQueries[m_commandListIndex] != nullptr) {
+        VOXEL_ZONE_N("Wait for frame slot to be free");
+        device->waitEventQuery(m_frameSlotQueries[m_commandListIndex]);
+        m_queryPool.push_back(m_frameSlotQueries[m_commandListIndex]);
+        m_frameSlotQueries[m_commandListIndex].Reset();
+    }
+
     // Acquire a command list
     // Create command list for this frame slot if it doesn't exist yet
     if (!m_commandLists[m_commandListIndex]) {
         m_commandLists[m_commandListIndex] = device->createCommandList();
     }
     out_currentCommandList = m_commandLists[m_commandListIndex];
-    m_commandListIndex = (m_commandListIndex + 1) % MAX_FRAMES_IN_FLIGHT;
 
 
     if (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR) {
@@ -483,6 +492,9 @@ bool VulkanBackend::begin_frame(nvrhi::CommandListHandle &out_currentCommandList
         VOXEL_ZONE_N("Wait for the image semaphore");
         device->queueWaitForSemaphore(nvrhi::CommandQueue::Graphics, semaphore, 0);
         return true;
+    } else if (result == VK_ERROR_DEVICE_LOST) {
+        LOG_FATAL("VulkanBackend", "Device was lost");
+        throw std::runtime_error("Vulkan Device lost");
     }
 
     return false;
@@ -514,6 +526,12 @@ bool VulkanBackend::present() {
         presentInfo.pSwapchains = &m_swapchain.swapchain;
         presentInfo.pImageIndices = &m_imageIndex;
         VkResult result = vkQueuePresentKHR(presentQueue, &presentInfo);
+
+        if (result == VK_ERROR_DEVICE_LOST) {
+            LOG_FATAL("VulkanBackend", "Device was lost");
+            throw std::runtime_error("Vulkan Device lost");
+        }
+
         if (!(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR || result == VK_ERROR_OUT_OF_DATE_KHR)) {
             return false;
         }
@@ -522,18 +540,7 @@ bool VulkanBackend::present() {
     // On Linux with validation layers, explicitly sync with GPU to prevent memory buildup
     // vkQueueWaitIdle(presentQueue);
 
-    // Drain old frames before creating new query
-    while (m_framesInFlight.size() >= MAX_FRAMES_IN_FLIGHT) {
-        VOXEL_ZONE_N("Drain old frame in flight");
-        auto query = m_framesInFlight.front();
-        m_framesInFlight.pop();
-
-        device->waitEventQuery(query);
-
-        m_queryPool.push_back(query);
-    }
-
-    // Track this frame in flight
+    // Track this frame's completion in its slot, so begin_frame() can wait on it before reuse
     nvrhi::EventQueryHandle query;
     if (!m_queryPool.empty()) {
         query = m_queryPool.back();
@@ -544,16 +551,18 @@ bool VulkanBackend::present() {
     }
 
     {
-        VOXEL_ZONE_N("Reset and set event query for frame in flight tracking");
+        VOXEL_ZONE_N("Set event query for frame slot");
         device->resetEventQuery(query);
         device->setEventQuery(query, nvrhi::CommandQueue::Graphics);
-        m_framesInFlight.push(query);
+        m_frameSlotQueries[m_commandListIndex] = query;
     }
 
     {
         VOXEL_ZONE_N("Run garbage collection");
         device->runGarbageCollection();
     }
+    
+    m_commandListIndex = (m_commandListIndex + 1) % MAX_FRAMES_IN_FLIGHT;
 
     return true;
 }

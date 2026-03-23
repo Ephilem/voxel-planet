@@ -1,6 +1,5 @@
 #pragma once
 
-#include <queue>
 #include <chrono>
 
 #include "VkBootstrap.h"
@@ -14,6 +13,7 @@
 #endif
 
 #include "core/resource/ResourceSystem.h"
+#include "renderer/rendering_components.h"
 
 typedef struct RenderParameters {
     uint32_t width;
@@ -96,7 +96,7 @@ private:
     // Syncs
     std::vector<VkSemaphore> m_acquireImageSemaphores; // for each frame in flight
     std::vector<VkSemaphore> m_presentSemaphores; // for each swapchain image
-    std::queue<nvrhi::EventQueryHandle> m_framesInFlight; // to track frames in flight
+    nvrhi::EventQueryHandle m_frameSlotQueries[MAX_FRAMES_IN_FLIGHT]; // one query per frame slot, waited in begin_frame before reuse
     std::vector<nvrhi::EventQueryHandle> m_queryPool;
 
     void init_nvrhi();
