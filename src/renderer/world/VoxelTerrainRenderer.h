@@ -55,6 +55,19 @@ private:
     nvrhi::BindingLayoutHandle m_faceBufferBindingLayout;
     std::vector<nvrhi::BindingSetHandle> m_chunkFaceBindingSets; // One binding set per VoxelBuffer
 
+    // Compute: GPU culling pipeline
+    nvrhi::ShaderHandle m_cullingShader;
+    nvrhi::ComputePipelineHandle m_cullPipeline;
+
+    // Set 0 compute: UBO
+    nvrhi::BindingLayoutHandle m_computeFrameBindingLayout;
+    nvrhi::BindingSetHandle m_computeFrameBindingSet;
+
+    // Set 1 compute: for each VoxelBuffer (cullData + culledIndirect + culledCount)
+    nvrhi::BindingLayoutHandle m_cullBindingLayout;
+    std::vector<nvrhi::BindingSetHandle> m_cullBindingSets;
+
+
     nvrhi::ShaderHandle m_vertexShader;
     nvrhi::ShaderHandle m_pixelShader;
 

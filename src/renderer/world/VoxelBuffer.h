@@ -21,6 +21,13 @@ static constexpr uint32_t MAX_FACES_REGIONS = FACES_BUFFER_SIZE / FACES_REGION_S
 // static constexpr uint32_t INDICES_PER_QUAD = 6;
 static constexpr uint32_t VERTICES_PER_QUAD = 6;
 
+struct VoxelChunkCullData {
+    glm::vec4 aabbMin;
+    glm::vec4 aabbMax;
+    nvrhi::DrawIndirectArguments drawArgs;
+    uint32_t padding;
+};
+
 class VoxelBuffer {
     VulkanBackend* m_backend;
 
@@ -32,7 +39,11 @@ class VoxelBuffer {
 
     // Buffers pour indirect draw et OUB
     nvrhi::BufferHandle m_oubBuffer;
-    nvrhi::BufferHandle m_indirectBuffer;
+    nvrhi::BufferHandle m_chunkCullDataBuffer; // store chunk data for culling (aabb, draw command). Used with drawSlotIndex
+
+    // Only gpu buffers
+    nvrhi::BufferHandle m_culledIndirectBuffer; // store culled draw commands for indirect draw
+    nvrhi::BufferHandle m_culledDrawCountBuffer; // store the count of culled draw commands
 
     // Management
     std::vector<uint32_t> m_freeDrawSlots;
@@ -64,7 +75,10 @@ public:
     nvrhi::BufferHandle get_faces_buffer() const { return m_facesBuffer; }
     nvrhi::BufferHandle get_index_buffer() const { return m_globalIndexBuffer; }
     nvrhi::BufferHandle get_oub_buffer() const { return m_oubBuffer; }
-    nvrhi::BufferHandle get_indirect_buffer() const { return m_indirectBuffer; }
+    // nvrhi::BufferHandle get_indirect_buffer() const { return m_indirectBuffer; }
+    nvrhi::BufferHandle get_chunk_cull_data_buffer() const { return m_chunkCullDataBuffer; }
+    nvrhi::BufferHandle get_culled_indirect_buffer() const { return m_culledIndirectBuffer; }
+    nvrhi::BufferHandle get_culled_draw_count_buffer() const { return m_culledDrawCountBuffer; }
 
     const std::vector<std::pair<uint32_t, uint32_t>>& get_free_face_regions() const { return m_freeFaceRegions; }
     const std::vector<uint32_t>& get_free_draw_slots() const { return m_freeDrawSlots; }

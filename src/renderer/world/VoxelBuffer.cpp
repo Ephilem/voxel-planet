@@ -18,46 +18,6 @@ VoxelBuffer::~VoxelBuffer() {
     m_globalIndexBuffer = nullptr;
 }
 
-// void VoxelBuffer::create_global_index_buffer() {
-//     m_maxQuadsSupported = MAX_FACES_REGIONS * FACES_PER_REGION;
-//
-//     std::vector<uint32_t> indices;
-//     indices.reserve(m_maxQuadsSupported * INDICES_PER_QUAD);
-//
-//     for (uint32_t quad = 0; quad < m_maxQuadsSupported; ++quad) {
-//         uint32_t baseVertex = quad * VERTICES_PER_QUAD;
-//         // Triangle 1: 0,1,2
-//         indices.push_back(baseVertex + 0);
-//         indices.push_back(baseVertex + 1);
-//         indices.push_back(baseVertex + 2);
-//         // Triangle 2: 0,2,3
-//         indices.push_back(baseVertex + 0);
-//         indices.push_back(baseVertex + 2);
-//         indices.push_back(baseVertex + 3);
-//     }
-//
-//     auto indexDesc = nvrhi::BufferDesc()
-//             .setByteSize(indices.size() * sizeof(uint32_t))
-//             .setDebugName("VoxelBuffer Global Index Buffer")
-//             .setIsIndexBuffer(true)
-//             .setInitialState(nvrhi::ResourceStates::CopyDest)
-//             .setKeepInitialState(true);
-//     m_globalIndexBuffer = m_backend->device->createBuffer(indexDesc);
-//
-//     auto cmd = m_backend->device->createCommandList();
-//     cmd->open();
-//     cmd->writeBuffer(m_globalIndexBuffer, indices.data(),
-//                      sizeof(uint32_t) * indices.size(), 0);
-//     cmd->setBufferState(m_globalIndexBuffer, nvrhi::ResourceStates::IndexBuffer);
-//     cmd->close();
-//     m_backend->device->executeCommandList(cmd);
-//
-//     LOG_INFO("VoxelBuffer", "Created global index buffer for {} quads ({:.2f} MB)",
-//              m_maxQuadsSupported, (indices.size() * sizeof(uint32_t)) / (1024.0f * 1024.0f));
-//
-//     m_indexBufferWritten = true;
-// }
-
 void VoxelBuffer::init() {
     m_freeFaceRegions.clear();
     m_freeFaceRegions.emplace_back(0, MAX_FACES_REGIONS);
@@ -79,7 +39,7 @@ void VoxelBuffer::init() {
 
     // OUB buffer
     auto oubDesc = nvrhi::BufferDesc()
-            .setByteSize(8 * 1024 * 1024) // 8 MB
+            .setByteSize(8 * 1024 * 1024)
             .setDebugName("VoxelBuffer OUB Buffer")
             .setInitialState(nvrhi::ResourceStates::ShaderResource)
             .setIsConstantBuffer(false)
@@ -87,14 +47,36 @@ void VoxelBuffer::init() {
             .setKeepInitialState(true);
     m_oubBuffer = m_backend->device->createBuffer(oubDesc);
 
-    // Indirect buffer
-    auto indirectDesc = nvrhi::BufferDesc()
-            .setByteSize(8 * 1024 * 1024 / sizeof(TerrainOUB) * sizeof(nvrhi::DrawIndexedIndirectArguments))
-            .setDebugName("VoxelBuffer Indirect Buffer")
-            .setInitialState(nvrhi::ResourceStates::IndirectArgument)
-            .setIsDrawIndirectArgs(true)
+    // Chunk cull data buffer
+    uint32_t maxSlots = 8 * 1024 * 1024 / sizeof(TerrainOUB);
+    auto cullDataDesc = nvrhi::BufferDesc()
+            .setByteSize(sizeof(VoxelChunkCullData) * maxSlots)
+            .setDebugName("VoxelBuffer Chunk Cull Data Buffer")
+            .setStructStride(sizeof(VoxelChunkCullData))
+            .setInitialState(nvrhi::ResourceStates::ShaderResource)
             .setKeepInitialState(true);
-    m_indirectBuffer = m_backend->device->createBuffer(indirectDesc);
+    m_chunkCullDataBuffer = m_backend->device->createBuffer(cullDataDesc);
+
+    // Culled indirect draw buffer
+    auto indirectDesc = nvrhi::BufferDesc()
+            .setByteSize(sizeof(nvrhi::DrawIndirectArguments) * maxSlots)
+            .setDebugName("VoxelBuffer Culled Indirect Buffer")
+            .setIsDrawIndirectArgs(true)
+            .setCanHaveUAVs(true)
+            .setStructStride(sizeof(nvrhi::DrawIndirectArguments))
+            .setInitialState(nvrhi::ResourceStates::UnorderedAccess)
+            .setKeepInitialState(true);
+    m_culledIndirectBuffer = m_backend->device->createBuffer(indirectDesc);
+
+    // Culled draw count buffer
+    auto countDesc = nvrhi::BufferDesc()
+            .setByteSize(sizeof(uint32_t))
+            .setDebugName("VoxelBuffer Culled Draw Count Buffer")
+            .setIsDrawIndirectArgs(true)
+            .setCanHaveRawViews(true)
+            .setInitialState(nvrhi::ResourceStates::UnorderedAccess)
+            .setKeepInitialState(true);
+    m_culledDrawCountBuffer = m_backend->device->createBuffer(countDesc);
 }
 
 bool VoxelBuffer::can_allocate(uint32_t faceCount) {

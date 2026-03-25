@@ -118,6 +118,39 @@ void VoxelTerrainRenderer::init() {
     m_pipeline = m_backend->device->createGraphicsPipeline(pipelineDesc, framebufferInfo);
 
     m_meshUploader.init(m_backend);
+
+
+    // culling compute shader
+    auto computeRes = m_resourceSystem->load<ShaderResource>("TerrainCulling.comp", ResourceType::SHADER);
+    m_cullingShader = m_backend->device->createShader(
+        nvrhi::ShaderDesc().setShaderType(nvrhi::ShaderType::Compute),
+        computeRes->get_data(), computeRes->get_data_size());
+
+    // Set 0 compute: UBO
+    auto computeFrameLayoutDesc = nvrhi::BindingLayoutDesc()
+            .setVisibility(nvrhi::ShaderType::Compute)
+            .addItem(nvrhi::BindingLayoutItem::VolatileConstantBuffer(0)) // UBO for view/projection matrices
+            .setBindingOffsets(bindingOffsets);
+    m_computeFrameBindingLayout = m_backend->device->createBindingLayout(computeFrameLayoutDesc);
+
+    m_computeFrameBindingSet = m_backend->device->createBindingSet(
+        nvrhi::BindingSetDesc().addItem(nvrhi::BindingSetItem::ConstantBuffer(0, m_uboBuffer)),
+        m_computeFrameBindingLayout);
+
+    // Set 1 compute: for each VoxelBuffer (cullData + culledIndirect + culledCount)
+    auto cullBindingLayoutDesc = nvrhi::BindingLayoutDesc()
+            .setVisibility(nvrhi::ShaderType::Compute)
+            .addItem(nvrhi::BindingLayoutItem::StructuredBuffer_SRV(0)) // chunk cull data buffer
+            .addItem(nvrhi::BindingLayoutItem::StructuredBuffer_UAV(1)) // culled indirect buffer
+            .addItem(nvrhi::BindingLayoutItem::StructuredBuffer_UAV(2)) // culled draw count buffer
+            .setBindingOffsets(bindingOffsets);
+    m_cullBindingLayout = m_backend->device->createBindingLayout(cullBindingLayoutDesc);
+
+    auto computePipelineDesc = nvrhi::ComputePipelineDesc()
+            .setComputeShader(m_cullingShader)
+            .addBindingLayout(m_computeFrameBindingLayout) // Set 0
+            .addBindingLayout(m_cullBindingLayout); // Set 1
+    m_cullPipeline = m_backend->device->createComputePipeline(computePipelineDesc);
 }
 
 void VoxelTerrainRenderer::destroy() {
@@ -143,6 +176,14 @@ VoxelBuffer& VoxelTerrainRenderer::create_buffer() {
             .addItem(nvrhi::BindingSetItem::StructuredBuffer_SRV(0, buffer.get_faces_buffer()));
     m_chunkFaceBindingSets.push_back(
         m_backend->device->createBindingSet(faceBindingSetDesc, m_faceBufferBindingLayout));
+
+    // culling compute binding set
+    auto cullBindingSetDesc = nvrhi::BindingSetDesc()
+            .addItem(nvrhi::BindingSetItem::StructuredBuffer_SRV(0, buffer.get_chunk_cull_data_buffer()))
+            .addItem(nvrhi::BindingSetItem::StructuredBuffer_UAV(1, buffer.get_culled_indirect_buffer()))
+            .addItem(nvrhi::BindingSetItem::StructuredBuffer_UAV(2, buffer.get_culled_draw_count_buffer()));
+    m_cullBindingSets.push_back(
+        m_backend->device->createBindingSet(cullBindingSetDesc, m_cullBindingLayout));
 
 
     // return index of the created buffer
@@ -296,6 +337,34 @@ void VoxelTerrainRenderer::render(nvrhi::CommandListHandle commandList, Camera3d
 
     auto extent = m_backend->get_swapchain_extent();
 
+    // Culling pass
+    {
+        VOXEL_VK_NVRHI_ZONE(backend.tracyVkCtx, commandList, "GPU Cull Terrain");
+        int i = 0;
+        for (auto& chunkBuffer : m_chunkBuffers) {
+            uint32_t chunkCount = chunkBuffer.get_draw_count();
+            if (chunkCount == 0) { i++; continue; }
+
+            // Reset culled draw count to 0 before dispatching the compute shader
+            uint32_t zero = 0;
+            commandList->writeBuffer(chunkBuffer.get_culled_draw_count_buffer(), &zero, sizeof(uint32_t));
+
+            auto computeState = nvrhi::ComputeState()
+                .setPipeline(m_cullPipeline)
+                .addBindingSet(m_computeFrameBindingSet) // Set 0
+                .addBindingSet(m_cullBindingSets[i]);    // Set 1
+            commandList->setComputeState(computeState);
+
+            // Push constant : chunkCount
+            commandList->setPushConstants(&chunkCount, sizeof(uint32_t));
+
+            uint32_t groups = (chunkCount + 63) / 64;
+            commandList->dispatch(groups, 1, 1);
+            i++;
+        }
+    }
+
+
     {
         VOXEL_VK_NVRHI_ZONE(backend.tracyVkCtx, commandList, "GPU Draw Terrain Buffer");
         int i = 0;
@@ -310,7 +379,7 @@ void VoxelTerrainRenderer::render(nvrhi::CommandListHandle commandList, Camera3d
                     .addBindingSet(bufferBindingSet)     // Set 1: Per-buffer data (chunks)
                     .addBindingSet(m_chunkFaceBindingSets[i]) // Set 2: face buffer
                     .addBindingSet(m_textureManager->get_binding_set()) // Set 3: texture array
-                    .setIndirectParams(chunkBuffer.get_indirect_buffer());
+                    .setIndirectParams(chunkBuffer.get_culled_indirect_buffer());
             commandList->setGraphicsState(graphicsState);
 
             uint32_t drawCount = chunkBuffer.get_draw_count();
