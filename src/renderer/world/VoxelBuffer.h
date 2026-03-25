@@ -21,11 +21,11 @@ static constexpr uint32_t MAX_FACES_REGIONS = FACES_BUFFER_SIZE / FACES_REGION_S
 // static constexpr uint32_t INDICES_PER_QUAD = 6;
 static constexpr uint32_t VERTICES_PER_QUAD = 6;
 
-struct VoxelChunkCullData {
+struct alignas(64) VoxelChunkCullData {
     glm::vec4 aabbMin;
     glm::vec4 aabbMax;
     VkDrawIndirectCommand drawArgs;
-    uint32_t padding;
+    uint32_t padding[3]; // Padding to make the struct size a multiple of 64 bytes
 };
 
 class VoxelBuffer {

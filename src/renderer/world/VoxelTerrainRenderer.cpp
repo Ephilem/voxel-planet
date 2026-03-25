@@ -122,6 +122,11 @@ void VoxelTerrainRenderer::init() {
 
 
     // culling compute shader
+    auto cullBindingOffsets = nvrhi::VulkanBindingOffsets()
+        .setShaderResourceOffset(0)
+        .setUnorderedAccessViewOffset(1)
+        .setSamplerOffset(2)
+        .setConstantBufferOffset(0);
     auto computeRes = m_resourceSystem->load<ShaderResource>("TerrainCulling.comp", ResourceType::SHADER);
     m_cullingShader = m_backend->device->createShader(
         nvrhi::ShaderDesc().setShaderType(nvrhi::ShaderType::Compute),
@@ -132,24 +137,19 @@ void VoxelTerrainRenderer::init() {
             .setVisibility(nvrhi::ShaderType::Compute)
             .addItem(nvrhi::BindingLayoutItem::VolatileConstantBuffer(0)) // UBO for view/projection matrices
             .addItem(nvrhi::BindingLayoutItem::PushConstants(1, sizeof(uint32_t))) // chunkCount
-            .setBindingOffsets(bindingOffsets);
+            .setBindingOffsets(cullBindingOffsets);
     m_computeFrameBindingLayout = m_backend->device->createBindingLayout(computeFrameLayoutDesc);
 
     m_computeFrameBindingSet = m_backend->device->createBindingSet(
         nvrhi::BindingSetDesc().addItem(nvrhi::BindingSetItem::ConstantBuffer(0, m_uboBuffer)),
         m_computeFrameBindingLayout);
 
-    // Set 1 compute: for each VoxelBuffer (cullData + culledIndirect + culledCount)
-    auto cullBindingOffsets = nvrhi::VulkanBindingOffsets()
-            .setShaderResourceOffset(0)   // SRV slot 0 → Vulkan binding 0
-            .setUnorderedAccessViewOffset(1) // UAV slot 0 → Vulkan binding 1, slot 1 → binding 2
-            .setSamplerOffset(10)
-            .setConstantBufferOffset(10);
+
     auto cullBindingLayoutDesc = nvrhi::BindingLayoutDesc()
             .setVisibility(nvrhi::ShaderType::Compute)
-            .addItem(nvrhi::BindingLayoutItem::StructuredBuffer_SRV(0)) // chunk cull data buffer
-            .addItem(nvrhi::BindingLayoutItem::StructuredBuffer_UAV(0)) // culled indirect buffer → Vulkan binding 1
-            .addItem(nvrhi::BindingLayoutItem::RawBuffer_UAV(1))        // culled draw count buffer → Vulkan binding 2
+            .addItem(nvrhi::BindingLayoutItem::StructuredBuffer_SRV(0))
+            .addItem(nvrhi::BindingLayoutItem::StructuredBuffer_UAV(0))
+            .addItem(nvrhi::BindingLayoutItem::RawBuffer_UAV(1))
             .setBindingOffsets(cullBindingOffsets);
     m_cullBindingLayout = m_backend->device->createBindingLayout(cullBindingLayoutDesc);
 
@@ -379,7 +379,9 @@ void VoxelTerrainRenderer::render(nvrhi::CommandListHandle commandList, Camera3d
         .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
         .srcStageMask  = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
         .srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT,
-        .dstStageMask  = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
+        .dstStageMask = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT
+                | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT
+                | VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
         .dstAccessMask = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT,
     };
     VkDependencyInfo dep = {
@@ -422,7 +424,7 @@ void VoxelTerrainRenderer::render(nvrhi::CommandListHandle commandList, Camera3d
                 vkCmdBuf,
                 vkIndirectBuf, 0, // buffer + offset
                 vkCountBuf, 0, // count buffer + offset
-                1, // max draws
+                chunkBuffer.get_unculled_draw_count(), // max draws
                 sizeof(VkDrawIndirectCommand));
 
             i++;
