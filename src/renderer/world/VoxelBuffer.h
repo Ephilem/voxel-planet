@@ -24,7 +24,7 @@ static constexpr uint32_t VERTICES_PER_QUAD = 6;
 struct VoxelChunkCullData {
     glm::vec4 aabbMin;
     glm::vec4 aabbMax;
-    nvrhi::DrawIndirectArguments drawArgs;
+    VkDrawIndirectCommand drawArgs;
     uint32_t padding;
 };
 
@@ -37,7 +37,7 @@ class VoxelBuffer {
     nvrhi::BufferHandle m_globalIndexBuffer;
     uint32_t m_maxQuadsSupported;
 
-    // Buffers pour indirect draw et OUB
+    // Buffers draw,  OUB
     nvrhi::BufferHandle m_oubBuffer;
     nvrhi::BufferHandle m_chunkCullDataBuffer; // store chunk data for culling (aabb, draw command). Used with drawSlotIndex
 
@@ -85,5 +85,9 @@ public:
 
     uint32_t get_used_face_regions() const;
     uint32_t get_largest_free_face_block() const;
-    uint32_t get_draw_count() const { return m_nextDrawSlot; }
+
+    /**
+     * Total of draws (so chunk) register that can be drawn, in the basic buffer
+     */
+    uint32_t get_unculled_draw_count() const { return m_nextDrawSlot; }
 };

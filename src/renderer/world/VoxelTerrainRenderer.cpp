@@ -17,7 +17,8 @@
 #include "VoxelTextureManager.h"
 #include "renderer/TracyVulkanIntegration.h"
 
-VoxelTerrainRenderer::VoxelTerrainRenderer(VulkanBackend *backend, ResourceSystem *resourceSystem, VoxelTextureManager* textureManager) {
+VoxelTerrainRenderer::VoxelTerrainRenderer(VulkanBackend *backend, ResourceSystem *resourceSystem,
+                                           VoxelTextureManager *textureManager) {
     m_textureManager = textureManager;
     m_resourceSystem = resourceSystem;
     m_backend = backend;
@@ -111,7 +112,7 @@ void VoxelTerrainRenderer::init() {
             .setPixelShader(m_pixelShader)
             .setPrimType(nvrhi::PrimitiveType::TriangleList)
             .setRenderState(renderState)
-            .addBindingLayout(m_frameBindingLayout)  // Set 0
+            .addBindingLayout(m_frameBindingLayout) // Set 0
             .addBindingLayout(m_bufferBindingLayout) // Set 1
             .addBindingLayout(m_faceBufferBindingLayout) // Set 2 - face buffer
             .addBindingLayout(m_textureManager->get_binding_layout()); // Set 3 - texture array
@@ -130,6 +131,7 @@ void VoxelTerrainRenderer::init() {
     auto computeFrameLayoutDesc = nvrhi::BindingLayoutDesc()
             .setVisibility(nvrhi::ShaderType::Compute)
             .addItem(nvrhi::BindingLayoutItem::VolatileConstantBuffer(0)) // UBO for view/projection matrices
+            .addItem(nvrhi::BindingLayoutItem::PushConstants(1, sizeof(uint32_t))) // chunkCount
             .setBindingOffsets(bindingOffsets);
     m_computeFrameBindingLayout = m_backend->device->createBindingLayout(computeFrameLayoutDesc);
 
@@ -138,12 +140,17 @@ void VoxelTerrainRenderer::init() {
         m_computeFrameBindingLayout);
 
     // Set 1 compute: for each VoxelBuffer (cullData + culledIndirect + culledCount)
+    auto cullBindingOffsets = nvrhi::VulkanBindingOffsets()
+            .setShaderResourceOffset(0)   // SRV slot 0 → Vulkan binding 0
+            .setUnorderedAccessViewOffset(1) // UAV slot 0 → Vulkan binding 1, slot 1 → binding 2
+            .setSamplerOffset(10)
+            .setConstantBufferOffset(10);
     auto cullBindingLayoutDesc = nvrhi::BindingLayoutDesc()
             .setVisibility(nvrhi::ShaderType::Compute)
             .addItem(nvrhi::BindingLayoutItem::StructuredBuffer_SRV(0)) // chunk cull data buffer
-            .addItem(nvrhi::BindingLayoutItem::StructuredBuffer_UAV(1)) // culled indirect buffer
-            .addItem(nvrhi::BindingLayoutItem::StructuredBuffer_UAV(2)) // culled draw count buffer
-            .setBindingOffsets(bindingOffsets);
+            .addItem(nvrhi::BindingLayoutItem::StructuredBuffer_UAV(0)) // culled indirect buffer → Vulkan binding 1
+            .addItem(nvrhi::BindingLayoutItem::RawBuffer_UAV(1))        // culled draw count buffer → Vulkan binding 2
+            .setBindingOffsets(cullBindingOffsets);
     m_cullBindingLayout = m_backend->device->createBindingLayout(cullBindingLayoutDesc);
 
     auto computePipelineDesc = nvrhi::ComputePipelineDesc()
@@ -163,9 +170,9 @@ void VoxelTerrainRenderer::destroy() {
     m_vertexShader = nullptr;
 }
 
-VoxelBuffer& VoxelTerrainRenderer::create_buffer() {
+VoxelBuffer &VoxelTerrainRenderer::create_buffer() {
     // create initial chunk buffer
-    VoxelBuffer& buffer = m_chunkBuffers.emplace_back(m_backend);
+    VoxelBuffer &buffer = m_chunkBuffers.emplace_back(m_backend);
 
     auto initialBufferBindingSetDesc = nvrhi::BindingSetDesc()
             .addItem(nvrhi::BindingSetItem::StructuredBuffer_SRV(0, buffer.get_oub_buffer()));
@@ -180,8 +187,8 @@ VoxelBuffer& VoxelTerrainRenderer::create_buffer() {
     // culling compute binding set
     auto cullBindingSetDesc = nvrhi::BindingSetDesc()
             .addItem(nvrhi::BindingSetItem::StructuredBuffer_SRV(0, buffer.get_chunk_cull_data_buffer()))
-            .addItem(nvrhi::BindingSetItem::StructuredBuffer_UAV(1, buffer.get_culled_indirect_buffer()))
-            .addItem(nvrhi::BindingSetItem::StructuredBuffer_UAV(2, buffer.get_culled_draw_count_buffer()));
+            .addItem(nvrhi::BindingSetItem::StructuredBuffer_UAV(0, buffer.get_culled_indirect_buffer()))
+            .addItem(nvrhi::BindingSetItem::RawBuffer_UAV(1, buffer.get_culled_draw_count_buffer()));
     m_cullBindingSets.push_back(
         m_backend->device->createBindingSet(cullBindingSetDesc, m_cullBindingLayout));
 
@@ -209,7 +216,7 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
         gameState->resourceSystem.get(),
         ecs.get_mut<VoxelTextureManager>()
     );
-    auto* voxelRenderer = pass.get();
+    auto *voxelRenderer = pass.get();
     renderer->renderPasses.push_back(std::move(pass));
 
     ecs.component<VoxelChunkMesh>();
@@ -217,7 +224,7 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
     ecs.system<VoxelChunkMesh, const Position>("VoxelTerrainRenderer-UploadVoxelChunkMesh")
             .kind(flecs::PreStore)
             .with<VoxelChunkMeshState, voxel_chunk_mesh_state::ReadyForUpload>()
-            .each([voxelRenderer](flecs::entity e, VoxelChunkMesh &mesh, const Position& pos) {
+            .each([voxelRenderer](flecs::entity e, VoxelChunkMesh &mesh, const Position &pos) {
                 VOXEL_ZONE_N("VoxelTerrainRenderer-UploadChunkMesh");
                 const auto *renderer = e.world().get<Renderer>();
                 if (!renderer) {
@@ -244,14 +251,15 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
                 VOXEL_ZONE_N("TerrainRenderer-CleanupChunkMesh")
                 if (mesh.is_allocated() && !voxelRenderer->m_chunkBuffers.empty()) {
                     int bufferIndex = mesh.bufferIndex;
-                    voxelRenderer->m_meshUploader.enqueue_free(mesh.drawSlotIndex, &voxelRenderer->m_chunkBuffers[bufferIndex]);
+                    voxelRenderer->m_meshUploader.enqueue_free(mesh.drawSlotIndex,
+                                                               &voxelRenderer->m_chunkBuffers[bufferIndex]);
                     voxelRenderer->m_chunkBuffers[bufferIndex].free(mesh);
                 }
             });
-
 }
 
-bool VoxelTerrainRenderer::upload_chunk_mesh_system(const Renderer *renderer, VoxelChunkMesh &mesh, const Position &pos) {
+bool VoxelTerrainRenderer::upload_chunk_mesh_system(const Renderer *renderer, VoxelChunkMesh &mesh,
+                                                    const Position &pos) {
     auto &commandList = renderer->frameContext.commandList;
     VOXEL_VK_NVRHI_ZONE(renderer->backend->tracyVkCtx, commandList, "GPU Upload Chunk Meshes");
     // TODO use the buffer with the position
@@ -264,12 +272,12 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(const Renderer *renderer, Vo
     if (mesh.is_allocated()) {
         int oldBufferIndex = mesh.bufferIndex;
         if (oldBufferIndex >= 0 && oldBufferIndex < static_cast<int>(m_chunkBuffers.size())) {
-            VoxelBuffer& buffer = m_chunkBuffers[oldBufferIndex];
+            VoxelBuffer &buffer = m_chunkBuffers[oldBufferIndex];
             uint32_t oldRegionStart = mesh.faceRegionStart;
             if (buffer.reallocate(mesh)) {
                 // Stage-4 probe: log remesh uploads
                 // LOG_DEBUG("VoxelTerrainRenderer", "[UPLOAD remesh] ({:.0f},{:.0f},{:.0f}) faces={} slot={} region:{}->{} ",
-                          // pos.x, pos.y, pos.z, mesh.faceCount, mesh.drawSlotIndex, oldRegionStart, mesh.faceRegionStart);
+                // pos.x, pos.y, pos.z, mesh.faceCount, mesh.drawSlotIndex, oldRegionStart, mesh.faceRegionStart);
                 TerrainOUB oub = {
                     .model = {
                         1.0f, 0.0f, 0.0f, 0.0f,
@@ -281,7 +289,8 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(const Renderer *renderer, Vo
                 m_meshUploader.enqueue(mesh, oub, &buffer);
                 return true;
             }
-            LOG_WARN("VoxelTerrainRenderer", "[UPLOAD remesh FALLBACK] ({:.0f},{:.0f},{:.0f}) reallocate failed, doing free+alloc",
+            LOG_WARN("VoxelTerrainRenderer",
+                     "[UPLOAD remesh FALLBACK] ({:.0f},{:.0f},{:.0f}) reallocate failed, doing free+alloc",
                      pos.x, pos.y, pos.z);
             // If reallocate failed (fragmentation), fall through to try other buffers
             // But first free the draw slot since we'll allocate fresh
@@ -291,7 +300,7 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(const Renderer *renderer, Vo
     }
 
     for (size_t i = 0; i < m_chunkBuffers.size() && !uploaded; i++) {
-        VoxelBuffer& buffer = m_chunkBuffers[i];
+        VoxelBuffer &buffer = m_chunkBuffers[i];
 
         if (!buffer.allocate(mesh)) {
             continue;
@@ -300,10 +309,10 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(const Renderer *renderer, Vo
 
         TerrainOUB oub = {
             .model = {
-                1.0f, 0.0f, 0.0f, 0.0f,  // column 0
-                0.0f, 1.0f, 0.0f, 0.0f,  // column 1
-                0.0f, 0.0f, 1.0f, 0.0f,  // column 2
-                pos.x, pos.y, pos.z, 1.0f  // column 3 (translation)
+                1.0f, 0.0f, 0.0f, 0.0f, // column 0
+                0.0f, 1.0f, 0.0f, 0.0f, // column 1
+                0.0f, 0.0f, 1.0f, 0.0f, // column 2
+                pos.x, pos.y, pos.z, 1.0f // column 3 (translation)
             }
         };
         m_meshUploader.enqueue(mesh, oub, &buffer);
@@ -320,7 +329,6 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(const Renderer *renderer, Vo
 }
 
 void VoxelTerrainRenderer::render(nvrhi::CommandListHandle commandList, Camera3d &camera, VulkanBackend &backend) {
-
     if (camera.viewMatrix != m_ubo.view)
         m_ubo.view = camera.viewMatrix;
     if (camera.projectionMatrix != m_ubo.projection)
@@ -328,7 +336,7 @@ void VoxelTerrainRenderer::render(nvrhi::CommandListHandle commandList, Camera3d
 
 
     // Before rendering, flush upload batcher to ensure all pending uploads are executed
-    auto* vkCmdBuf = static_cast<VkCommandBuffer>(commandList->getNativeObject(nvrhi::ObjectTypes::VK_CommandBuffer));
+    auto *vkCmdBuf = static_cast<VkCommandBuffer>(commandList->getNativeObject(nvrhi::ObjectTypes::VK_CommandBuffer));
     m_meshUploader.flush(vkCmdBuf); // execute upload commands
 
     commandList->writeBuffer(
@@ -341,18 +349,21 @@ void VoxelTerrainRenderer::render(nvrhi::CommandListHandle commandList, Camera3d
     {
         VOXEL_VK_NVRHI_ZONE(backend.tracyVkCtx, commandList, "GPU Cull Terrain");
         int i = 0;
-        for (auto& chunkBuffer : m_chunkBuffers) {
-            uint32_t chunkCount = chunkBuffer.get_draw_count();
-            if (chunkCount == 0) { i++; continue; }
+        for (auto &chunkBuffer: m_chunkBuffers) {
+            uint32_t chunkCount = chunkBuffer.get_unculled_draw_count();
+            if (chunkCount == 0) {
+                i++;
+                continue;
+            }
 
             // Reset culled draw count to 0 before dispatching the compute shader
             uint32_t zero = 0;
             commandList->writeBuffer(chunkBuffer.get_culled_draw_count_buffer(), &zero, sizeof(uint32_t));
 
             auto computeState = nvrhi::ComputeState()
-                .setPipeline(m_cullPipeline)
-                .addBindingSet(m_computeFrameBindingSet) // Set 0
-                .addBindingSet(m_cullBindingSets[i]);    // Set 1
+                    .setPipeline(m_cullPipeline)
+                    .addBindingSet(m_computeFrameBindingSet) // Set 0
+                    .addBindingSet(m_cullBindingSets[i]); // Set 1
             commandList->setComputeState(computeState);
 
             // Push constant : chunkCount
@@ -364,28 +375,56 @@ void VoxelTerrainRenderer::render(nvrhi::CommandListHandle commandList, Camera3d
         }
     }
 
+    VkMemoryBarrier2 barrier = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
+        .srcStageMask  = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+        .srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT,
+        .dstStageMask  = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
+        .dstAccessMask = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT,
+    };
+    VkDependencyInfo dep = {
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .memoryBarrierCount = 1,
+        .pMemoryBarriers = &barrier,
+    };
+    vkCmdPipelineBarrier2(vkCmdBuf, &dep);
 
     {
         VOXEL_VK_NVRHI_ZONE(backend.tracyVkCtx, commandList, "GPU Draw Terrain Buffer");
         int i = 0;
-        for (auto& chunkBuffer : m_chunkBuffers) {
-            auto& bufferBindingSet = m_chunkBufferBindingSets[i];
+        for (auto &chunkBuffer: m_chunkBuffers) {
+            auto &bufferBindingSet = m_chunkBufferBindingSets[i];
 
             auto graphicsState = nvrhi::GraphicsState()
                     .setPipeline(m_pipeline)
-                    .setViewport(nvrhi::ViewportState().addViewportAndScissorRect(nvrhi::Viewport(extent.width, extent.height)))
+                    .setViewport(
+                        nvrhi::ViewportState().addViewportAndScissorRect(nvrhi::Viewport(extent.width, extent.height)))
                     .setFramebuffer(m_backend->get_current_framebuffer())
-                    .addBindingSet(m_frameBindingSet)    // Set 0: Per-frame data (camera)
-                    .addBindingSet(bufferBindingSet)     // Set 1: Per-buffer data (chunks)
+                    .addBindingSet(m_frameBindingSet) // Set 0: Per-frame data (camera)
+                    .addBindingSet(bufferBindingSet) // Set 1: Per-buffer data (chunks)
                     .addBindingSet(m_chunkFaceBindingSets[i]) // Set 2: face buffer
                     .addBindingSet(m_textureManager->get_binding_set()) // Set 3: texture array
                     .setIndirectParams(chunkBuffer.get_culled_indirect_buffer());
             commandList->setGraphicsState(graphicsState);
 
-            uint32_t drawCount = chunkBuffer.get_draw_count();
-            if (drawCount > 0) {
-                commandList->drawIndirect(0, drawCount);
-            }
+            // uint32_t drawCount = chunkBuffer.get_draw_count();
+            // if (drawCount > 0) {
+            //     commandList->drawIndirect(0, drawCount);
+            // }
+
+            auto *vkIndirectBuf = static_cast<VkBuffer>(
+                chunkBuffer.get_culled_indirect_buffer()->getNativeObject(nvrhi::ObjectTypes::VK_Buffer));
+
+            auto *vkCountBuf = static_cast<VkBuffer>(
+                chunkBuffer.get_culled_draw_count_buffer()->getNativeObject(nvrhi::ObjectTypes::VK_Buffer));
+
+            vkCmdDrawIndirectCount(
+                vkCmdBuf,
+                vkIndirectBuf, 0, // buffer + offset
+                vkCountBuf, 0, // count buffer + offset
+                1, // max draws
+                sizeof(VkDrawIndirectCommand));
+
             i++;
         }
     }

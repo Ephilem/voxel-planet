@@ -98,8 +98,8 @@ ClientModule::ClientModule(flecs::world &ecs) {
             .fov = 80.0f
         })
         .set<ChunkLoader>({
-            .loadRadius = 16,
-            .unloadRadius = 20
+            .loadRadius = 2,
+            .unloadRadius = 3
         })
         .set<Orientation>({0.0f, 0.0f, 0.0f})
         .set<Camera3d>({});

@@ -292,6 +292,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 )
 
 file(GLOB_RECURSE SHADER_SOURCES
+        CONFIGURE_DEPENDS
         "${CMAKE_SOURCE_DIR}/assets/shaders/*.vert"
         "${CMAKE_SOURCE_DIR}/assets/shaders/*.frag"
         "${CMAKE_SOURCE_DIR}/assets/shaders/*.comp"

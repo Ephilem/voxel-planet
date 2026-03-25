@@ -125,7 +125,7 @@ void VoxelBufferVisualizer::draw_statistics(VoxelTerrainRenderer* voxelRenderer)
 
     for (const auto& buffer : buffers) {
         totalUsedFaces += buffer.get_used_face_regions();
-        totalDrawCount += buffer.get_draw_count();
+        totalDrawCount += buffer.get_unculled_draw_count();
     }
 
     uint32_t totalMaxFaces = MAX_FACES_REGIONS * buffers.size();

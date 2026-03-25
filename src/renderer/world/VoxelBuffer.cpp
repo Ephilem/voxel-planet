@@ -74,6 +74,8 @@ void VoxelBuffer::init() {
             .setDebugName("VoxelBuffer Culled Draw Count Buffer")
             .setIsDrawIndirectArgs(true)
             .setCanHaveRawViews(true)
+            .setCanHaveUAVs(true)
+            .setStructStride(sizeof(uint32_t))
             .setInitialState(nvrhi::ResourceStates::UnorderedAccess)
             .setKeepInitialState(true);
     m_culledDrawCountBuffer = m_backend->device->createBuffer(countDesc);

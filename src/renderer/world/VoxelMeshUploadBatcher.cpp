@@ -6,6 +6,7 @@
 
 #include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
+#include "core/world/world_components.h"
 #include "renderer/TracyVulkanIntegration.h"
 
 void VoxelMeshUploadBatcher::init(VulkanBackend* backend) {
@@ -36,7 +37,7 @@ void VoxelMeshUploadBatcher::destroy() {
 bool VoxelMeshUploadBatcher::enqueue(const VoxelChunkMesh &meshData, const TerrainOUB &oub, VoxelBuffer* targetBuffer) {
     VOXEL_ZONE_N("VoxelMeshUploadBatcher-Enqueue");
     // Size test
-    size_t totalSizeNeeded = meshData.faces.size() * sizeof(TerrainFace3d) + sizeof(TerrainOUB) + sizeof(VkDrawIndirectCommand);
+    size_t totalSizeNeeded = meshData.faces.size() * sizeof(TerrainFace3d) + sizeof(TerrainOUB) + sizeof(VoxelChunkCullData);
     if (m_currentTotalSize + totalSizeNeeded > MAX_STAGING_BUFFER_SIZE) {
         VOXEL_MESSAGE("Staging buffer full");
         LOG_ERROR("VoxelMeshUploadBatcher", "Mesh data is too large to fit in the staging buffer ({} bytes needed, max is {})",
@@ -60,7 +61,7 @@ bool VoxelMeshUploadBatcher::enqueue(const VoxelChunkMesh &meshData, const Terra
 }
 
 bool VoxelMeshUploadBatcher::enqueue_free(uint32_t drawSlotIndex, VoxelBuffer* targetBuffer) {
-    size_t totalSizeNeeded = sizeof(TerrainOUB) + sizeof(VkDrawIndirectCommand);
+    size_t totalSizeNeeded = sizeof(TerrainOUB) + sizeof(VoxelChunkCullData);
     if (m_currentTotalSize + totalSizeNeeded > MAX_STAGING_BUFFER_SIZE) {
         VOXEL_MESSAGE("Staging buffer full");
         LOG_ERROR("VoxelMeshUploadBatcher", "Free command is too large to fit in the staging buffer ({} bytes needed, max is {})",
@@ -98,7 +99,7 @@ void VoxelMeshUploadBatcher::flush(VkCommandBuffer cmd) {
         VkBuffer dst;
         std::vector<VkBufferCopy> regions;
     };
-    std::vector<PerDst> facesCopies, oubCopies, indirectCopies;
+    std::vector<PerDst> facesCopies, oubCopies, cullDataCopies;
 
     auto get_regions = [](std::vector<PerDst> &list, VkBuffer dst) -> std::vector<VkBufferCopy> & {
         for (auto &e: list) if (e.dst == dst) return e.regions;
@@ -112,7 +113,7 @@ void VoxelMeshUploadBatcher::flush(VkCommandBuffer cmd) {
         VkBuffer vkFaces = (VkBuffer) task.targetBuffer->get_faces_buffer()->getNativeObject(
             nvrhi::ObjectTypes::VK_Buffer);
         VkBuffer vkOub = (VkBuffer) task.targetBuffer->get_oub_buffer()->getNativeObject(nvrhi::ObjectTypes::VK_Buffer);
-        VkBuffer vkIndirect = (VkBuffer) task.targetBuffer->get_indirect_buffer()->getNativeObject(
+        VkBuffer vkCullData = (VkBuffer) task.targetBuffer->get_chunk_cull_data_buffer()->getNativeObject(
             nvrhi::ObjectTypes::VK_Buffer);
 
         // --- Faces ---
@@ -135,22 +136,39 @@ void VoxelMeshUploadBatcher::flush(VkCommandBuffer cmd) {
         });
         stagingOffset += sizeof(TerrainOUB);
 
-        // --- Indirect ---
+        // --- Chunk cull data and indirectCmd ---
+        // Cull information
+        VoxelChunkCullData cullData = {};
+
+        glm::vec3 corners[8] = {
+            {0, 0, 0}, {CHUNK_SIZE, 0, 0}, {0, CHUNK_SIZE, 0},
+            {CHUNK_SIZE, CHUNK_SIZE, 0}, {0, 0, CHUNK_SIZE},{CHUNK_SIZE, 0, CHUNK_SIZE},
+            {0, CHUNK_SIZE, CHUNK_SIZE},{CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE},
+        };
+        glm::vec3 wMin(FLT_MAX), wMax(-FLT_MAX);
+        for (auto& c : corners) {
+            glm::vec3 w = glm::vec3(task.oub.model * glm::vec4(c, 1.0f));
+            wMin = glm::min(wMin, w);
+            wMax = glm::max(wMax, w);
+        }
+        cullData.aabbMin = glm::vec4(wMin, 0.0f);
+        cullData.aabbMax = glm::vec4(wMax, 0.0f);
+
         uint32_t faceCount = task.faceDataSize / sizeof(TerrainFace3d);
         uint32_t faceRegionStart = task.faceDataOffset / FACES_REGION_SIZE;
-        VkDrawIndirectCommand indirectCmd = {
+        cullData.drawArgs = {
             .vertexCount = faceCount * VERTICES_PER_QUAD,
             .instanceCount = faceCount > 0 ? 1u : 0u,
             .firstVertex = faceRegionStart * FACES_PER_REGION * VERTICES_PER_QUAD,
             .firstInstance = task.drawSlotIndex,
         };
-        memcpy(mapped + stagingOffset, &indirectCmd, sizeof(indirectCmd));
-        get_regions(indirectCopies, vkIndirect).push_back({
+        memcpy(mapped + stagingOffset, &cullData, sizeof(VoxelChunkCullData));
+        get_regions(cullDataCopies, vkCullData).push_back({
             .srcOffset = stagingOffset,
-            .dstOffset = task.drawSlotIndex * sizeof(VkDrawIndirectCommand),
-            .size = sizeof(VkDrawIndirectCommand),
+            .dstOffset = task.drawSlotIndex * sizeof(VoxelChunkCullData),
+            .size = sizeof(VoxelChunkCullData),
         });
-        stagingOffset += sizeof(VkDrawIndirectCommand);
+        stagingOffset += sizeof(VoxelChunkCullData);
     }
 
     // Barrier : lecture state to TRANSFER_DST
@@ -193,7 +211,7 @@ void VoxelMeshUploadBatcher::flush(VkCommandBuffer cmd) {
             vkCmdCopyBuffer(cmd, staging.buffer, e.dst, (uint32_t) e.regions.size(), e.regions.data());
         for (auto &e: oubCopies)
             vkCmdCopyBuffer(cmd, staging.buffer, e.dst, (uint32_t) e.regions.size(), e.regions.data());
-        for (auto &e: indirectCopies)
+        for (auto &e: cullDataCopies)
             vkCmdCopyBuffer(cmd, staging.buffer, e.dst, (uint32_t) e.regions.size(), e.regions.data());
     }
 
