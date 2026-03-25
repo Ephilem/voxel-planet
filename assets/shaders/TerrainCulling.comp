@@ -74,13 +74,13 @@ void main() {
     ChunkCullData chunk = chunks[idx];
 
     // Nothing to draw, skip
-    // if (chunk.instanceCount == 0) return;
+    if (chunk.instanceCount == 0) return;
 
     mat4 vp = global_ubo.projection * global_ubo.view;
     vec4 planes[6];
     extract_frustum_planes(vp, planes);
 
-//    if (!is_aabb_visible(chunk.aabbMin.xyz, chunk.aabbMax.xyz, planes)) return;
+    if (!is_aabb_visible(chunk.aabbMin.xyz, chunk.aabbMax.xyz, planes)) return;
 
     // Increment the count of visible chunks and write the indirect draw command
     uint outIdx = atomicAdd(culledCount, 1);
