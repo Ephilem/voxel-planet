@@ -91,7 +91,7 @@ RendererModule::RendererModule(flecs::world& ecs) {
             }
         });
 
-    SkyRenderer::Register(ecs);
+    // SkyRenderer::Register(ecs);
     VoxelTerrainRenderer::Register(ecs);
     ImGuiManager::Register(ecs);
 
@@ -134,6 +134,10 @@ RendererModule::RendererModule(flecs::world& ecs) {
 
             if (renderer && renderer->backend) {
                 renderer->backend->handle_resize(evt->width, evt->height);
+
+                for (auto& renderPass : renderer->renderPasses) {
+                    renderPass->on_resize(evt->width, evt->height);
+                }
             }
         });
 }

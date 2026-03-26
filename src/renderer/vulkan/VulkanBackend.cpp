@@ -223,10 +223,6 @@ void VulkanBackend::init_nvrhi() {
     vkb::PhysicalDevice physicalDevice = physicalDevice_ret.value();
     LOG_INFO("VulkanBackend", "Selected GPU: {}", physicalDevice.properties.deviceName);
 
-    VkPhysicalDeviceTimelineSemaphoreFeatures timelineFeatures{};
-    timelineFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
-    timelineFeatures.timelineSemaphore = VK_TRUE;
-
     VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures{};
     dynamicRenderingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
     dynamicRenderingFeatures.dynamicRendering = VK_TRUE;
@@ -238,6 +234,7 @@ void VulkanBackend::init_nvrhi() {
     VkPhysicalDeviceVulkan12Features vulkan12Features{};
     vulkan12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
     vulkan12Features.drawIndirectCount = VK_TRUE;
+    vulkan12Features.timelineSemaphore = VK_TRUE;
 
     VkPhysicalDeviceFeatures2 features{};
     features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
@@ -245,7 +242,6 @@ void VulkanBackend::init_nvrhi() {
 
     vkb::DeviceBuilder deviceBuilder{ physicalDevice };
     auto device_ret = deviceBuilder
-        .add_pNext(&timelineFeatures)
         .add_pNext(&dynamicRenderingFeatures)
         .add_pNext(&synchronization2Features)
         .add_pNext(&vulkan12Features)

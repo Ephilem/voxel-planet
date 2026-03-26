@@ -31,6 +31,14 @@ VoxelTerrainRenderer::~VoxelTerrainRenderer() {
 }
 
 void VoxelTerrainRenderer::init() {
+    init_render_pipeline();
+    init_hzb();
+    init_culling_pipeline();
+
+    m_meshUploader.init(m_backend);
+}
+
+void VoxelTerrainRenderer::init_render_pipeline() {
     auto bindingOffsets = nvrhi::VulkanBindingOffsets()
             .setShaderResourceOffset(0)
             .setSamplerOffset(128)
@@ -117,10 +125,9 @@ void VoxelTerrainRenderer::init() {
             .addBindingLayout(m_faceBufferBindingLayout) // Set 2 - face buffer
             .addBindingLayout(m_textureManager->get_binding_layout()); // Set 3 - texture array
     m_pipeline = m_backend->device->createGraphicsPipeline(pipelineDesc, framebufferInfo);
+}
 
-    m_meshUploader.init(m_backend);
-
-
+void VoxelTerrainRenderer::init_culling_pipeline() {
     // culling compute shader
     auto cullBindingOffsets = nvrhi::VulkanBindingOffsets()
         .setShaderResourceOffset(0)
@@ -132,16 +139,21 @@ void VoxelTerrainRenderer::init() {
         nvrhi::ShaderDesc().setShaderType(nvrhi::ShaderType::Compute),
         computeRes->get_data(), computeRes->get_data_size());
 
-    // Set 0 compute: UBO
+    // Set 0 compute: UBO + HZB texture + HZB sampler
     auto computeFrameLayoutDesc = nvrhi::BindingLayoutDesc()
             .setVisibility(nvrhi::ShaderType::Compute)
-            .addItem(nvrhi::BindingLayoutItem::VolatileConstantBuffer(0)) // UBO for view/projection matrices
+            .addItem(nvrhi::BindingLayoutItem::VolatileConstantBuffer(0)) // binding 0 : UBO
             .addItem(nvrhi::BindingLayoutItem::PushConstants(1, sizeof(uint32_t))) // chunkCount
+            .addItem(nvrhi::BindingLayoutItem::Texture_SRV(1)) // binding 1 : HZB texture (SRV_offset=0 + 1)
+            .addItem(nvrhi::BindingLayoutItem::Sampler(0))     // binding 2 : HZB sampler (Sampler_offset=2 + 0)
             .setBindingOffsets(cullBindingOffsets);
     m_computeFrameBindingLayout = m_backend->device->createBindingLayout(computeFrameLayoutDesc);
 
     m_computeFrameBindingSet = m_backend->device->createBindingSet(
-        nvrhi::BindingSetDesc().addItem(nvrhi::BindingSetItem::ConstantBuffer(0, m_uboBuffer)),
+        nvrhi::BindingSetDesc()
+            .addItem(nvrhi::BindingSetItem::ConstantBuffer(0, m_uboBuffer))
+            .addItem(nvrhi::BindingSetItem::Texture_SRV(1, m_hzbTexture))
+            .addItem(nvrhi::BindingSetItem::Sampler(0, m_hzbSampler)),
         m_computeFrameBindingLayout);
 
 
@@ -158,6 +170,60 @@ void VoxelTerrainRenderer::init() {
             .addBindingLayout(m_computeFrameBindingLayout) // Set 0
             .addBindingLayout(m_cullBindingLayout); // Set 1
     m_cullPipeline = m_backend->device->createComputePipeline(computePipelineDesc);
+}
+
+void VoxelTerrainRenderer::init_hzb() {
+    auto extent = m_backend->get_swapchain_extent();
+
+    // HZB mip 0 = half resolution of depth buffer, each subsequent mip is half of the previous
+    m_hzbWidth = std::max(1u, extent.width  / 2);
+    m_hzbHeight = std::max(1u, extent.height / 2);
+    m_hzbMipCount = static_cast<uint32_t>(std::floor(std::log2(std::max(m_hzbWidth, m_hzbHeight)))) + 1;
+
+    auto hzbDesc = nvrhi::TextureDesc()
+        .setWidth(m_hzbWidth)
+        .setHeight(m_hzbHeight)
+        .setMipLevels(m_hzbMipCount)
+        .setArraySize(1)
+        .setFormat(nvrhi::Format::R32_FLOAT)
+        .setIsUAV(true)
+        .setInitialState(nvrhi::ResourceStates::ShaderResource)
+        .setKeepInitialState(true)
+        .setIsRenderTarget(false)
+        .setDebugName("HZB Texture");
+    m_hzbTexture = m_backend->device->createTexture(hzbDesc);
+
+    auto samplerDesc = nvrhi::SamplerDesc()
+        .setMinFilter(false)
+        .setMagFilter(false)
+        .setMipFilter(false)
+        .setAllAddressModes(nvrhi::SamplerAddressMode::Clamp);
+    m_hzbSampler = m_backend->device->createSampler(samplerDesc);
+
+    auto hzbBindingOffsets = nvrhi::VulkanBindingOffsets()
+        .setShaderResourceOffset(0)
+        .setUnorderedAccessViewOffset(1)
+        .setSamplerOffset(2)
+        .setConstantBufferOffset(0);
+
+    auto hzbGenRes = m_resourceSystem->load<ShaderResource>("HZBGeneration.comp", ResourceType::SHADER);
+    m_hzbGenerationShader = m_backend->device->createShader(
+        nvrhi::ShaderDesc().setShaderType(nvrhi::ShaderType::Compute),
+        hzbGenRes->get_data(), hzbGenRes->get_data_size());
+
+    auto hzbGenLayoutDesc = nvrhi::BindingLayoutDesc()
+        .setVisibility(nvrhi::ShaderType::Compute)
+        .addItem(nvrhi::BindingLayoutItem::Texture_SRV(0))           // binding 0 : source
+        .addItem(nvrhi::BindingLayoutItem::Texture_UAV(0))           // binding 1 : dest
+        .addItem(nvrhi::BindingLayoutItem::Sampler(0))               // binding 2 : sampler
+        .addItem(nvrhi::BindingLayoutItem::PushConstants(1, sizeof(glm::uvec2)))
+        .setBindingOffsets(hzbBindingOffsets);
+    m_hzbGenBindingLayout = m_backend->device->createBindingLayout(hzbGenLayoutDesc);
+
+    m_hzbGenComputePipeline = m_backend->device->createComputePipeline(
+        nvrhi::ComputePipelineDesc()
+            .setComputeShader(m_hzbGenerationShader)
+            .addBindingLayout(m_hzbGenBindingLayout));
 }
 
 void VoxelTerrainRenderer::destroy() {
@@ -431,5 +497,75 @@ void VoxelTerrainRenderer::render(nvrhi::CommandListHandle commandList, Camera3d
         }
     }
 
+    {
+        VOXEL_VK_NVRHI_ZONE(backend.tracyVkCtx, commandList, "Generate HZB");
+
+        commandList->setTextureState(m_backend->depthBuffer,
+            nvrhi::AllSubresources, nvrhi::ResourceStates::ShaderResource);
+
+        for (uint32_t mip = 0; mip < m_hzbMipCount; mip++) {
+            uint32_t dstW = std::max(1u, m_hzbWidth  >> mip);
+            uint32_t dstH = std::max(1u, m_hzbHeight >> mip);
+
+            auto dstSub = nvrhi::TextureSubresourceSet()
+                .setBaseMipLevel(mip)
+                .setNumMipLevels(1);
+
+            commandList->setTextureState(m_hzbTexture, dstSub,
+                nvrhi::ResourceStates::UnorderedAccess);
+
+            nvrhi::BindingSetDesc bsDesc;
+            if (mip == 0) {
+                // Mip 0: source is the full-res depth buffer
+                bsDesc.addItem(nvrhi::BindingSetItem::Texture_SRV(0, m_backend->depthBuffer));
+            } else {
+                // Mip N: source is previous HZB mip
+                auto srcSub = nvrhi::TextureSubresourceSet()
+                    .setBaseMipLevel(mip - 1)
+                    .setNumMipLevels(1);
+                commandList->setTextureState(m_hzbTexture, srcSub,
+                    nvrhi::ResourceStates::ShaderResource);
+                bsDesc.addItem(nvrhi::BindingSetItem::Texture_SRV(0, m_hzbTexture,
+                    nvrhi::Format::UNKNOWN, srcSub));
+            }
+            bsDesc.addItem(nvrhi::BindingSetItem::Texture_UAV(0, m_hzbTexture,
+                nvrhi::Format::R32_FLOAT, dstSub));
+            bsDesc.addItem(nvrhi::BindingSetItem::Sampler(0, m_hzbSampler));
+
+            auto bs = m_backend->device->createBindingSet(bsDesc, m_hzbGenBindingLayout);
+
+            glm::uvec2 dstSize(dstW, dstH);
+            commandList->setComputeState(
+                nvrhi::ComputeState().setPipeline(m_hzbGenComputePipeline).addBindingSet(bs));
+            commandList->setPushConstants(&dstSize, sizeof(glm::uvec2));
+            commandList->dispatch((dstW + 7) / 8, (dstH + 7) / 8, 1);
+        }
+
+        // Restore states for next frame
+        commandList->setTextureState(m_hzbTexture,
+            nvrhi::AllSubresources, nvrhi::ResourceStates::ShaderResource);
+        commandList->setTextureState(m_backend->depthBuffer,
+            nvrhi::AllSubresources, nvrhi::ResourceStates::DepthWrite);
+    }
+
     commandList->clearState();
+}
+
+void VoxelTerrainRenderer::on_resize(uint32_t newWidth, uint32_t newHeight) {
+    m_hzbWidth = std::max(1u, newWidth  / 2);
+    m_hzbHeight = std::max(1u, newHeight / 2);
+    m_hzbMipCount = static_cast<uint32_t>(std::floor(std::log2(std::max(m_hzbWidth, m_hzbHeight)))) + 1;
+
+    auto hzbDesc = nvrhi::TextureDesc()
+        .setWidth(m_hzbWidth)
+        .setHeight(m_hzbHeight)
+        .setMipLevels(m_hzbMipCount)
+        .setArraySize(1)
+        .setFormat(nvrhi::Format::R32_FLOAT)
+        .setIsUAV(true)
+        .setInitialState(nvrhi::ResourceStates::ShaderResource)
+        .setKeepInitialState(true)
+        .setIsRenderTarget(false)
+        .setDebugName("HZB Texture");
+    m_hzbTexture = m_backend->device->createTexture(hzbDesc);
 }

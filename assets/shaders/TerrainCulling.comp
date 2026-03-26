@@ -2,14 +2,17 @@
 
 layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 
-// Set 0 : UBO caméra
+// Set 0 : UBO camera
 layout(set = 0, binding = 0) uniform global_uniform_object {
     mat4 view;
     mat4 projection;
     float time;
 } global_ubo;
 
-// Set 1 : buffers par VoxelBuffer
+layout(set = 0, binding = 1) uniform texture2D hzbTexture;
+layout(set = 0, binding = 2) uniform sampler hzbSampler;
+
+// Set 1 : buffers
 struct ChunkCullData {
     vec4 aabbMin;
     vec4 aabbMax;
@@ -67,6 +70,47 @@ bool is_aabb_visible(vec3 aabbMin, vec3 aabbMax, vec4 planes[6]) {
     return true;
 }
 
+bool is_occluded_by_hzb(vec3 aabbMin, vec3 aabbMax, mat4 vp) {
+    const vec3 corners[8] = vec3[8](
+        vec3(aabbMin.x, aabbMin.y, aabbMin.z),
+        vec3(aabbMax.x, aabbMin.y, aabbMin.z),
+        vec3(aabbMin.x, aabbMax.y, aabbMin.z),
+        vec3(aabbMax.x, aabbMax.y, aabbMin.z),
+        vec3(aabbMin.x, aabbMin.y, aabbMax.z),
+        vec3(aabbMax.x, aabbMin.y, aabbMax.z),
+        vec3(aabbMin.x, aabbMax.y, aabbMax.z),
+        vec3(aabbMax.x, aabbMax.y, aabbMax.z)
+    );
+
+    vec2 uvMin = vec2(1.0);
+    vec2 uvMax = vec2(0.0);
+    float depthMin = 1.0;
+
+    for (int i = 0; i < 8; i++) {
+        vec4 clip = vp * vec4(corners[i], 1.0);
+        if (clip.w <= 0.0) return false; // near plane, consider visible to avoid artifacts
+
+        vec3 ndc = clip.xyz / clip.w;
+        vec2 uv = clamp(ndc.xy * 0.5 + 0.5, vec2(0.0), vec2(1.0));
+        uvMin = min(uvMin, uv);
+        uvMax = max(uvMax, uv);
+        depthMin = min(depthMin, ndc.z);
+    }
+
+    vec2 rectSize = (uvMax - uvMin) * vec2(textureSize(sampler2D(hzbTexture, hzbSampler), 0));
+    float mip = ceil(log2(max(rectSize.x, rectSize.y) * 0.5 + 0.001));
+    mip = clamp(mip, 0.0, float(textureQueryLevels(sampler2D(hzbTexture, hzbSampler))) - 1.0);
+
+    float h00 = textureLod(sampler2D(hzbTexture, hzbSampler), uvMin, mip).r;
+    float h10 = textureLod(sampler2D(hzbTexture, hzbSampler), vec2(uvMax.x, uvMin.y), mip).r;
+    float h01 = textureLod(sampler2D(hzbTexture, hzbSampler), vec2(uvMin.x, uvMax.y), mip).r;
+    float h11 = textureLod(sampler2D(hzbTexture, hzbSampler), uvMax, mip).r;
+    float hzbDepth = max(max(h00, h10), max(h01, h11));
+
+    return depthMin > hzbDepth + 0.001;
+}
+
+
 void main() {
     uint idx = gl_GlobalInvocationID.x;
     if (idx >= pc.chunkCount) return;
@@ -81,6 +125,9 @@ void main() {
     extract_frustum_planes(vp, planes);
 
     if (!is_aabb_visible(chunk.aabbMin.xyz, chunk.aabbMax.xyz, planes)) return;
+    if (is_occluded_by_hzb(chunk.aabbMin.xyz, chunk.aabbMax.xyz, vp)) return;
+
+
 
     // Increment the count of visible chunks and write the indirect draw command
     uint outIdx = atomicAdd(culledCount, 1);
@@ -92,3 +139,4 @@ void main() {
         chunk.firstInstance
     );
 }
+

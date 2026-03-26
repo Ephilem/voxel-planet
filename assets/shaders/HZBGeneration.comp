@@ -1,0 +1,31 @@
+#version 450
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+// Source: depth buffer (mip 0) or previous HZB mip (mip 1+)
+layout(set = 0, binding = 0) uniform texture2D srcTex;
+// Destination: current HZB mip (vulkan binding 1 due to UAV offset = 1)
+layout(set = 0, binding = 1, r32f) writeonly uniform image2D dstTex;
+// Sampler (vulkan binding 2 due to sampler offset = 2)
+layout(set = 0, binding = 2) uniform sampler srcSampler;
+
+layout(push_constant) uniform PC {
+    uvec2 dstSize;
+} pc;
+
+void main() {
+    ivec2 dst = ivec2(gl_GlobalInvocationID.xy);
+    if (dst.x >= int(pc.dstSize.x) || dst.y >= int(pc.dstSize.y)) return;
+
+    // Read the 2x2 block from source (source is 2x the size of dest)
+    ivec2 srcBase = dst * 2;
+    ivec2 srcSize = textureSize(sampler2D(srcTex, srcSampler), 0);
+
+    float d0 = texelFetch(sampler2D(srcTex, srcSampler), clamp(srcBase + ivec2(0, 0), ivec2(0), srcSize - 1), 0).r;
+    float d1 = texelFetch(sampler2D(srcTex, srcSampler), clamp(srcBase + ivec2(1, 0), ivec2(0), srcSize - 1), 0).r;
+    float d2 = texelFetch(sampler2D(srcTex, srcSampler), clamp(srcBase + ivec2(0, 1), ivec2(0), srcSize - 1), 0).r;
+    float d3 = texelFetch(sampler2D(srcTex, srcSampler), clamp(srcBase + ivec2(1, 1), ivec2(0), srcSize - 1), 0).r;
+
+    // Conservative: take the maximum depth (furthest from camera)
+    imageStore(dstTex, dst, vec4(max(max(d0, d1), max(d2, d3))));
+}
