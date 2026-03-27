@@ -68,7 +68,7 @@ public:
 private:
     NoiseParams m_params;
 
-    FastNoise::SmartNode<FastNoise::FractalFBm> m_terrainNoise;
+    std::vector<FastNoise::SmartNode<FastNoise::FractalFBm>> m_terrainNoises; // By octave for Lods
     FastNoise::SmartNode<FastNoise::FractalFBm> m_roughNoise;
 
     void rebuild_noise();

@@ -20,9 +20,13 @@ void WorldGenerator::rebuild_noise() {
         fbm->SetGain(m_params.gain);
         return fbm;
     };
+    m_terrainNoises.clear();
+
+    for (int i = 0; i < m_params.octaves; i++) {
+        m_terrainNoises.push_back(makeFBm(i + 1));
+    }
 
     m_roughNoise   = makeFBm(1);
-    m_terrainNoise = makeFBm(m_params.octaves);
 }
 
 void WorldGenerator::set_params(const NoiseParams& params) {
@@ -32,7 +36,7 @@ void WorldGenerator::set_params(const NoiseParams& params) {
 
 void WorldGenerator::sample_heightmap(int worldX, int worldZ, int width, int height, float* outHeights) const {
     std::vector<float> noise(width * height);
-    m_terrainNoise->GenUniformGrid2D(
+    m_terrainNoises[m_params.octaves-1]->GenUniformGrid2D(
         noise.data(),
         worldX, worldZ,
         width, height,
@@ -86,16 +90,20 @@ WorldGenerator::ColumnBounds WorldGenerator::evaluate_column(glm::ivec2 col) {
 bool WorldGenerator::generate_chunk(VoxelChunk &chunk, glm::ivec3 chunkPosition, int lod) {
     VOXEL_ZONE_N("Generate Chunk");
 
-    int worldX = chunkPosition.x * CHUNK_SIZE;
+    float voxelSize = std::pow(2.0f, static_cast<float>(lod));
+
+    int worldX = chunkPosition.x * CHUNK_SIZE * static_cast<int>(voxelSize);
     int worldY = chunkPosition.y * CHUNK_SIZE;
-    int worldZ = chunkPosition.z * CHUNK_SIZE;
+    int worldZ = chunkPosition.z * CHUNK_SIZE * static_cast<int>(voxelSize);
+
+    int octaves = std::max(1, m_params.octaves - lod * 2);
 
     std::vector<float> heightmap(CHUNK_SIZE * CHUNK_SIZE);
-    m_terrainNoise->GenUniformGrid2D(
+    m_terrainNoises[octaves-1]->GenUniformGrid2D(
         heightmap.data(),
         worldX, worldZ,
         CHUNK_SIZE, CHUNK_SIZE,
-        m_params.frequency,
+        m_params.frequency / voxelSize,
         m_params.seed
     );
 
