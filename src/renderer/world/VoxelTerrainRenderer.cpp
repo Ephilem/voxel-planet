@@ -89,14 +89,10 @@ void VoxelTerrainRenderer::init() {
             .setBindingOffsets(bindingOffsets);
     m_faceBufferBindingLayout = m_backend->device->createBindingLayout(faceBindingLayoutDesc);
 
-    nvrhi::Format swapchainNvrhiFormat = m_backend->swapchainFormat == VK_FORMAT_B8G8R8A8_UNORM
-                                             ? nvrhi::Format::BGRA8_UNORM
-                                             : nvrhi::Format::RGBA8_UNORM;
-
     // Create Pipeline
     auto framebufferInfo = nvrhi::FramebufferInfo()
-            .addColorFormat(swapchainNvrhiFormat)
-            .setDepthFormat(nvrhi::Format::D24S8);
+            .addColorFormat(m_backend->get_swapchain_format())
+            .setDepthFormat(m_backend->get_depth_format());
 
     // Configure render state
     nvrhi::RenderState renderState;

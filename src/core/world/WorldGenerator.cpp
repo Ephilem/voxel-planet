@@ -83,7 +83,7 @@ WorldGenerator::ColumnBounds WorldGenerator::evaluate_column(glm::ivec2 col) {
     };
 }
 
-bool WorldGenerator::generate_chunk(VoxelChunk &chunk, glm::ivec3 chunkPosition) {
+bool WorldGenerator::generate_chunk(VoxelChunk &chunk, glm::ivec3 chunkPosition, int lod) {
     VOXEL_ZONE_N("Generate Chunk");
 
     int worldX = chunkPosition.x * CHUNK_SIZE;

@@ -14,8 +14,26 @@
 
 class WorldGenerator;
 
-struct ChunkCandidate {
+struct ChunkKey {
     glm::ivec3 pos;
+    int lod;
+
+    bool operator==(const ChunkKey& other) const {
+        return pos == other.pos && lod == other.lod;
+    }
+};
+
+struct IChunkKeyHash {
+    std::size_t operator()(const ChunkKey& k) const {
+        return static_cast<std::size_t>(k.pos.x) * 73856093 ^
+               static_cast<std::size_t>(k.pos.y) * 19349663 ^
+               static_cast<std::size_t>(k.pos.z) * 83492791 ^
+               static_cast<std::size_t>(k.lod) * 2654435761u;
+    }
+};
+
+struct ChunkCandidate {
+    ChunkKey key;
     float priority;
 };
 
@@ -26,6 +44,7 @@ inline bool operator>(const ChunkCandidate& a, const ChunkCandidate& b) {
 struct TaskGeneratingInput {
     glm::ivec3 chunkCoord;
     WorldGenerator* generator;
+    int lod = 0;
     float priority = 0.0f;
 };
 
@@ -33,6 +52,7 @@ struct TaskGeneratingOutput {
     std::shared_ptr<std::array<uint8_t, (32 * 32 * 32)>> voxels;
     std::unordered_map<AssetID, uint8_t> textureIDs;
     glm::ivec3 chunkCoord;
+    int lod = 0;
     bool success = false;
     bool empty = true;
 };
@@ -95,14 +115,14 @@ private:
     std::atomic<uint64_t> m_chunksUnloaded{0};
 
 
-    std::deque<glm::ivec3> m_unloadQueue;
-    std::unordered_set<glm::ivec3, IVec3Hash> m_unloadQueueSet;
+    std::deque<ChunkKey> m_unloadQueue;
+    std::unordered_set<ChunkKey, IChunkKeyHash> m_unloadQueueSet;
 
-    std::unordered_map<glm::ivec3, flecs::entity, IVec3Hash> m_loadedChunks;
-    std::unordered_set<glm::ivec3, IVec3Hash> m_emptyChunks;
-    std::unordered_set<glm::ivec3, IVec3Hash> m_loadingChunks;
+    std::unordered_map<ChunkKey, flecs::entity, IChunkKeyHash> m_loadedChunks;
+    std::unordered_set<ChunkKey, IChunkKeyHash> m_emptyChunks;
+    std::unordered_set<ChunkKey, IChunkKeyHash> m_loadingChunks;
 
-    std::unordered_set<glm::ivec3, IVec3Hash> m_cancelledChunks;
+    std::unordered_set<ChunkKey, IChunkKeyHash> m_cancelledChunks;
 
     static constexpr std::chrono::microseconds DRAIN_TIME_BUDGET{500};
     static constexpr int MAX_UNLOADS_PER_FRAME = 50;
@@ -119,7 +139,7 @@ private:
 
     // Actions
     void request_chunks_in_radius(const glm::ivec3& center, const glm::ivec3& oldCenter, int radius, WorldGenerator* generator);
-    void cancel_chunk_generation(const glm::ivec3& chunkPos);
+    void cancel_chunk_generation(const ChunkKey& key);
     void update_unload_queue(const ChunkLoader& loader, const glm::ivec3& centerChunk);
 
     std::vector<TaskGeneratingOutput> poll_generation_results(size_t maxResults);
@@ -133,20 +153,27 @@ private:
         };
     }
 
-    bool is_chunk_processed(const glm::ivec3& pos) const {
-        return m_loadedChunks.contains(pos) || m_emptyChunks.contains(pos);
+    bool is_chunk_processed(const ChunkKey& key) const {
+        return m_loadedChunks.contains(key) || m_emptyChunks.contains(key);
     }
 
-    bool is_chunk_in_progress(const glm::ivec3& pos) const {
-        return m_loadingChunks.contains(pos) || m_inCandidateHeap.contains(pos);
+    bool is_chunk_in_progress(const ChunkKey& key) const {
+        return m_loadingChunks.contains(key) || m_inCandidateHeap.contains(key);
     }
 
-    bool is_chunk_cancelled(const glm::ivec3& pos) const {
-        return m_cancelledChunks.contains(pos);
+    bool is_chunk_cancelled(const ChunkKey& key) const {
+        return m_cancelledChunks.contains(key);
     }
 
-    static float calculate_priority(const glm::ivec3& chunkPos, const glm::ivec3& center);
-    bool is_chunk_still_needed(const glm::ivec3& chunkPos, const flecs::world &world) const;
+    int get_lod(float distance) const {
+        if (distance < 256.0f) return 0;
+        if (distance < 512.0f) return 1;
+        if (distance < 1024.0f) return 2;
+        return 3;
+    }
+
+    static float calculate_priority(const ChunkKey& key, const glm::ivec3& center);
+    bool is_chunk_still_needed(const ChunkKey& key, const flecs::world &world) const;
 
     // Generation threads
     std::vector<std::thread> m_generationThreads;
@@ -159,7 +186,7 @@ private:
 
     // Candidate staging heap (main thread only)
     std::vector<ChunkCandidate> m_candidateHeap;
-    std::unordered_set<glm::ivec3, IVec3Hash> m_inCandidateHeap;
+    std::unordered_set<ChunkKey, IChunkKeyHash> m_inCandidateHeap;
     glm::ivec3 m_currentCenter{};
     int m_currentLoadRadius = 0;
     WorldGenerator* m_cachedGenerator = nullptr;

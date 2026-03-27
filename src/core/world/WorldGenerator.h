@@ -25,9 +25,10 @@ public:
      * If there is no data to generate (only air), return false.
      * @param chunk The chunk to fill
      * @param chunkPosition The position of the chunk in chunk coordinates
+     * @param lod The level of detail to generate (0 = full detail, higher = more simplified)
      * @return True if the chunk has been filled with data, false if it is empty (all air)
      */
-    bool generate_chunk(VoxelChunk& chunk, glm::ivec3 chunkPosition);
+    bool generate_chunk(VoxelChunk& chunk, glm::ivec3 chunkPosition, int lod);
 
     struct ColumnBounds {
         int yMax; // highest world Y that may contain terrain (exclusive)

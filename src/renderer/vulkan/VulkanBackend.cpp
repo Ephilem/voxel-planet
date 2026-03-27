@@ -223,10 +223,6 @@ void VulkanBackend::init_nvrhi() {
     vkb::PhysicalDevice physicalDevice = physicalDevice_ret.value();
     LOG_INFO("VulkanBackend", "Selected GPU: {}", physicalDevice.properties.deviceName);
 
-    VkPhysicalDeviceTimelineSemaphoreFeatures timelineFeatures{};
-    timelineFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
-    timelineFeatures.timelineSemaphore = VK_TRUE;
-
     VkPhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures{};
     dynamicRenderingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES;
     dynamicRenderingFeatures.dynamicRendering = VK_TRUE;
@@ -238,6 +234,7 @@ void VulkanBackend::init_nvrhi() {
     VkPhysicalDeviceVulkan12Features vulkan12Features{};
     vulkan12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
     vulkan12Features.drawIndirectCount = VK_TRUE;
+    vulkan12Features.timelineSemaphore = VK_TRUE;
 
     VkPhysicalDeviceFeatures2 features{};
     features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
@@ -245,7 +242,6 @@ void VulkanBackend::init_nvrhi() {
 
     vkb::DeviceBuilder deviceBuilder{ physicalDevice };
     auto device_ret = deviceBuilder
-        .add_pNext(&timelineFeatures)
         .add_pNext(&dynamicRenderingFeatures)
         .add_pNext(&synchronization2Features)
         .add_pNext(&vulkan12Features)
@@ -293,7 +289,8 @@ void VulkanBackend::create_swapchain() {
     VOXEL_ZONE_N("Create Swapchain");
     vkb::SwapchainBuilder builder{ vkDevice.physical_device, vkDevice.device, surface };
     auto swapchain_ret = builder
-        .set_desired_format({ VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR })
+        .set_desired_format({ VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR })
+        .add_fallback_format({ VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR })
         .set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR)
         .set_desired_extent(renderParameters.width, renderParameters.height)
         .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
@@ -308,9 +305,15 @@ void VulkanBackend::create_swapchain() {
     auto images = m_swapchain.get_images();
 
     // Create framebuffer and depth buffers
-    nvrhi::Format nvrhiFormat = swapchainFormat == VK_FORMAT_B8G8R8A8_UNORM
-        ? nvrhi::Format::BGRA8_UNORM
-        : nvrhi::Format::RGBA8_UNORM;
+    switch (swapchainFormat) {
+        case VK_FORMAT_B8G8R8A8_UNORM:
+        case VK_FORMAT_B8G8R8A8_SRGB:
+            m_swapchainFormat = nvrhi::Format::BGRA8_UNORM;
+            break;
+        default:
+            m_swapchainFormat = nvrhi::Format::RGBA8_UNORM;
+            break;
+    }
 
     m_swapchainTextures.clear();
     m_swapchainTextures.reserve(images->size());
@@ -319,7 +322,7 @@ void VulkanBackend::create_swapchain() {
             .setDimension(nvrhi::TextureDimension::Texture2D)
             .setWidth(m_swapchain.extent.width)
             .setHeight(m_swapchain.extent.height)
-            .setFormat(nvrhiFormat)
+            .setFormat(m_swapchainFormat)
             .setIsRenderTarget(true)
             .setInitialState(nvrhi::ResourceStates::Present)
             .setKeepInitialState(true)
@@ -333,15 +336,24 @@ void VulkanBackend::create_swapchain() {
         m_swapchainTextures.push_back(texture);
     }
 
+    VkFormat depthVkFormat = VK_FORMAT_D24_UNORM_S8_UINT;
+    VkFormatProperties props;
+    vkGetPhysicalDeviceFormatProperties(vkDevice.physical_device, depthVkFormat, &props);
+    if (!(props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)) {
+        depthVkFormat = VK_FORMAT_D32_SFLOAT_S8_UINT;
+    }
+    m_depthFormat = (depthVkFormat == VK_FORMAT_D24_UNORM_S8_UINT)
+        ? nvrhi::Format::D24S8
+        : nvrhi::Format::D32S8;
+
     auto depthDesc = nvrhi::TextureDesc()
         .setDimension(nvrhi::TextureDimension::Texture2D)
-        .setFormat(nvrhi::Format::D32)
+        .setFormat(m_depthFormat)
         .setWidth(m_swapchain.extent.width)
         .setHeight(m_swapchain.extent.height)
         .setIsRenderTarget(true)
         .setInitialState(nvrhi::ResourceStates::DepthWrite)
         .setKeepInitialState(true)
-        .setFormat(nvrhi::Format::D24S8)
         .setDebugName("Depth Texture");
 
     depthBuffer = device->createTexture(depthDesc);

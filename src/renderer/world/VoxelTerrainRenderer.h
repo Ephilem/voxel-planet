@@ -38,6 +38,9 @@ private:
     ResourceSystem* m_resourceSystem;
     VoxelTextureManager* m_textureManager;
 
+    // Quadtree to manage lods
+
+
     // UBO
     nvrhi::BufferHandle m_uboBuffer;
     TerrainUBO m_ubo; // CPU-side copy of the UBO. Will be use to know when to update the GPU UBO. (compare the camera entity value with this one)
@@ -66,7 +69,6 @@ private:
     // Set 1 compute: for each VoxelBuffer (cullData + culledIndirect + culledCount)
     nvrhi::BindingLayoutHandle m_cullBindingLayout;
     std::vector<nvrhi::BindingSetHandle> m_cullBindingSets;
-
 
     nvrhi::ShaderHandle m_vertexShader;
     nvrhi::ShaderHandle m_pixelShader;
