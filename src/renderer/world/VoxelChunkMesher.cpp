@@ -164,7 +164,7 @@ void VoxelChunkMesher::enqueue_chunks_build_system(flecs::iter &it) {
                 input.textureIDs[voxelID] = textureManager->request_texture_slot(textureID);
             } {
                 VOXEL_ZONE_N("Manage Neighboring Chunks");
-                auto neighborEntities = chunkManager->get_neighboring_chunks(pos);
+                auto neighborEntities = chunkManager->get_neighboring_chunks(pos, chunks[i].lod);
                 for (int n = 0; n < 6; n++) {
                     if (neighborEntities[n] != flecs::entity::null()) {
                         const auto* neighborChunk = neighborEntities[n].get<VoxelChunk>();

@@ -78,7 +78,7 @@ RendererModule::RendererModule(flecs::world& ecs) {
 
             for (const auto& offset : neighborOffsets) {
                 glm::ivec3 neighborPos = glm::ivec3(coord) + offset;
-                flecs::entity neighbor = chunkManager->get_chunk_entity(neighborPos);
+                flecs::entity neighbor = chunkManager->get_chunk_entity(ChunkKey{neighborPos, chunk.lod});
                 if (neighbor == flecs::entity::null() || !neighbor.has<VoxelChunkMesh>()) continue;
 
                 if (neighbor.has<VoxelChunkMeshState, voxel_chunk_mesh_state::WaitingForNeighbors>()) {

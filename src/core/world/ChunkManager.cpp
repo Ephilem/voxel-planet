@@ -10,7 +10,6 @@
 #include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
 #include "platform/inputs/InputStateManager.h"
-#include "renderer/rendering_components.h"
 
 ChunkManager::~ChunkManager() {
     shutdown();
@@ -459,7 +458,7 @@ void ChunkManager::Register(flecs::world &ecs) {
     ecs.get_mut<ChunkManager>()->init(ecs);
 }
 
-std::array<flecs::entity, 6> ChunkManager::get_neighboring_chunks(const glm::ivec3 &chunkPos) const {
+std::array<flecs::entity, 6> ChunkManager::get_neighboring_chunks(const glm::ivec3 &chunkPos, uint8_t lod) const {
     std::array<flecs::entity, 6> neighbors;
 
     static constexpr std::array<glm::ivec3, 6> neighborOffsets = {
@@ -481,9 +480,9 @@ std::array<flecs::entity, 6> ChunkManager::get_neighboring_chunks(const glm::ive
 
     int i = 0;
     while (i < neighborOffsets.size()) {
-        const auto &offset = neighborOffsets[i];
+        const auto &offset = neighborOffsets[i] * (1 << lod);
         glm::ivec3 neighborPos = chunkPos + offset;
-        auto it = m_loadedChunks.find(ChunkKey{neighborPos, 0});
+        auto it = m_loadedChunks.find(ChunkKey{neighborPos, lod});
         if (it != m_loadedChunks.end()) {
             neighbors[i] = it->second;
         } else {

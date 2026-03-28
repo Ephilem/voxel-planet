@@ -265,14 +265,12 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(const Renderer *renderer, Vo
     }
 
     int voxelScale = 1 << chunk.lod;
-    // anti-z fighting
-    float adjustment = 0.01f * static_cast<float>(chunk.lod);
     TerrainOUB oub = {
         .model = {
             voxelScale, 0.0f, 0.0f, 0.0f,
             0.0f, voxelScale, 0.0f, 0.0f,
             0.0f, 0.0f, voxelScale, 0.0f,
-            pos.x + adjustment, pos.y + adjustment, pos.z + adjustment, 1.0f
+            pos.x, pos.y, pos.z, 1.0f
         }
     };
 

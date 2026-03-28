@@ -90,7 +90,7 @@ public:
     static void Register(flecs::world& ecs);
 
     // Public API
-    std::array<flecs::entity, 6> get_neighboring_chunks(const glm::ivec3 &chunkPos) const;
+    std::array<flecs::entity, 6> get_neighboring_chunks(const glm::ivec3 &chunkPos, uint8_t lod) const;
     flecs::entity get_chunk_entity(const ChunkKey &key) const;
     flecs::entity get_chunk_entity(const glm::ivec3 &chunkPos) const {
         return get_chunk_entity(ChunkKey{chunkPos, 0});
