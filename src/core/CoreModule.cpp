@@ -11,9 +11,11 @@
 
 CoreModule::CoreModule(flecs::world& ecs) {
 
-    ecs.component<VoxelChunk>();
+    ecs.component<VoxelChunk>()
+      .member<uint8_t>("lod", 1, offsetof(VoxelChunk, lod));
     ecs.component<Position>();
-    ecs.component<ChunkCoordinate>();
+    ecs.component<ChunkCoordinate>()
+        .member<glm::ivec3>("pos", 1);
 
     auto assetRegistry = std::make_unique<AssetRegistry>();
 

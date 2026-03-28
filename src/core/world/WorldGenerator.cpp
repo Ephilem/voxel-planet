@@ -90,22 +90,29 @@ WorldGenerator::ColumnBounds WorldGenerator::evaluate_column(glm::ivec2 col) {
 bool WorldGenerator::generate_chunk(VoxelChunk &chunk, glm::ivec3 chunkPosition, int lod) {
     VOXEL_ZONE_N("Generate Chunk");
 
-    float voxelSize = std::pow(2.0f, static_cast<float>(lod));
+    int voxelSize = std::pow(2.0f, lod);
 
-    int worldX = chunkPosition.x * CHUNK_SIZE * static_cast<int>(voxelSize);
+    // chunkPos is always in LOD0 space — world position = chunkPos * CHUNK_SIZE, no voxelSize scale
+    int worldX = chunkPosition.x * CHUNK_SIZE;
     int worldY = chunkPosition.y * CHUNK_SIZE;
-    int worldZ = chunkPosition.z * CHUNK_SIZE * static_cast<int>(voxelSize);
+    int worldZ = chunkPosition.z * CHUNK_SIZE;
 
-    int octaves = std::max(1, m_params.octaves - lod * 2);
+    int octaves = std::max(1, m_params.octaves - lod);
 
-    std::vector<float> heightmap(CHUNK_SIZE * CHUNK_SIZE);
+    int sampleDim = CHUNK_SIZE * voxelSize;
+    std::vector<float> rawHeightmap(sampleDim * sampleDim);
     m_terrainNoises[octaves-1]->GenUniformGrid2D(
-        heightmap.data(),
+        rawHeightmap.data(),
         worldX, worldZ,
-        CHUNK_SIZE, CHUNK_SIZE,
-        m_params.frequency / voxelSize,
+        sampleDim, sampleDim,
+        m_params.frequency,
         m_params.seed
     );
+
+    std::vector<float> heightmap(CHUNK_SIZE * CHUNK_SIZE);
+    for (int z = 0; z < CHUNK_SIZE; z++)
+        for (int x = 0; x < CHUNK_SIZE; x++)
+            heightmap[x + z * CHUNK_SIZE] = rawHeightmap[(x * voxelSize) + (z * voxelSize) * sampleDim];
 
     chunk.textureIDs = {
         {"voxelplanet:textures/grass"_asset, 1},
@@ -120,12 +127,10 @@ bool WorldGenerator::generate_chunk(VoxelChunk &chunk, glm::ivec3 chunkPosition,
             int terrainHeight = m_params.baseHeight + static_cast<int>(noiseValue * m_params.heightAmplitude);
 
             for (int y = 0; y < CHUNK_SIZE; y++) {
-                int worldYPos = worldY + y;
+                int worldYPos = worldY + y * voxelSize;
 
                 if (worldYPos < terrainHeight) {
-                    if (worldYPos == terrainHeight - 1) {
-                        chunk.at(x, y, z) = 1;
-                    } else if (worldYPos > terrainHeight - 2) {
+                    if (worldYPos + voxelSize >= terrainHeight) {
                         chunk.at(x, y, z) = 1;
                     } else {
                         chunk.at(x, y, z) = 2;

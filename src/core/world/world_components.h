@@ -53,6 +53,7 @@ struct VoxelChunkState {};
 struct VoxelChunk {
     std::shared_ptr<std::array<uint8_t, CHUNK_VOLUME>> voxels;
     std::unordered_map<AssetID, uint8_t> textureIDs;
+    uint8_t lod = 0;
 
     VoxelChunk() : voxels(std::make_shared<std::array<uint8_t, CHUNK_VOLUME>>()) {
         voxels->fill(0);

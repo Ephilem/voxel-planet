@@ -84,7 +84,7 @@ private:
 
     bool upload_chunk_mesh_system(
         const Renderer *renderer,
-        VoxelChunkMesh &mesh, const Position &pos);
+        VoxelChunkMesh &mesh, const Position &pos, const VoxelChunk &chunk);
 
     VoxelBuffer &create_buffer();
 

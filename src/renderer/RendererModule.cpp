@@ -82,7 +82,7 @@ RendererModule::RendererModule(flecs::world& ecs) {
                 if (neighbor == flecs::entity::null() || !neighbor.has<VoxelChunkMesh>()) continue;
 
                 if (neighbor.has<VoxelChunkMeshState, voxel_chunk_mesh_state::WaitingForNeighbors>()) {
-                    if (chunkManager->can_mesh(neighborPos)) {
+                    if (chunkManager->can_mesh(neighborPos, chunk.lod)) {
                         neighbor.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
                     }
                 } else {

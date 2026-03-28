@@ -6,7 +6,6 @@
 #include "VoxelTextureManager.h"
 #include "core/log/Logger.h"
 #include "core/world/ChunkManager.h"
-#include "platform/inputs/input_state.h"
 #include "renderer/rendering_components.h"
 
 
@@ -53,7 +52,7 @@ void VoxelChunkMesher::init(flecs::world &ecs) {
     ecs.component<VoxelChunkMeshState>()
             .add(flecs::Exclusive);
 
-    ecs.system<const ChunkCoordinate>("VoxelChunkMesher-ResolveWaiting")
+    ecs.system<const ChunkCoordinate, const VoxelChunk>("VoxelChunkMesher-ResolveWaiting")
             .kind(flecs::PostUpdate)
             .with<VoxelChunkMeshState, voxel_chunk_mesh_state::WaitingForNeighbors>()
             .run([this](flecs::iter &it) {
@@ -64,15 +63,6 @@ void VoxelChunkMesher::init(flecs::world &ecs) {
             .kind(flecs::PostUpdate)
             .with<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>()
             .run([this](flecs::iter &it) {
-                // static bool canMesh = false;
-                // auto* inputAction = it.world().get<InputActionState>();
-                // if (inputAction->is_action_pressed(ActionInputType::Debug2))
-                //     canMesh = !canMesh;
-                //
-                // if (canMesh)
-                //     enqueue_chunks_build_system(it);
-                // else
-                //     it.fini();
                 enqueue_chunks_build_system(it);
             });
 
@@ -131,8 +121,9 @@ void VoxelChunkMesher::resolve_waiting_chunks_system(flecs::iter &it) {
 
     while (it.next()) {
         auto positions = it.field<const ChunkCoordinate>(0);
+        auto chunk = it.field<const VoxelChunk>(1);
         for (auto i: it) {
-            if (chunkManager->can_mesh(positions[i])) {
+            if (chunkManager->can_mesh(positions[i], chunk->lod)) {
                 it.entity(i).add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
             }
         }
@@ -165,6 +156,7 @@ void VoxelChunkMesher::enqueue_chunks_build_system(flecs::iter &it) {
 
             TaskMeshingInput input;
             input.chunkCoord = pos;
+            input.lod = chunks[i].lod;
             input.voxels = chunks[i].voxels;
             input.priority = calculate_task_priority(pos);
 
@@ -217,7 +209,7 @@ void VoxelChunkMesher::poll_meshing_results_system(flecs::iter &it) {
     for (auto &result: results) {
         VOXEL_ZONE_N("Handle Mesh Result")
         m_pendingCoords.erase(result.chunkCoord);
-        flecs::entity chunk = chunkManager->get_chunk_entity(result.chunkCoord);
+        flecs::entity chunk = chunkManager->get_chunk_entity(ChunkKey{result.chunkCoord, result.lod});
         if (chunk == flecs::entity::null() || !chunk.has<VoxelChunkMesh>()) continue;
 
         auto mesh = chunk.get_mut<VoxelChunkMesh>();
@@ -326,6 +318,7 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
 
     TaskMeshingOutput result;
     result.chunkCoord = input.chunkCoord;
+    result.lod = input.lod;
     result.success = true;
     result.meshGeneration = input.meshGeneration;
 

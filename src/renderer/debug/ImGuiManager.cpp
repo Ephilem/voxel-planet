@@ -171,12 +171,12 @@ void ImGuiManager::Register(flecs::world& ecs) {
         .each([](flecs::entity e, Renderer& renderer) {
             VOXEL_ZONE_N("ImGuiManager-Render");
             auto& ctx = renderer.frameContext;
-            VOXEL_VK_NVRHI_ZONE(renderer.backend->tracyVkCtx, ctx.commandList, "RenderImGui-Render");
             if (!ctx.frameActive || !ctx.commandList) {
                 // need to close the begin frame first
                 ImGui::EndFrame();
                 return;
             }
+            VOXEL_VK_NVRHI_ZONE(renderer.backend->tracyVkCtx, ctx.commandList, "RenderImGui-Render");
 
             VkCommandBuffer vkCmdBuf = ctx.commandList->getNativeObject(nvrhi::ObjectTypes::VK_CommandBuffer);
 

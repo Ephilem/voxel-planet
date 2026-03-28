@@ -9,7 +9,7 @@ static ImPlotColormap chunkColormap = -1;
 
 void ChunkManagerPanel::render(flecs::world &ecs) {
     VOXEL_ZONE_N("ChunkManagerPanel-Display");
-    auto* cm = ecs.get_mut<ChunkManager>();
+    auto *cm = ecs.get_mut<ChunkManager>();
     if (!cm) return;
 
     if (ImGui::BeginTable("##layout", 2, ImGuiTableFlags_None)) {
@@ -24,7 +24,7 @@ void ChunkManagerPanel::render(flecs::world &ecs) {
     render_controls(ecs, cm);
 }
 
-void ChunkManagerPanel::render_stats(flecs::world &ecs, const ChunkManager* cm) {
+void ChunkManagerPanel::render_stats(flecs::world &ecs, const ChunkManager *cm) {
     const ChunkManagerStats stats = cm->get_stats();
 
     m_accGenerated += stats.chunksGenerated - m_lastTotalGenerated;
@@ -81,73 +81,148 @@ void ChunkManagerPanel::render_stats(flecs::world &ecs, const ChunkManager* cm) 
     ImGui::TextColored({1.0f, 0.3f, 0.3f, 1.0f}, "Cancelled: %zu", stats.cancelledChunkCount);
 }
 
-void ChunkManagerPanel::render_slice_view(flecs::world &ecs, const ChunkManager* cm) {
+void ChunkManagerPanel::render_slice_view(flecs::world &ecs, const ChunkManager *cm) {
     if (chunkColormap == -1) {
         const ImVec4 colors[] = {
             {0.12f, 0.12f, 0.12f, 1.0f},
+            // None
             {0.2f, 0.9f, 0.3f, 1.0f},
+            // Loaded
             {0.45f, 0.45f, 0.45f, 1.0f},
+            // Empty
             {1.0f, 0.8f, 0.0f, 1.0f},
+            // Loading
             {0.3f, 0.6f, 1.0f, 1.0f},
+            // Candidate
             {1.0f, 0.3f, 0.3f, 1.0f},
+            // Cancelled
         };
         chunkColormap = ImPlot::AddColormap("ChunkStates", colors, 6);
     }
 
-    const int dim = 2 * m_viewRadius + 1;
-    std::vector<float> grid(dim * dim, 0.0f);
-
     glm::ivec3 center = cm->get_current_center();
     center.y += m_sliceY;
 
-    for (int z = 0; z < dim; z++)
-        for (int x = 0; x < dim; x++) {
-            glm::ivec3 pos = center + glm::ivec3(x - m_viewRadius, 0, z - m_viewRadius);
-            grid[z * dim + x] = static_cast<float>(cm->get_chunk_state(pos));
-        }
-
-    ImPlot::PushColormap(chunkColormap);
-    if (ImPlot::BeginPlot("##slice", ImVec2(320, 320),
-                          ImPlotFlags_Equal | ImPlotFlags_NoLegend | ImPlotFlags_NoMouseText)) {
-        ImPlot::SetupAxes("X", "Z",
-                          ImPlotAxisFlags_NoDecorations,
-                          ImPlotAxisFlags_NoDecorations | ImPlotAxisFlags_Invert);
-
-        const double r = m_viewRadius + 0.5;
-        ImPlot::SetupAxisLimits(ImAxis_X1, -r, r, ImGuiCond_Always);
-        ImPlot::SetupAxisLimits(ImAxis_Y1, -r, r, ImGuiCond_Always);
-
-        ImPlot::PlotHeatmap("##chunks", grid.data(), dim, dim,
-                            0.0, 5.0, nullptr,
-                            ImPlotPoint(-r, -r),
-                            ImPlotPoint(r, r));
-
-        double cx = 0.0, cy = 0.0;
-        ImPlot::SetNextMarkerStyle(ImPlotMarker_Cross, 8.0f, ImVec4(1, 1, 1, 1), 2.0f);
-        ImPlot::PlotScatter("##player", &cx, &cy, 1);
-
-        ImPlot::EndPlot();
-    }
-    ImPlot::PopColormap();
     ImGui::Spacing();
 
-    auto dot = [](ImVec4 c, const char* label) {
-        ImGui::ColorButton("##", c, ImGuiColorEditFlags_NoTooltip, ImVec2(12, 12));
-        ImGui::SameLine();
-        ImGui::Text("%s", label);
-    };
+    if (ImGui::BeginTabBar("##lodtabs")) {
+        for (int lod = 0; lod < 3; lod++) {
+            std::string tabLabel = "LOD" + std::to_string(lod);
+            if (ImGui::BeginTabItem(tabLabel.c_str())) {
+                int lodScale = 1 << lod;
 
-    dot({0.2f, 0.9f, 0.3f, 1}, "Loaded");
-    ImGui::SameLine(0, 16);
-    dot({1.0f, 0.8f, 0.0f, 1}, "Loading");
-    ImGui::SameLine(0, 16);
-    dot({0.3f, 0.6f, 1.0f, 1}, "Candidate");
-    dot({0.45f, 0.45f, 0.45f, 1}, "Empty");
-    ImGui::SameLine(0, 16);
-    dot({1.0f, 0.3f, 0.3f, 1}, "Cancelled");
+                int halfCells = m_viewRadius / lodScale;
+                if (halfCells < 1) halfCells = 1;
+                int dim = 2 * halfCells + 1;
+
+                std::vector<float> grid(dim * dim, 0.0f);
+
+                for (int z = 0; z < dim; z++)
+                    for (int x = 0; x < dim; x++) {
+                        glm::ivec3 pos = center + glm::ivec3(
+                                             (x - halfCells) * lodScale,
+                                             0,
+                                             (z - halfCells) * lodScale
+                                         );
+                        ChunkKey key{pos, lod};
+                        grid[z * dim + x] = static_cast<float>(cm->get_chunk_state(key));
+                    }
+
+                ImPlot::PushColormap(chunkColormap);
+                if (ImPlot::BeginPlot("##slice", ImVec2(320, 320),
+                                      ImPlotFlags_Equal | ImPlotFlags_NoLegend | ImPlotFlags_NoMouseText)) {
+                    ImPlot::SetupAxes("X", "Z",
+                                      ImPlotAxisFlags_NoDecorations,
+                                      ImPlotAxisFlags_NoDecorations | ImPlotAxisFlags_Invert);
+
+                    const double r = halfCells + 0.5;
+                    ImPlot::SetupAxisLimits(ImAxis_X1, -r, r, ImGuiCond_Always);
+                    ImPlot::SetupAxisLimits(ImAxis_Y1, -r, r, ImGuiCond_Always);
+
+                    ImPlot::PlotHeatmap("##chunks", grid.data(), dim, dim,
+                                        0.0, 5.0, nullptr,
+                                        ImPlotPoint(-r, -r),
+                                        ImPlotPoint(r, r));
+
+                    ImPlot::SetNextLineStyle(ImVec4(0.5f, 0.5f, 0.5f, 0.4f), 1.0f);
+                    for (int i = -halfCells; i <= halfCells; i++) {
+                        double pos = i - 0.5;
+                        double xv[2] = {pos, pos};
+                        double yv[2] = {-r, r};
+                        ImPlot::PlotLine("##g", xv, yv, 2);
+                        double xh[2] = {-r, r};
+                        double yh[2] = {pos, pos};
+                        ImPlot::PlotLine("##g", xh, yh, 2);
+                    } {
+                        double pos = halfCells + 0.5;
+                        double xv[2] = {pos, pos};
+                        double yv[2] = {-r, r};
+                        ImPlot::PlotLine("##g", xv, yv, 2);
+                        double xh[2] = {-r, r};
+                        double yh[2] = {pos, pos};
+                        ImPlot::PlotLine("##g", xh, yh, 2);
+                    }
+
+                    double cx = 0.0, cy = 0.0;
+                    ImPlot::SetNextMarkerStyle(ImPlotMarker_Cross, 8.0f, ImVec4(1, 0, 0, 1), 2.0f, ImVec4(1, 0, 0, 1));
+                    ImPlot::PlotScatter("##player", &cx, &cy, 1);
+
+
+                    if (ImPlot::IsPlotHovered()) {
+                        ImPlotPoint mp = ImPlot::GetPlotMousePos();
+
+                        int cx = center.x + static_cast<int>(std::floor(mp.x + 0.5)) * lodScale;
+                        int cy = center.y;
+                        int cz = center.z + static_cast<int>(std::floor(mp.y + 0.5)) * lodScale;
+
+                        int wx = cx * CHUNK_SIZE;
+                        int wy = cy * CHUNK_SIZE;
+                        int wz = cz * CHUNK_SIZE;
+
+                        ImGui::BeginTooltip();
+                        ImGui::Text("Chunk:  (%d, %d, %d)  LOD%d", cx, cy, cz, lod);
+                        ImGui::Text("World:  (%d, %d, %d)", wx, wy, wz);
+                        ImGui::Text("State:  %s", [](ChunkState s) -> const char * {
+                            switch (s) {
+                                case ChunkState::Loaded: return "Loaded";
+                                case ChunkState::Empty: return "Empty";
+                                case ChunkState::Loading: return "Loading";
+                                case ChunkState::Candidate: return "Candidate";
+                                case ChunkState::Cancelled: return "Cancelled";
+                                default: return "None";
+                            }
+                        }(cm->get_chunk_state({glm::ivec3{cx, cy, cz}, lod})));
+                        ImGui::EndTooltip();
+                    }
+
+                    ImPlot::EndPlot();
+                }
+                ImPlot::PopColormap();
+
+                ImGui::Spacing();
+                auto dot = [](ImVec4 c, const char *label) {
+                    ImGui::ColorButton("##", c, ImGuiColorEditFlags_NoTooltip, ImVec2(12, 12));
+                    ImGui::SameLine();
+                    ImGui::Text("%s", label);
+                };
+                dot({0.2f, 0.9f, 0.3f, 1}, "Loaded");
+                ImGui::SameLine(0, 16);
+                dot({1.0f, 0.8f, 0.0f, 1}, "Loading");
+                ImGui::SameLine(0, 16);
+                dot({0.3f, 0.6f, 1.0f, 1}, "Candidate");
+                dot({0.45f, 0.45f, 0.45f, 1}, "Empty");
+                ImGui::SameLine(0, 16);
+                dot({1.0f, 0.3f, 0.3f, 1}, "Cancelled");
+
+                ImGui::EndTabItem();
+            }
+        }
+        ImGui::EndTabBar();
+    }
 }
 
-void ChunkManagerPanel::render_controls(flecs::world &ecs, ChunkManager* cm) {
+
+void ChunkManagerPanel::render_controls(flecs::world &ecs, ChunkManager *cm) {
     ImGui::SliderInt("Slice Y", &m_sliceY, -5, 5);
     ImGui::SliderInt("View Radius", &m_viewRadius, 1, 20);
 

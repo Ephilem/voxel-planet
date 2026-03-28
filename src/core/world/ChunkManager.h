@@ -91,12 +91,15 @@ public:
 
     // Public API
     std::array<flecs::entity, 6> get_neighboring_chunks(const glm::ivec3 &chunkPos) const;
-    flecs::entity get_chunk_entity(const glm::ivec3& chunkPos) const;
-    bool can_mesh(const glm::ivec3& chunkPos) const;
+    flecs::entity get_chunk_entity(const ChunkKey &key) const;
+    flecs::entity get_chunk_entity(const glm::ivec3 &chunkPos) const {
+        return get_chunk_entity(ChunkKey{chunkPos, 0});
+    }
+    bool can_mesh(const glm::ivec3& chunkPos, uint8_t lod = 0) const;
 
     // Stats
     ChunkManagerStats get_stats() const;
-    ChunkState get_chunk_state(const glm::ivec3& pos) const;
+    ChunkState get_chunk_state(const ChunkKey &key) const;
     glm::ivec3 get_current_center() const { return m_currentCenter; }
     uint64_t get_total_generated() const { return m_chunksGenerated.load(std::memory_order_relaxed); }
     uint64_t get_total_unloaded() const { return m_chunksUnloaded.load(std::memory_order_relaxed); }

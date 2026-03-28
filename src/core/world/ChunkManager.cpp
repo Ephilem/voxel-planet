@@ -43,8 +43,7 @@ ChunkManagerStats ChunkManager::get_stats() const {
     return stats;
 }
 
-ChunkState ChunkManager::get_chunk_state(const glm::ivec3 &pos) const {
-    ChunkKey key{pos, 0};
+ChunkState ChunkManager::get_chunk_state(const ChunkKey &key) const {
     if (m_loadedChunks.contains(key)) return ChunkState::Loaded;
     if (m_emptyChunks.contains(key)) return ChunkState::Empty;
     if (m_loadingChunks.contains(key)) return ChunkState::Loading;
@@ -81,8 +80,8 @@ void ChunkManager::init(flecs::world &ecs) {
             .kind(flecs::OnUpdate)
             .each([this](flecs::entity e, ChunkLoader &loader, const Position &position) {
                 VOXEL_ZONE_N("ChunkManager-UpdateChunks")
-                auto* generator = e.world().get_mut<WorldGenerator>();
-                auto* inputManager = e.world().get_mut<InputActionState>();
+                auto *generator = e.world().get_mut<WorldGenerator>();
+                auto *inputManager = e.world().get_mut<InputActionState>();
                 // if (!inputManager->is_action_pressed(ActionInputType::Debug1)) return;
                 update_chunks_system(e, loader, position, generator);
             });
@@ -124,7 +123,7 @@ void ChunkManager::init(flecs::world &ecs) {
 }
 
 void ChunkManager::update_chunks_system(flecs::entity e, ChunkLoader &loader,
-                                        const Position &position, WorldGenerator* generator) {
+                                        const Position &position, WorldGenerator *generator) {
     glm::ivec3 currentChunk = world_pos_to_chunk_pos({position.x, position.y, position.z});
 
     if (loader.has_visited() && currentChunk == loader.lastVisitedChunk) {
@@ -143,6 +142,7 @@ void ChunkManager::update_chunks_system(flecs::entity e, ChunkLoader &loader,
 
     // Update early so is_chunk_desired uses the correct center in the cancel loop below
     loader.lastVisitedChunk = currentChunk;
+    m_currentCenter = currentChunk;
     if (!enqueueCandidates) return;
 
     request_chunks_in_radius(currentChunk, oldCenter, radius, generator);
@@ -166,7 +166,7 @@ void ChunkManager::update_chunks_system(flecs::entity e, ChunkLoader &loader,
 }
 
 void ChunkManager::request_chunks_in_radius(const glm::ivec3 &center, const glm::ivec3 &oldCenter, int radius,
-                                            WorldGenerator* generator) {
+                                            WorldGenerator *generator) {
     VOXEL_ZONE_N("RequestChunksInRadius");
 
     m_currentCenter = center;
@@ -179,22 +179,64 @@ void ChunkManager::request_chunks_in_radius(const glm::ivec3 &center, const glm:
             c.priority = calculate_priority(c.key, center);
     }
 
-    std::vector<ChunkCandidate> newCandidates; {
-        VOXEL_ZONE_N("RequestChunks-IterateAndFilter");
-        for (int x = -radius; x <= radius; x++) {
-            for (int z = -radius; z <= radius; z++) {
-                const glm::ivec2 relToOld = {center.x + x - oldCenter.x, center.z + z - oldCenter.z};
-                if (std::abs(relToOld.x) <= radius && std::abs(relToOld.y) <= radius) continue;
+    auto calculate_distance = [&center](const glm::ivec3 &pos) {
+        glm::vec3 diff = pos - center;
+        return glm::dot(diff, diff);
+    };
 
-                for (int y = -radius; y <= radius; y++) {
-                    glm::ivec3 chunkPos = center + glm::ivec3(x, y, z);
-                    ChunkKey key{chunkPos, 0};
-                    if (is_chunk_processed(key) || is_chunk_in_progress(key)) continue;
-                    m_cancelledChunks.erase(key);
-                    newCandidates.push_back({key, calculate_priority(key, center)});
+    std::vector<ChunkCandidate> newCandidates;
+
+    static constexpr glm::ivec3 lodRings[] = {
+        // Size, inner, outer
+        {0, 0, 8},
+        {1, 8, 16},
+        {2, 16, 32}
+    }; {
+        VOXEL_ZONE_N("RequestChunks-IterateAndFilter");
+
+        // foreach lods
+        for (const auto &ring: lodRings) {
+            int lod = ring.x;
+            int inner = ring.y;
+            int outer = ring.z;
+
+            // bitshift, multiple of 2
+            int voxelScale = 1 << lod;
+            int innerInLodSpace = inner / voxelScale;
+            int outerInLodSpace = outer / voxelScale;
+
+
+
+            for (int x = -outer; x <= outer; x += voxelScale) {
+                for (int z = -outer; z <= outer; z += voxelScale) {
+                    for (int y = -outer; y <= outer; y += voxelScale) {
+                        int maxComp = std::max({std::abs(x), std::abs(y), std::abs(z)});
+                        if (maxComp < inner) continue;
+
+                        ChunkKey key{center + glm::ivec3(x, y, z), lod};
+
+                        if (is_chunk_processed(key) || is_chunk_in_progress(key)) continue;
+                        m_cancelledChunks.erase(key);
+                        newCandidates.push_back({key, calculate_priority(key, center)});
+                    }
                 }
             }
         }
+
+        // for (int x = -radius; x <= radius; x++) {
+        //     for (int z = -radius; z <= radius; z++) {
+        //         const glm::ivec2 relToOld = {center.x + x - oldCenter.x, center.z + z - oldCenter.z};
+        //         if (std::abs(relToOld.x) <= radius && std::abs(relToOld.y) <= radius) continue;
+        //
+        //         for (int y = -radius; y <= radius; y++) {
+        //             glm::ivec3 chunkPos = center + glm::ivec3(x, y, z);
+        //             ChunkKey key{chunkPos, 0};
+        //             if (is_chunk_processed(key) || is_chunk_in_progress(key)) continue;
+        //             m_cancelledChunks.erase(key);
+        //             newCandidates.push_back({key, calculate_priority(key, center)});
+        //         }
+        //     }
+        // }
     }
 
     for (const auto &c: newCandidates) {
@@ -246,22 +288,25 @@ void ChunkManager::drain_candidate_buffer_system() {
             continue;
         }
 
-        int64_t colKey = ((int64_t) candidate.key.pos.x << 32) | (uint32_t) candidate.key.pos.z;
-        auto [colIt, inserted] = columnCache.emplace(colKey, 0);
-        if (inserted) {
-            int yMax = m_cachedGenerator->evaluate_column({candidate.key.pos.x, candidate.key.pos.z}).yMax;
-            colIt->second = (yMax + CHUNK_SIZE - 1) / CHUNK_SIZE;
-        }
-        int surfaceChunkY = colIt->second;
+        // int64_t colKey = ((int64_t) candidate.key.pos.x << 32) | (uint32_t) candidate.key.pos.z;
+        // auto [colIt, inserted] = columnCache.emplace(colKey, 0);
+        // if (inserted) {
+        //     int yMax = m_cachedGenerator->evaluate_column({candidate.key.pos.x, candidate.key.pos.z}).yMax;
+        //     colIt->second = (yMax + CHUNK_SIZE - 1) / CHUNK_SIZE;
+        // }
+        // int surfaceChunkY = colIt->second;
+        //
+        // if (candidate.key.pos.y >= surfaceChunkY)
+        //     continue;
 
-        if (candidate.key.pos.y >= surfaceChunkY)
-            continue;
-
-        float depth = static_cast<float>(std::max(0, surfaceChunkY - candidate.key.pos.y));
-        float priority = candidate.priority + depth * 4.0f;
+        // float depth = static_cast<float>(std::max(0, surfaceChunkY - candidate.key.pos.y));
+        // float priority = candidate.priority + depth * 4.0f;
 
         m_loadingChunks.insert(candidate.key);
-        toEnqueue.push_back({.chunkCoord = candidate.key.pos, .generator = m_cachedGenerator, .lod = candidate.key.lod, .priority = priority});
+        toEnqueue.push_back({
+            .chunkCoord = candidate.key.pos, .generator = m_cachedGenerator, .lod = candidate.key.lod,
+            .priority = candidate.priority
+        });
     }
 
     if (!toEnqueue.empty()) {
@@ -386,6 +431,7 @@ void ChunkManager::poll_generation_results_system(flecs::iter &it) {
             VoxelChunk chunkData = {};
             chunkData.voxels = std::move(result.voxels);
             chunkData.textureIDs = std::move(result.textureIDs);
+            chunkData.lod = result.lod;
 
             flecs::entity chunk; {
                 VOXEL_ZONE_N("CreateChunkEntity");
@@ -449,17 +495,18 @@ std::array<flecs::entity, 6> ChunkManager::get_neighboring_chunks(const glm::ive
     return neighbors;
 }
 
-flecs::entity ChunkManager::get_chunk_entity(const glm::ivec3 &chunkPos) const {
-    auto it = m_loadedChunks.find(ChunkKey{chunkPos, 0});
+flecs::entity ChunkManager::get_chunk_entity(const ChunkKey &key) const {
+    auto it = m_loadedChunks.find(key);
     if (it != m_loadedChunks.end()) {
         return it->second;
     }
     return flecs::entity::null();
 }
 
-bool ChunkManager::can_mesh(const glm::ivec3 &chunkPos) const {
+bool ChunkManager::can_mesh(const glm::ivec3 &chunkPos, uint8_t lod) const {
     VOXEL_ZONE_N("Can Mesh Test");
-    if (!m_loadedChunks.contains(ChunkKey{chunkPos, 0})) {
+    // if (lod > 0) return true;
+    if (!m_loadedChunks.contains(ChunkKey{chunkPos, lod})) {
         return false;
     }
 
@@ -473,7 +520,7 @@ bool ChunkManager::can_mesh(const glm::ivec3 &chunkPos) const {
 
     for (const auto &offset: neighborOffsets) {
         glm::ivec3 neighborPos = chunkPos + offset;
-        if (m_loadingChunks.contains(ChunkKey{neighborPos, 0})) {
+        if (m_loadingChunks.contains(ChunkKey{neighborPos, lod})) {
             return false;
         }
     }
@@ -547,7 +594,7 @@ void ChunkManager::generation_worker_loop(size_t id) {
                 TaskGeneratingOutput result{};
                 VoxelChunk chunkData = {}; {
                     VOXEL_ZONE_N("GenerateChunk");
-                    result.empty = !input.generator->generate_chunk(chunkData, input.chunkCoord, 0);
+                    result.empty = !input.generator->generate_chunk(chunkData, input.chunkCoord, input.lod);
                 }
                 result.success = true;
                 result.chunkCoord = input.chunkCoord;

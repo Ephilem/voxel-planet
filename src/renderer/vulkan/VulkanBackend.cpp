@@ -211,6 +211,8 @@ void VulkanBackend::init_nvrhi() {
     auto physicalDevice_ret = selector
         .set_surface(surface)
         .set_minimum_version(1, 3)
+        // force dedicated  GPU if available, otherwise fallback to any available GPU
+        .prefer_gpu_device_type(vkb::PreferredDeviceType::discrete)
 #ifdef TRACY_ENABLE
         .add_required_extension(VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME)
 #endif
