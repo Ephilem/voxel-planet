@@ -5,6 +5,7 @@
 
 #include "main_components.h"
 #include "log/Logger.h"
+#include "physics/PhysicsSystem.h"
 #include "world/ChunkManager.h"
 #include "world/world_components.h"
 #include "world/WorldGenerator.h"
@@ -27,6 +28,7 @@ CoreModule::CoreModule(flecs::world& ecs) {
 
     ecs.set<WorldGenerator>(WorldGenerator{std::time(nullptr)});
     ChunkManager::Register(ecs);
+    PhysicsSystem::Register(ecs);
 }
 
 CoreModule::~CoreModule() = default;

@@ -16,6 +16,13 @@ enum class ActionInputType {
     Debug2,
     Debug3,
 
+    Accelerate,
+    Slowdown,
+
+    Jump,
+    Sprint,
+    ToggleControllerMode,
+
     Last,
 };
 

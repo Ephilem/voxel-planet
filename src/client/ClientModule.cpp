@@ -5,10 +5,12 @@
 #include "ClientModule.h"
 #include <glm/glm.hpp>
 
+#include "PlayerControllerSystem.h"
 #include "core/GameState.h"
 #include "core/main_components.h"
 #include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
+#include "core/physics/physics_components.h"
 #include "core/world/world_components.h"
 #include "platform/inputs/input_state.h"
 #include "renderer/rendering_components.h"
@@ -32,6 +34,8 @@ ClientModule::ClientModule(flecs::world &ecs) {
     debugUI->add_panel<WorldGenPanel>();
     debugUI->add_panel<PlayerPanel>();
 
+    PlayerControllerSystem::Register(ecs);
+
     ecs.system<Orientation>("MouseLookSystem")
         .kind(flecs::OnUpdate)
         .with<Camera3d>()
@@ -50,49 +54,8 @@ ClientModule::ClientModule(flecs::world &ecs) {
             if (orientation.pitch < -89.0f) orientation.pitch = -89.0f;
         });
 
-    ecs.system<Position, const Orientation>("BasicCameraMovementSystem")
-        .kind(flecs::OnUpdate)
-        .with<Camera3d>()
-        .each([](flecs::entity e, Position& pos, const Orientation& orientation) {
-            VOXEL_ZONE_N("ClientModule-MovementSystem");
-            float moveSpeed = 50.0f;
-            const auto* inputState = e.world().get<InputActionState>();
-
-            glm::vec3 forward = glm::vec3(
-                cos(glm::radians(orientation.pitch)) * sin(glm::radians(orientation.yaw)),
-                0,
-                cos(glm::radians(orientation.pitch)) * cos(glm::radians(orientation.yaw))
-            );
-
-            // Right vector is always horizontal
-            glm::vec3 right = glm::vec3(
-                cos(glm::radians(orientation.yaw)),
-                0.0f,
-                -sin(glm::radians(orientation.yaw))
-            );
-
-            glm::vec3 velocity = glm::vec3(0.0f);
-
-            if (inputState->is_action_active(ActionInputType::Forward))
-                velocity += forward;
-            if (inputState->is_action_active(ActionInputType::Backward))
-                velocity -= forward;
-            if (inputState->is_action_active(ActionInputType::Left))
-                velocity += right;
-            if (inputState->is_action_active(ActionInputType::Right))
-                velocity -= right;
-            if (inputState->is_action_active(ActionInputType::Up))
-                velocity += glm::vec3(0.0f, 1.0f, 0.0f);
-            if (inputState->is_action_active(ActionInputType::Down))
-                velocity -= glm::vec3(0.0f, 1.0f, 0.0f);
-
-            if (glm::length(velocity) > 0.0f) {
-                velocity = glm::normalize(velocity) * moveSpeed * static_cast<float>(e.world().get<GameState>()->deltaTime);
-                pos += velocity;
-            }
-        });
-
     ecs.entity("Player")
+        .add<Player>()
         .set<Position>({8.0f, 120.0f, 8.0f})
         .set<Camera3dParameters>({
             .fov = 80.0f
@@ -101,8 +64,14 @@ ClientModule::ClientModule(flecs::world &ecs) {
             .loadRadius = 16,
             .unloadRadius = 18
         })
+        .set<Velocity>({})
         .set<Orientation>({0.0f, 0.0f, 0.0f})
-        .set<Camera3d>({});
+        .set<Camera3d>({})
+        .set<Gravity>({ 0.0f, -9.81f, 0.0f })
+        .set<RigidBody>({
+            .haftExtent = {0.3f, 0.9f, 0.3f}
+        })
+        .set<PlayerController>({});
 }
 
 void shutdown_client(flecs::world &ecs) {
