@@ -27,8 +27,11 @@ struct ChunkCoordinate : glm::ivec3 {
 
 struct ChunkLoader {
     glm::ivec3 lastVisitedChunk = glm::ivec3(INT32_MAX);
-    int loadRadius = 4;
-    int unloadRadius = 6; // > loadRadius to avoid load/unload thrashing at boundaries
+    // int loadRadius = 4;
+    // int unloadRadius = 6; // > loadRadius to avoid load/unload thrashing at boundaries
+
+    int loadRadius = 3;
+    uint8_t maxLod = 3;
 
     [[nodiscard]] bool has_visited() const {
         return lastVisitedChunk != glm::ivec3(INT32_MAX);

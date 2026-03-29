@@ -123,6 +123,8 @@ void ChunkManager::init(flecs::world &ecs) {
 
 void ChunkManager::update_chunks_system(flecs::entity e, ChunkLoader &loader,
                                         const Position &position, WorldGenerator *generator) {
+    const Clipmap clipmap = Clipmap::from_radius(loader.loadRadius, 8);
+
     glm::ivec3 currentChunk = world_pos_to_chunk_pos({position.x, position.y, position.z});
 
     if (loader.has_visited() && currentChunk == loader.lastVisitedChunk) {
@@ -150,15 +152,16 @@ void ChunkManager::update_chunks_system(flecs::entity e, ChunkLoader &loader,
     {
         VOXEL_ZONE_N("UpdateChunks-CancelOutOfRange");
         std::vector<ChunkKey> toCancel;
-        for (const auto &key: m_loadingChunks) {
-            if (!loader.is_chunk_desired(key.pos)) {
+        for (const auto &key : m_loadingChunks) {
+            glm::ivec3 diff = key.pos - currentChunk;
+            int maxComp = std::max({std::abs(diff.x), std::abs(diff.y), std::abs(diff.z)});
+            if (maxComp > clipmap.outerRadius(key.lod))
                 toCancel.push_back(key);
-            }
         }
-        for (const auto &key: toCancel) {
+        for (const auto &key : toCancel)
             cancel_chunk_generation(key);
-        }
-    } {
+    }
+    {
         VOXEL_ZONE_N("UpdateChunks-UnloadQueue");
         update_unload_queue(loader, currentChunk);
     }
@@ -178,64 +181,31 @@ void ChunkManager::request_chunks_in_radius(const glm::ivec3 &center, const glm:
             c.priority = calculate_priority(c.key, center);
     }
 
-    auto calculate_distance = [&center](const glm::ivec3 &pos) {
-        glm::vec3 diff = pos - center;
-        return glm::dot(diff, diff);
-    };
-
     std::vector<ChunkCandidate> newCandidates;
 
-    static constexpr glm::ivec3 lodRings[] = {
-        // Size, inner, outer
-        {0, 0, 8},
-        {1, 8, 16},
-        {2, 16, 32}
-    }; {
+    const Clipmap clipmap = Clipmap::from_radius(radius, 8);
+
+    {
         VOXEL_ZONE_N("RequestChunks-IterateAndFilter");
 
-        // foreach lods
-        for (const auto &ring: lodRings) {
-            int lod = ring.x;
-            int inner = ring.y;
-            int outer = ring.z;
+        for (int lod = 0; lod < clipmap.numLods; lod++) {
+            const int inner = clipmap.innerRadius(lod);
+            const int outer = clipmap.outerRadius(lod);
+            const int step  = clipmap.step(lod);
 
-            // bitshift, multiple of 2
-            int voxelScale = 1 << lod;
-            int innerInLodSpace = inner / voxelScale;
-            int outerInLodSpace = outer / voxelScale;
-
-
-
-            for (int x = -outer; x <= outer; x += voxelScale) {
-                for (int z = -outer; z <= outer; z += voxelScale) {
-                    for (int y = -outer; y <= outer; y += voxelScale) {
-                        int maxComp = std::max({std::abs(x), std::abs(y), std::abs(z)});
-                        if (maxComp < inner) continue;
+            for (int x = -outer; x < outer; x += step)
+                for (int z = -outer; z < outer; z += step)
+                    for (int y = -outer; y < outer; y += step) {
+                        // Skip inner region
+                        if (std::max({std::abs(x), std::abs(y), std::abs(z)}) <= inner) continue;
 
                         ChunkKey key{center + glm::ivec3(x, y, z), lod};
-
                         if (is_chunk_processed(key) || is_chunk_in_progress(key)) continue;
+
                         m_cancelledChunks.erase(key);
                         newCandidates.push_back({key, calculate_priority(key, center)});
                     }
-                }
-            }
         }
-
-        // for (int x = -radius; x <= radius; x++) {
-        //     for (int z = -radius; z <= radius; z++) {
-        //         const glm::ivec2 relToOld = {center.x + x - oldCenter.x, center.z + z - oldCenter.z};
-        //         if (std::abs(relToOld.x) <= radius && std::abs(relToOld.y) <= radius) continue;
-        //
-        //         for (int y = -radius; y <= radius; y++) {
-        //             glm::ivec3 chunkPos = center + glm::ivec3(x, y, z);
-        //             ChunkKey key{chunkPos, 0};
-        //             if (is_chunk_processed(key) || is_chunk_in_progress(key)) continue;
-        //             m_cancelledChunks.erase(key);
-        //             newCandidates.push_back({key, calculate_priority(key, center)});
-        //         }
-        //     }
-        // }
     }
 
     for (const auto &c: newCandidates) {
@@ -326,58 +296,22 @@ void ChunkManager::cancel_chunk_generation(const ChunkKey &key) {
 }
 
 void ChunkManager::update_unload_queue(const ChunkLoader &loader, const glm::ivec3 &centerChunk) {
-    const int unloadRadius = loader.unloadRadius;
+    const Clipmap clipmap = Clipmap::from_radius(loader.loadRadius, 8);
 
-    for (const auto &[key, entity]: m_loadedChunks) {
+    auto is_out_of_range = [&](const ChunkKey &key) {
         glm::ivec3 diff = key.pos - centerChunk;
         int maxComp = std::max({std::abs(diff.x), std::abs(diff.y), std::abs(diff.z)});
+        return maxComp > clipmap.unloadRadius(key.lod);
+    };
 
-        if (maxComp > unloadRadius) {
-            if (m_unloadQueueSet.insert(key).second) {
-                m_unloadQueue.push_back(key);
-            }
-        }
+    for (const auto &[key, entity] : m_loadedChunks) {
+        if (is_out_of_range(key) && m_unloadQueueSet.insert(key).second)
+            m_unloadQueue.push_back(key);
     }
 
-    std::vector<ChunkKey> emptyToRemove;
-    for (const auto &key: m_emptyChunks) {
-        glm::ivec3 diff = key.pos - centerChunk;
-        int maxComp = std::max({std::abs(diff.x), std::abs(diff.y), std::abs(diff.z)});
-
-        if (maxComp > unloadRadius) {
-            emptyToRemove.push_back(key);
-        }
-    }
-    for (const auto &key: emptyToRemove) {
-        m_emptyChunks.erase(key);
-    }
-
-    std::vector<ChunkKey> cancelledToRemove;
-    for (const auto &key: m_cancelledChunks) {
-        glm::ivec3 diff = key.pos - centerChunk;
-        int maxComp = std::max({std::abs(diff.x), std::abs(diff.y), std::abs(diff.z)});
-
-        if (maxComp > unloadRadius) {
-            cancelledToRemove.push_back(key);
-        }
-    }
-    for (const auto &key: cancelledToRemove) {
-        m_cancelledChunks.erase(key);
-    }
-
-    // Clean up candidate heap tracking set (heap entries become orphaned but are lazily skipped on drain)
-    std::vector<ChunkKey> heapToRemove;
-    for (const auto &key: m_inCandidateHeap) {
-        glm::ivec3 diff = key.pos - centerChunk;
-        int maxComp = std::max({std::abs(diff.x), std::abs(diff.y), std::abs(diff.z)});
-
-        if (maxComp > unloadRadius) {
-            heapToRemove.push_back(key);
-        }
-    }
-    for (const auto &key: heapToRemove) {
-        m_inCandidateHeap.erase(key);
-    }
+    std::erase_if(m_emptyChunks,     [&](const ChunkKey &k){ return is_out_of_range(k); });
+    std::erase_if(m_cancelledChunks, [&](const ChunkKey &k){ return is_out_of_range(k); });
+    std::erase_if(m_inCandidateHeap, [&](const ChunkKey &k){ return is_out_of_range(k); });
 }
 
 void ChunkManager::process_unload_queue_system(flecs::iter &it) {
@@ -518,7 +452,7 @@ bool ChunkManager::can_mesh(const glm::ivec3 &chunkPos, uint8_t lod) const {
     };
 
     for (const auto &offset: neighborOffsets) {
-        glm::ivec3 neighborPos = chunkPos + offset;
+        glm::ivec3 neighborPos = chunkPos + offset * (1 << lod);
         if (m_loadingChunks.contains(ChunkKey{neighborPos, lod})) {
             return false;
         }
