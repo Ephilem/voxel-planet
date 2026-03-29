@@ -24,6 +24,9 @@ add_library(VoxelPlanetCore STATIC
         world/ChunkManager.h
         math/frustrum.h
         math/aabb.h
+        physics/physics_components.h
+        physics/PhysicsSystem.cpp
+        physics/PhysicsSystem.h
 )
 
 add_library(VoxelPlanet::Core ALIAS VoxelPlanetCore)

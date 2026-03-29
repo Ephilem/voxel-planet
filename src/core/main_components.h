@@ -2,8 +2,9 @@
 
 #include <glm/glm.hpp>
 
+struct Player {};
+
 struct Position : glm::vec3 { using glm::vec3::vec3; };
-struct Velocity : glm::vec3 { using glm::vec3::vec3; };
 struct Scale : glm::vec3 { using glm::vec3::vec3; };
 
 // pitch, yaw, roll in degrees

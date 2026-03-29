@@ -9,6 +9,7 @@
 #include "core/main_components.h"
 #include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
+#include "core/physics/physics_components.h"
 #include "core/world/world_components.h"
 #include "platform/inputs/input_state.h"
 #include "renderer/rendering_components.h"
@@ -50,10 +51,10 @@ ClientModule::ClientModule(flecs::world &ecs) {
             if (orientation.pitch < -89.0f) orientation.pitch = -89.0f;
         });
 
-    ecs.system<Position, const Orientation>("BasicCameraMovementSystem")
+    ecs.system<Velocity, const Orientation>("BasicCameraMovementSystem")
         .kind(flecs::OnUpdate)
         .with<Camera3d>()
-        .each([](flecs::entity e, Position& pos, const Orientation& orientation) {
+        .each([](flecs::entity e, const Orientation& orientation, Velocity& velocity) {
             VOXEL_ZONE_N("ClientModule-MovementSystem");
             float moveSpeed = 50.0f;
             const auto* inputState = e.world().get<InputActionState>();
@@ -71,8 +72,6 @@ ClientModule::ClientModule(flecs::world &ecs) {
                 -sin(glm::radians(orientation.yaw))
             );
 
-            glm::vec3 velocity = glm::vec3(0.0f);
-
             if (inputState->is_action_active(ActionInputType::Forward))
                 velocity += forward;
             if (inputState->is_action_active(ActionInputType::Backward))
@@ -88,11 +87,11 @@ ClientModule::ClientModule(flecs::world &ecs) {
 
             if (glm::length(velocity) > 0.0f) {
                 velocity = glm::normalize(velocity) * moveSpeed * static_cast<float>(e.world().get<GameState>()->deltaTime);
-                pos += velocity;
             }
         });
 
     ecs.entity("Player")
+        .set<Player>({})
         .set<Position>({8.0f, 120.0f, 8.0f})
         .set<Camera3dParameters>({
             .fov = 80.0f
@@ -101,6 +100,7 @@ ClientModule::ClientModule(flecs::world &ecs) {
             .loadRadius = 16,
             .unloadRadius = 18
         })
+        .set<Velocity>({})
         .set<Orientation>({0.0f, 0.0f, 0.0f})
         .set<Camera3d>({});
 }
