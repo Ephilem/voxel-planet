@@ -72,6 +72,9 @@ public:
 
     void handle_resize(uint32_t width, uint32_t height);
 
+    nvrhi::Format get_depth_format() const { return m_depthFormat; }
+    nvrhi::Format get_swapchain_format() const { return m_swapchainFormat; }
+
 private:
     // Swapchain
     bool m_swapchainDirty = false;
@@ -80,6 +83,9 @@ private:
     std::vector<nvrhi::FramebufferHandle> m_swapchainFramebuffers;
     nvrhi::TextureHandle m_depthTexture;
     std::vector<nvrhi::CommandListHandle> m_commandLists;
+
+    nvrhi::Format m_depthFormat;
+    nvrhi::Format m_swapchainFormat;
 
     uint32_t m_imageIndex;
     uint32_t m_acquiredSemaphoreIndex = 0;

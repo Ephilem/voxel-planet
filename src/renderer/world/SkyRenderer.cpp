@@ -61,13 +61,9 @@ void SkyRenderer::init() {
             .addItem(nvrhi::BindingSetItem::ConstantBuffer(0, m_uboBuffer));
     m_bindingSet = m_backend->device->createBindingSet(bindingSetDesc, m_bindingLayout);
 
-    nvrhi::Format swapchainNvrhiFormat = m_backend->swapchainFormat == VK_FORMAT_B8G8R8A8_UNORM
-                                             ? nvrhi::Format::BGRA8_UNORM
-                                             : nvrhi::Format::RGBA8_UNORM;
-
     auto framebufferInfo = nvrhi::FramebufferInfo()
-            .addColorFormat(swapchainNvrhiFormat)
-            .setDepthFormat(nvrhi::Format::D24S8);
+            .addColorFormat(m_backend->get_swapchain_format())
+            .setDepthFormat(m_backend->get_depth_format());
 
     nvrhi::RenderState renderState;
     renderState.rasterState.cullMode = nvrhi::RasterCullMode::None;
