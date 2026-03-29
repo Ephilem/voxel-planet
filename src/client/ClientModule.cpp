@@ -51,12 +51,26 @@ ClientModule::ClientModule(flecs::world &ecs) {
             if (orientation.pitch < -89.0f) orientation.pitch = -89.0f;
         });
 
-    ecs.system<Velocity, const Orientation>("BasicCameraMovementSystem")
+    ecs.system<Movement>("Client-MovementSpeedControl")
+        .with<Player>()
+        .kind(flecs::OnUpdate)
+        .each([](flecs::entity e, Movement& movement) {
+            VOXEL_ZONE_N("ClientModule-MovementSpeedControl");
+            const auto* inputState = e.world().get<InputActionState>();
+
+            if (inputState->is_action_pressed(ActionInputType::Accelerate)) {
+                movement.speed *= 2.0f;
+            }
+            if (inputState->is_action_pressed(ActionInputType::Slowdown)) {
+                movement.speed *= 0.5f;
+            }
+        });
+
+    ecs.system<const Orientation, Movement>("BasicCameraMovementSystem")
         .kind(flecs::OnUpdate)
         .with<Camera3d>()
-        .each([](flecs::entity e, const Orientation& orientation, Velocity& velocity) {
+        .each([](flecs::entity e, const Orientation& orientation, Movement& movement) {
             VOXEL_ZONE_N("ClientModule-MovementSystem");
-            float moveSpeed = 50.0f;
             const auto* inputState = e.world().get<InputActionState>();
 
             glm::vec3 forward = glm::vec3(
@@ -72,26 +86,30 @@ ClientModule::ClientModule(flecs::world &ecs) {
                 -sin(glm::radians(orientation.yaw))
             );
 
+            glm::vec3 direction = glm::vec3(0.0f);
             if (inputState->is_action_active(ActionInputType::Forward))
-                velocity += forward;
+                direction += forward;
             if (inputState->is_action_active(ActionInputType::Backward))
-                velocity -= forward;
+                direction -= forward;
             if (inputState->is_action_active(ActionInputType::Left))
-                velocity += right;
+                direction += right;
             if (inputState->is_action_active(ActionInputType::Right))
-                velocity -= right;
+                direction -= right;
             if (inputState->is_action_active(ActionInputType::Up))
-                velocity += glm::vec3(0.0f, 1.0f, 0.0f);
+                direction += glm::vec3(0.0f, 1.0f, 0.0f);
             if (inputState->is_action_active(ActionInputType::Down))
-                velocity -= glm::vec3(0.0f, 1.0f, 0.0f);
+                direction -= glm::vec3(0.0f, 1.0f, 0.0f);
 
-            if (glm::length(velocity) > 0.0f) {
-                velocity = glm::normalize(velocity) * moveSpeed * static_cast<float>(e.world().get<GameState>()->deltaTime);
+            if (direction == glm::vec3(0.0f)) {
+                movement.direction = direction;
+                return;
             }
+
+            movement.direction = glm::normalize(direction);
         });
 
     ecs.entity("Player")
-        .set<Player>({})
+        .add<Player>()
         .set<Position>({8.0f, 120.0f, 8.0f})
         .set<Camera3dParameters>({
             .fov = 80.0f
@@ -102,7 +120,9 @@ ClientModule::ClientModule(flecs::world &ecs) {
         })
         .set<Velocity>({})
         .set<Orientation>({0.0f, 0.0f, 0.0f})
-        .set<Camera3d>({});
+        .set<Camera3d>({})
+        .set<Gravity>({ 0.0f, -9.81f, 0.0f })
+        .set<Movement>({ .speed = 50.0f });
 }
 
 void shutdown_client(flecs::world &ecs) {

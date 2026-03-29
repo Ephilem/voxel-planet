@@ -12,5 +12,5 @@ public:
 private:
     void init(flecs::world &ecs);
 
-    void apply_velocity(flecs::world &ecs)
+    void apply_velocity(flecs::iter &it);
 };

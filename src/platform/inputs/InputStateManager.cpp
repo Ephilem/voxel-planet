@@ -22,6 +22,9 @@ InputStateManager::InputStateManager() {
     bind_action(ActionInputType::Debug1, GLFW_KEY_F1);
     bind_action(ActionInputType::Debug2, GLFW_KEY_F2);
     bind_action(ActionInputType::Debug3, GLFW_KEY_F3);
+
+    bind_action(ActionInputType::Accelerate, GLFW_KEY_PAGE_UP);
+    bind_action(ActionInputType::Slowdown, GLFW_KEY_PAGE_DOWN);
 }
 
 InputStateManager::~InputStateManager() {

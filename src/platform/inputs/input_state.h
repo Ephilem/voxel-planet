@@ -16,6 +16,9 @@ enum class ActionInputType {
     Debug2,
     Debug3,
 
+    Accelerate,
+    Slowdown,
+
     Last,
 };
 
