@@ -122,7 +122,10 @@ ClientModule::ClientModule(flecs::world &ecs) {
         .set<Orientation>({0.0f, 0.0f, 0.0f})
         .set<Camera3d>({})
         .set<Gravity>({ 0.0f, -9.81f, 0.0f })
-        .set<Movement>({ .speed = 50.0f });
+        .set<RigidBody>({
+            .haftExtent = {0.3f, 0.9f, 0.3f}
+        })
+        .set<Movement>({ .speed = 5.0f });
 }
 
 void shutdown_client(flecs::world &ecs) {

@@ -11,6 +11,7 @@
 #include "world_components.h"
 #include "core/main_components.h"
 #include "core/TracyIntegration.h"
+#include "core/math/utils.h"
 
 class WorldGenerator;
 
@@ -73,6 +74,28 @@ public:
     std::array<flecs::entity, 6> get_neighboring_chunks(const glm::ivec3 &chunkPos) const;
     flecs::entity get_chunk_entity(const glm::ivec3& chunkPos) const;
     bool can_mesh(const glm::ivec3& chunkPos) const;
+    bool is_solid(const glm::ivec3 blockPos) const {
+        glm::ivec3 chunkPos = {
+            floor_div(blockPos.x, CHUNK_SIZE),
+            floor_div(blockPos.y, CHUNK_SIZE),
+            floor_div(blockPos.z, CHUNK_SIZE)
+        };
+
+        // Get chunk
+        auto chunkIt = m_loadedChunks.find(chunkPos);
+        if (chunkIt == m_loadedChunks.end()) return false; // Not loaded, treat as non-solid
+
+        auto chunk = chunkIt->second.get<VoxelChunk>();
+        if (chunk == nullptr) return false; // No chunk data, treat as non-solid. Normally not possible
+
+        glm::ivec3 local = {
+            pos_mod(blockPos.x, CHUNK_SIZE),
+            pos_mod(blockPos.y, CHUNK_SIZE),
+            pos_mod(blockPos.z, CHUNK_SIZE)
+        };
+        int index = local.x + local.y * CHUNK_SIZE + local.z * CHUNK_SIZE * CHUNK_SIZE;
+        return 0 != (*chunk->voxels)[index];
+    }
 
     // Stats
     ChunkManagerStats get_stats() const;

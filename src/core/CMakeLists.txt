@@ -27,6 +27,7 @@ add_library(VoxelPlanetCore STATIC
         physics/physics_components.h
         physics/PhysicsSystem.cpp
         physics/PhysicsSystem.h
+        math/utils.h
 )
 
 add_library(VoxelPlanet::Core ALIAS VoxelPlanetCore)

@@ -2,6 +2,8 @@
 
 #include <glm/glm.hpp>
 
+#include "core/math/aabb.h"
+
 struct Velocity : glm::vec3 {
     using glm::vec3::vec3;
 
@@ -25,6 +27,10 @@ struct RigidBody : glm::vec3 {
 
     bool onGround = false;
     bool noClip = false;
+
+    AABB box() const {
+        return AABB{-haftExtent * glm::vec3(2), haftExtent * glm::vec3(2)};
+    }
 };
 
 struct Gravity : glm::vec3 { using glm::vec3::vec3; };
