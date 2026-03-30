@@ -1,4 +1,4 @@
-er//
+//
 // Player controller: Walking and FreeCam modes
 //
 
@@ -94,7 +94,7 @@ void PlayerControllerSystem::Register(flecs::world& ecs) {
             vel.z = newXZ.y;
 
             // Jump
-            if (actions->is_action_pressed(ActionInputType::Jump)) {
+            if (actions->is_action_pressed(ActionInputType::Jump) && onGround) {
                 vel.y = ctrl.jumpForce;
             }
         });

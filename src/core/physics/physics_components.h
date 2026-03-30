@@ -34,7 +34,7 @@ struct PlayerController {
     float jumpForce     = 6.0f;
     float groundAccel   = 30.0f;
     float airAccel      = 5.0f;
-    float groundFriction = 15.0f;
+    float groundFriction = 50.0f;
 
     // FreeCam
     float freeCamSpeed       = 20.0f;

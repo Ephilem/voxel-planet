@@ -8,6 +8,7 @@
 #include <glm/ext/matrix_transform.hpp>
 
 #include "core/TracyIntegration.h"
+#include "core/physics/physics_components.h"
 
 void Camera3dSystems::Register(flecs::world &ecs) {
     ecs.component<Camera3d>();
@@ -17,7 +18,11 @@ void Camera3dSystems::Register(flecs::world &ecs) {
         .kind(flecs::OnUpdate)
         .each([](flecs::entity e, Camera3d &camera, const Position &position, const Orientation &orientation) {
             VOXEL_ZONE_N("Camera-UpdateView");
-            update_camera_view_system(camera, position, orientation);
+            glm::vec3 eyePos = position;
+            if (auto* body = e.get<RigidBody>()) {
+                eyePos.y += body->haftExtent.y * 0.75f;
+            }
+            update_camera_view_system(camera, eyePos, orientation);
         });
 
     ecs.observer<Camera3d, const Camera3dParameters>("UpdateCameraProjectionSystem")
@@ -44,7 +49,7 @@ void Camera3dSystems::update_camera_projection_system(Camera3d &camera, const Ca
         camera.farClip);
 }
 
-void Camera3dSystems::update_camera_view_system(Camera3d &camera, const Position &position, const Orientation &orientation) {
+void Camera3dSystems::update_camera_view_system(Camera3d &camera, const glm::vec3 &position, const Orientation &orientation) {
     float yawRad = glm::radians(orientation.yaw);
     float pitchRad = glm::radians(orientation.pitch);
 
