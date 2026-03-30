@@ -1,6 +1,8 @@
 add_library(VoxelPlanetClient STATIC
         ClientModule.cpp
         ClientModule.h
+        PlayerControllerSystem.cpp
+        PlayerControllerSystem.h
         debug/IDebugPanel.h
         debug/DebugUISystem.cpp
         debug/DebugUISystem.h

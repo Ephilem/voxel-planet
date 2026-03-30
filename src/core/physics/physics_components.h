@@ -20,6 +20,27 @@ struct Movement {
     float speed = 1.0f;
 };
 
+enum class ControllerMode : uint8_t {
+    Walking,
+    FreeCam,
+};
+
+struct PlayerController {
+    ControllerMode mode = ControllerMode::Walking;
+
+    // Walking
+    float walkSpeed     = 5.0f;
+    float sprintSpeed   = 12.0f;
+    float jumpForce     = 6.0f;
+    float groundAccel   = 30.0f;
+    float airAccel      = 5.0f;
+    float groundFriction = 15.0f;
+
+    // FreeCam
+    float freeCamSpeed       = 20.0f;
+    float freeCamFastMult    = 4.0f;
+};
+
 struct Acceleration : glm::vec3 { using glm::vec3::vec3; };
 
 struct RigidBody : glm::vec3 {

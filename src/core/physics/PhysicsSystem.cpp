@@ -21,22 +21,6 @@ void PhysicsSystem::init(flecs::world &ecs) {
             .member<float>("y", 0, 0)
             .member<float>("z", 0, 0);
 
-    ecs.system<const Movement, Velocity>("Physics-ApplyMovementSystem")
-        .kind(flecs::OnUpdate)
-        .each([](flecs::entity e, const Movement& movement, Velocity& velocity) {
-            if (movement.direction == glm::vec3(0.0f)) {
-                // Friction
-                velocity.x = 0;
-                // velocity.y = 0;
-                velocity.z = 0;
-                return;
-            }
-
-            velocity.x = movement.direction.x * movement.speed;
-            // velocity.y = movement.direction.y * movement.speed;
-            velocity.z = movement.direction.z * movement.speed;
-        });
-
     ecs.system<const Velocity, Position>("Physics-ApplyVelocitySystem")
             .kind(flecs::OnUpdate)
             .without<RigidBody>()

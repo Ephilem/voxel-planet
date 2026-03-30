@@ -25,6 +25,10 @@ InputStateManager::InputStateManager() {
 
     bind_action(ActionInputType::Accelerate, GLFW_KEY_PAGE_UP);
     bind_action(ActionInputType::Slowdown, GLFW_KEY_PAGE_DOWN);
+
+    bind_action(ActionInputType::Jump, GLFW_KEY_SPACE);
+    bind_action(ActionInputType::Sprint, GLFW_KEY_LEFT_SHIFT);
+    bind_action(ActionInputType::ToggleControllerMode, GLFW_KEY_F5);
 }
 
 InputStateManager::~InputStateManager() {

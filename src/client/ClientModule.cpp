@@ -5,6 +5,7 @@
 #include "ClientModule.h"
 #include <glm/glm.hpp>
 
+#include "PlayerControllerSystem.h"
 #include "core/GameState.h"
 #include "core/main_components.h"
 #include "core/TracyIntegration.h"
@@ -33,6 +34,8 @@ ClientModule::ClientModule(flecs::world &ecs) {
     debugUI->add_panel<WorldGenPanel>();
     debugUI->add_panel<PlayerPanel>();
 
+    PlayerControllerSystem::Register(ecs);
+
     ecs.system<Orientation>("MouseLookSystem")
         .kind(flecs::OnUpdate)
         .with<Camera3d>()
@@ -49,63 +52,6 @@ ClientModule::ClientModule(flecs::world &ecs) {
 
             if (orientation.pitch > 89.0f) orientation.pitch = 89.0f;
             if (orientation.pitch < -89.0f) orientation.pitch = -89.0f;
-        });
-
-    ecs.system<Movement>("Client-MovementSpeedControl")
-        .with<Player>()
-        .kind(flecs::OnUpdate)
-        .each([](flecs::entity e, Movement& movement) {
-            VOXEL_ZONE_N("ClientModule-MovementSpeedControl");
-            const auto* inputState = e.world().get<InputActionState>();
-
-            if (inputState->is_action_pressed(ActionInputType::Accelerate)) {
-                movement.speed *= 2.0f;
-            }
-            if (inputState->is_action_pressed(ActionInputType::Slowdown)) {
-                movement.speed *= 0.5f;
-            }
-        });
-
-    ecs.system<const Orientation, Movement>("BasicCameraMovementSystem")
-        .kind(flecs::OnUpdate)
-        .with<Camera3d>()
-        .each([](flecs::entity e, const Orientation& orientation, Movement& movement) {
-            VOXEL_ZONE_N("ClientModule-MovementSystem");
-            const auto* inputState = e.world().get<InputActionState>();
-
-            glm::vec3 forward = glm::vec3(
-                cos(glm::radians(orientation.pitch)) * sin(glm::radians(orientation.yaw)),
-                0,
-                cos(glm::radians(orientation.pitch)) * cos(glm::radians(orientation.yaw))
-            );
-
-            // Right vector is always horizontal
-            glm::vec3 right = glm::vec3(
-                cos(glm::radians(orientation.yaw)),
-                0.0f,
-                -sin(glm::radians(orientation.yaw))
-            );
-
-            glm::vec3 direction = glm::vec3(0.0f);
-            if (inputState->is_action_active(ActionInputType::Forward))
-                direction += forward;
-            if (inputState->is_action_active(ActionInputType::Backward))
-                direction -= forward;
-            if (inputState->is_action_active(ActionInputType::Left))
-                direction += right;
-            if (inputState->is_action_active(ActionInputType::Right))
-                direction -= right;
-            if (inputState->is_action_active(ActionInputType::Up))
-                direction += glm::vec3(0.0f, 1.0f, 0.0f);
-            if (inputState->is_action_active(ActionInputType::Down))
-                direction -= glm::vec3(0.0f, 1.0f, 0.0f);
-
-            if (direction == glm::vec3(0.0f)) {
-                movement.direction = direction;
-                return;
-            }
-
-            movement.direction = glm::normalize(direction);
         });
 
     ecs.entity("Player")
@@ -125,7 +71,7 @@ ClientModule::ClientModule(flecs::world &ecs) {
         .set<RigidBody>({
             .haftExtent = {0.3f, 0.9f, 0.3f}
         })
-        .set<Movement>({ .speed = 5.0f });
+        .set<PlayerController>({});
 }
 
 void shutdown_client(flecs::world &ecs) {
