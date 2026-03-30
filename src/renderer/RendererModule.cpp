@@ -11,6 +11,7 @@
 #include <iostream>
 
 #include "Camera3dSystems.h"
+#include "../core/DebugDrawManager.h"
 #include "rendering_components.h"
 #include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
@@ -18,6 +19,7 @@
 #include "world/VoxelTerrainRenderer.h"
 #include "core/world/world_components.h"
 #include "core/world/ChunkManager.h"
+#include "debug/DebugDrawRenderer.h"
 #include "debug/ImGuiManager.h"
 #include "nvrhi/utils.h"
 
@@ -91,6 +93,7 @@ RendererModule::RendererModule(flecs::world& ecs) {
             }
         });
 
+    DebugDrawRenderer::Register(ecs);
     SkyRenderer::Register(ecs);
     VoxelTerrainRenderer::Register(ecs);
     ImGuiManager::Register(ecs);

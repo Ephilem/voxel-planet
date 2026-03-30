@@ -24,6 +24,8 @@ add_library(VoxelPlanetRenderer STATIC
         TracyVulkanIntegration.h
         world/VoxelMeshUploadBatcher.cpp
         world/VoxelMeshUploadBatcher.h
+        debug/DebugDrawRenderer.cpp
+        debug/DebugDrawRenderer.h
 )
 
 add_library(VoxelPlanet::Renderer ALIAS VoxelPlanetRenderer)

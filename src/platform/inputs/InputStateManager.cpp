@@ -28,7 +28,8 @@ InputStateManager::InputStateManager() {
 
     bind_action(ActionInputType::Jump, GLFW_KEY_SPACE);
     bind_action(ActionInputType::Sprint, GLFW_KEY_LEFT_SHIFT);
-    bind_action(ActionInputType::ToggleControllerMode, GLFW_KEY_F5);
+    bind_action(ActionInputType::ToggleControllerMode, GLFW_KEY_F6);
+    bind_action(ActionInputType::ToggleCameraView, GLFW_KEY_F5);
 }
 
 InputStateManager::~InputStateManager() {

@@ -25,4 +25,8 @@ struct AABB {
         glm::vec3 max = min + glm::vec3(chunkSize);
         return {min, max};
     }
+
+    AABB operator+(const glm::vec3& offset) const {
+        return {min + offset, max + offset};
+    }
 };

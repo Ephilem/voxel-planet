@@ -5,12 +5,10 @@
 #include "PlayerControllerSystem.h"
 
 #include <glm/glm.hpp>
-#include <glm/gtc/constants.hpp>
 
 #include "core/main_components.h"
 #include "core/physics/physics_components.h"
 #include "platform/inputs/input_state.h"
-#include "renderer/rendering_components.h"
 
 static glm::vec2 move_towards(glm::vec2 current, glm::vec2 target, float maxDelta) {
     glm::vec2 diff = target - current;

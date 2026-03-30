@@ -3,6 +3,7 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 
+#include "DebugDrawManager.h"
 #include "main_components.h"
 #include "log/Logger.h"
 #include "physics/PhysicsSystem.h"
@@ -27,6 +28,7 @@ CoreModule::CoreModule(flecs::world& ecs) {
     });
 
     ecs.set<WorldGenerator>(WorldGenerator{std::time(nullptr)});
+    DebugDrawManager::Register(ecs);
     ChunkManager::Register(ecs);
     PhysicsSystem::Register(ecs);
 }

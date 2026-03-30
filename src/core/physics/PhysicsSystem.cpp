@@ -6,9 +6,9 @@
 
 #include "physics_components.h"
 #include "core/main_components.h"
-#include "core/math/utils.h"
 #include "core/world/ChunkManager.h"
 #include "core/world/world_components.h"
+#include "../DebugDrawManager.h"
 
 void PhysicsSystem::Register(flecs::world &ecs) {
     PhysicsSystem system;
@@ -57,6 +57,9 @@ void PhysicsSystem::init(flecs::world &ecs) {
                 if (!cm) return;
 
                 glm::vec3 halfExt = body.haftExtent;
+                glm::vec3 currBmin = glm::vec3(pos) - halfExt;
+                glm::vec3 currBmax = glm::vec3(pos) + halfExt;
+                DebugDrawManager::Aabb(currBmin, currBmax, glm::vec4(0.0f, 1.0f, 0.0f, 0.5f));
                 body.onGround = false;
 
                 // For each axis (so no corner sticking)
@@ -70,6 +73,7 @@ void PhysicsSystem::init(flecs::world &ecs) {
                     // AABB after movement (if needed to cancel)
                     glm::vec3 bmin = newPos - halfExt;
                     glm::vec3 bmax = newPos + halfExt;
+                    // DebugDrawManager::Aabb(bmin, bmax, glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
 
                     // Check all block on the final AABB, if any is solid, move back to the edge of the block and stop movement on this axis.
                     glm::ivec3 blockMin = glm::ivec3(glm::floor(bmin));

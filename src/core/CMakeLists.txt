@@ -18,16 +18,18 @@ add_library(VoxelPlanetCore STATIC
     resource/loaders/ShaderLoader.h
     world/world_components.h
     world/WorldGenerator.cpp
+    DebugDrawManager.cpp
+    DebugDrawManager.h
     world/WorldGenerator.h
     main_components.h
-        world/ChunkManager.cpp
-        world/ChunkManager.h
-        math/frustrum.h
-        math/aabb.h
-        physics/physics_components.h
-        physics/PhysicsSystem.cpp
-        physics/PhysicsSystem.h
-        math/utils.h
+    world/ChunkManager.cpp
+    world/ChunkManager.h
+    math/frustrum.h
+    math/aabb.h
+    physics/physics_components.h
+    physics/PhysicsSystem.cpp
+    physics/PhysicsSystem.h
+    math/utils.h
 )
 
 add_library(VoxelPlanet::Core ALIAS VoxelPlanetCore)

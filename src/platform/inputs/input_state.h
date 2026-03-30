@@ -22,6 +22,7 @@ enum class ActionInputType {
     Jump,
     Sprint,
     ToggleControllerMode,
+    ToggleCameraView,
 
     Last,
 };

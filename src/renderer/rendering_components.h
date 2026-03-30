@@ -5,8 +5,16 @@
 
 #define MAX_FRAMES_IN_FLIGHT 2
 
+
+enum class CameraViewType : uint8_t {
+    FirstPerson,
+    ThirdPerson,
+};
+
+
 struct Camera3dParameters {
     glm::float32 fov = 45.0f;
+    CameraViewType viewType = CameraViewType::FirstPerson;
 };
 
 struct Camera3d {
