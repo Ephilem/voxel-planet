@@ -331,94 +331,99 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
 
     const auto &voxels = *input.voxels;
 
-    // Helper to get neighbor voxel at boundary
-    auto get_neighbor_voxel = [&input](int neighborIdx, int lx, int ly, int lz) -> uint8_t {
+    // Returns 0 (air) when the neighbor chunk is absent
+    auto get_neighbor_voxel = [&input](int neighborIdx, int lx, int ly, int lz) -> uint16_t {
         if (const auto &nv = input.neighborVoxels[neighborIdx]) {
             return (*nv)[lx + CHUNK_SIZE * (ly + CHUNK_SIZE * lz)];
         }
         return 0;
     };
 
-    // Pre-allocated masks for all 6 faces, all slices, per voxel type
-    using SliceMasks = std::unordered_map<uint8_t, std::array<uint32_t, CHUNK_SIZE> >;
-    std::array<std::array<SliceMasks, CHUNK_SIZE>, 6> allMasks; {
+    // Masks keyed by uint32_t: texID (8b) | blkH (8b) | nbH (8b).
+    // For top/bottom faces nbH stays 0. Side faces encode the neighbor height
+    // so that only faces with the same visible extent can greedy-merge.
+    using SliceMasks = std::unordered_map<uint32_t, std::array<uint32_t, CHUNK_SIZE>>;
+    std::array<std::array<SliceMasks, CHUNK_SIZE>, 6> allMasks;
+    {
         VOXEL_ZONE_N("BuildAllMasks");
         for (int z = 0; z < CHUNK_SIZE; z++) {
             for (int y = 0; y < CHUNK_SIZE; y++) {
                 for (int x = 0; x < CHUNK_SIZE; x++) {
-                    const uint8_t voxel = voxels[x + CHUNK_SIZE * (y + CHUNK_SIZE * z)];
-                    if (voxel == 0) continue;
+                    const uint16_t voxel = voxels[x + CHUNK_SIZE * (y + CHUNK_SIZE * z)];
+                    if ((voxel & 0xFF) == 0) continue; // air: textureID == 0
 
-                    // Face 0: normal toward -X, check x-1 neighbor
+                    const uint8_t blkH = static_cast<uint8_t>(voxel >> 8);
+
+                    // Face 0: -X, check x-1
                     {
-                        uint8_t neighbor = (x > 0)
-                                               ? voxels[(x - 1) + CHUNK_SIZE * (y + CHUNK_SIZE * z)]
-                                               : get_neighbor_voxel(1, CHUNK_SIZE - 1, y, z);
-                        if (neighbor == 0) {
-                            allMasks[0][x][voxel][y] |= (1u << z);
-                        }
+                        uint16_t nb = (x > 0)
+                            ? voxels[(x - 1) + CHUNK_SIZE * (y + CHUNK_SIZE * z)]
+                            : get_neighbor_voxel(1, CHUNK_SIZE - 1, y, z);
+                        const uint8_t nbTexID = nb & 0xFF;
+                        const uint8_t nbH = static_cast<uint8_t>(nb >> 8);
+                        if (nbTexID == 0 || blkH > nbH)
+                            allMasks[0][x][static_cast<uint32_t>(voxel) | (static_cast<uint32_t>(nbH) << 16)][y] |= (1u << z);
                     }
-
-                    // Face 1: normal toward +X, check x+1 neighbor
+                    // Face 1: +X, check x+1
                     {
-                        uint8_t neighbor = (x + 1 < CHUNK_SIZE)
-                                               ? voxels[(x + 1) + CHUNK_SIZE * (y + CHUNK_SIZE * z)]
-                                               : get_neighbor_voxel(0, 0, y, z);
-                        if (neighbor == 0) {
-                            allMasks[1][x][voxel][y] |= (1u << z);
-                        }
+                        uint16_t nb = (x + 1 < CHUNK_SIZE)
+                            ? voxels[(x + 1) + CHUNK_SIZE * (y + CHUNK_SIZE * z)]
+                            : get_neighbor_voxel(0, 0, y, z);
+                        const uint8_t nbTexID = nb & 0xFF;
+                        const uint8_t nbH = static_cast<uint8_t>(nb >> 8);
+                        if (nbTexID == 0 || blkH > nbH)
+                            allMasks[1][x][static_cast<uint32_t>(voxel) | (static_cast<uint32_t>(nbH) << 16)][y] |= (1u << z);
                     }
-
-                    // Face 2: normal toward -Y, check y-1 neighbor
+                    // Face 2: -Y, check y-1
+                    // Also visible when the block below is partial (gap above it)
                     {
-                        uint8_t neighbor = (y > 0)
-                                               ? voxels[x + CHUNK_SIZE * ((y - 1) + CHUNK_SIZE * z)]
-                                               : get_neighbor_voxel(3, x, CHUNK_SIZE - 1, z);
-                        if (neighbor == 0) {
-                            allMasks[2][y][voxel][z] |= (1u << x);
-                        }
+                        uint16_t nb = (y > 0)
+                            ? voxels[x + CHUNK_SIZE * ((y - 1) + CHUNK_SIZE * z)]
+                            : get_neighbor_voxel(3, x, CHUNK_SIZE - 1, z);
+                        const uint8_t nbTexID = nb & 0xFF;
+                        const uint8_t nbH     = static_cast<uint8_t>(nb >> 8);
+                        if (nbTexID == 0 || nbH < 15)
+                            allMasks[2][y][static_cast<uint32_t>(voxel)][z] |= (1u << x);
                     }
-
-                    // Face 3: normal toward +Y, check y+1 neighbor
+                    // Face 3: +Y, check y+1
+                    // Also visible when the current block is partial (gap within cell)
                     {
-                        uint8_t neighbor = (y + 1 < CHUNK_SIZE)
-                                               ? voxels[x + CHUNK_SIZE * ((y + 1) + CHUNK_SIZE * z)]
-                                               : get_neighbor_voxel(2, x, 0, z);
-                        if (neighbor == 0) {
-                            allMasks[3][y][voxel][z] |= (1u << x);
-                        }
+                        uint16_t nb = (y + 1 < CHUNK_SIZE)
+                            ? voxels[x + CHUNK_SIZE * ((y + 1) + CHUNK_SIZE * z)]
+                            : get_neighbor_voxel(2, x, 0, z);
+                        if ((nb & 0xFF) == 0 || blkH < 15)
+                            allMasks[3][y][static_cast<uint32_t>(voxel)][z] |= (1u << x);
                     }
-
-                    // Face 4: normal toward -Z, check z-1 neighbor
+                    // Face 4: -Z, check z-1
                     {
-                        uint8_t neighbor = (z > 0)
-                                               ? voxels[x + CHUNK_SIZE * (y + CHUNK_SIZE * (z - 1))]
-                                               : get_neighbor_voxel(5, x, y, CHUNK_SIZE - 1);
-                        if (neighbor == 0) {
-                            allMasks[4][z][voxel][y] |= (1u << x);
-                        }
+                        uint16_t nb = (z > 0)
+                            ? voxels[x + CHUNK_SIZE * (y + CHUNK_SIZE * (z - 1))]
+                            : get_neighbor_voxel(5, x, y, CHUNK_SIZE - 1);
+                        const uint8_t nbTexID = nb & 0xFF;
+                        const uint8_t nbH = static_cast<uint8_t>(nb >> 8);
+                        if (nbTexID == 0 || blkH > nbH)
+                            allMasks[4][z][static_cast<uint32_t>(voxel) | (static_cast<uint32_t>(nbH) << 16)][y] |= (1u << x);
                     }
-
-                    // Face 5: normal toward +Z, check z+1 neighbor
+                    // Face 5: +Z, check z+1
                     {
-                        uint8_t neighbor = (z + 1 < CHUNK_SIZE)
-                                               ? voxels[x + CHUNK_SIZE * (y + CHUNK_SIZE * (z + 1))]
-                                               : get_neighbor_voxel(4, x, y, 0);
-                        if (neighbor == 0) {
-                            allMasks[5][z][voxel][y] |= (1u << x);
-                        }
+                        uint16_t nb = (z + 1 < CHUNK_SIZE)
+                            ? voxels[x + CHUNK_SIZE * (y + CHUNK_SIZE * (z + 1))]
+                            : get_neighbor_voxel(4, x, y, 0);
+                        const uint8_t nbTexID = nb & 0xFF;
+                        const uint8_t nbH = static_cast<uint8_t>(nb >> 8);
+                        if (nbTexID == 0 || blkH > nbH)
+                            allMasks[5][z][static_cast<uint32_t>(voxel) | (static_cast<uint32_t>(nbH) << 16)][y] |= (1u << x);
                     }
                 }
             }
         }
     }
 
-    // Face axes for coordinate reconstruction: {slice_axis, u_axis, v_axis}
+    // {slice_axis, u_axis, v_axis}
     constexpr int FACE_AXES[6][3] = {
         {0, 2, 1}, {0, 2, 1}, {1, 0, 2}, {1, 0, 2}, {2, 0, 1}, {2, 0, 1}
     };
 
-    // Greedy meshing on pre-computed masks
     {
         VOXEL_ZONE_N("GreedyMerge");
         for (int faceDir = 0; faceDir < 6; faceDir++) {
@@ -426,24 +431,35 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
             const int uAxis = FACE_AXES[faceDir][1];
             const int vAxis = FACE_AXES[faceDir][2];
 
+            // For side faces the v-axis is Y. Partial blocks must NOT merge
+            // vertically: there are gaps between their cell tops.
+            const bool isSideFace = (faceDir == 0 || faceDir == 1 || faceDir == 4 || faceDir == 5);
+
             for (int slice = 0; slice < CHUNK_SIZE; slice++) {
-                for (auto &[voxel, mask]: allMasks[faceDir][slice]) {
+                for (auto &[key, mask]: allMasks[faceDir][slice]) {
+                    const uint8_t texID  = key & 0xFF;
+                    const uint8_t blkH   = (key >> 8) & 0xFF;
+                    const uint8_t nbH    = (key >> 16) & 0xFF;
+                    const bool isPartial = isSideFace ? (blkH < 15 || nbH > 0) : (blkH < 15);
+
                     uint32_t texSlot = 0;
-                    if (auto it = input.textureIDs.find(voxel); it != input.textureIDs.end())
+                    if (auto it = input.textureIDs.find(texID); it != input.textureIDs.end())
                         texSlot = it->second;
 
                     for (int v = 0; v < CHUNK_SIZE; v++) {
                         while (mask[v]) {
-                            int u = std::countr_zero(mask[v]);
-                            uint32_t shifted = mask[v] >> u;
-                            uint32_t inverted = ~shifted;
-                            int w = inverted ? std::countr_zero(inverted) : (32 - u);
-                            uint32_t runMask = static_cast<uint32_t>(((1ull << w) - 1ull) << u);
+                            const int u        = std::countr_zero(mask[v]);
+                            const uint32_t shifted  = mask[v] >> u;
+                            const uint32_t inverted = ~shifted;
+                            const int w        = inverted ? std::countr_zero(inverted) : (32 - u);
+                            const uint32_t runMask = static_cast<uint32_t>(((1ull << w) - 1ull) << u);
 
                             int h = 1;
-                            for (int nv = v + 1; nv < CHUNK_SIZE && (mask[nv] & runMask) == runMask; nv++) {
-                                mask[nv] &= ~runMask;
-                                h++;
+                            if (!(isSideFace && isPartial)) {
+                                for (int nv = v + 1; nv < CHUNK_SIZE && (mask[nv] & runMask) == runMask; nv++) {
+                                    mask[nv] &= ~runMask;
+                                    h++;
+                                }
                             }
                             mask[v] &= ~runMask;
 
@@ -451,19 +467,31 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
                             p[sAxis] = slice;
                             p[uAxis] = u;
                             p[vAxis] = v;
+
                             TerrainFace3d face{};
                             face.x = p[0];
-                            face.y = p[1];
                             face.z = p[2];
+                            // y is stored in sub-voxel units (value / 16.0 = voxel position).
+                            // +Y face encodes the exact top position; others encode the base voxel.
+                            face.y = (faceDir == 3)
+                                ? static_cast<uint32_t>(p[1] * 16 + blkH)
+                                : (isSideFace ? static_cast<uint32_t>(p[1] * 16 + nbH) : static_cast<uint32_t>(p[1] * 16));
                             face.faceIndex = faceDir;
-                            // Swap width/height for faces where UV orientation differs
+
+                            // Width/height in sub-voxel units (stored as value - 1).
+                            // The Y-direction of a side face uses partial-block height when applicable.
+                            const int hSubvoxel = (isSideFace && isPartial) ? static_cast<int>(blkH - nbH) : (h * 16 - 1);
+                            const int wSubvoxel = w * 16 - 1;
+
+                            // Swap width/height for faces where the greedy h/w map differently
                             if (faceDir == 1 || faceDir == 3 || faceDir == 4) {
-                                face.width = h - 1;
-                                face.height = w - 1;
+                                face.width  = hSubvoxel;
+                                face.height = wSubvoxel;
                             } else {
-                                face.width = w - 1;
-                                face.height = h - 1;
+                                face.width  = wSubvoxel;
+                                face.height = hSubvoxel;
                             }
+
                             face.textureSlot = texSlot;
                             result.faces.push_back(face);
                         }

@@ -3,10 +3,9 @@
 #include <memory>
 #include <glm/glm.hpp>
 #include <unordered_map>
-#include <unordered_set>
-#include <vector>
 #include <array>
 
+#include "core/math/aabb.h"
 #include "core/resource/asset_id.h"
 
 #define CHUNK_SIZE 32
@@ -42,6 +41,21 @@ struct ChunkLoader {
     }
 };
 
+struct ChunkBlockInfo {
+    uint8_t localTextureID = 0; // index into the chunk's textureIDs map, which maps to an AssetID for the actual texture
+    uint8_t height; // for terrain blocks. 0-15 is the height of the block, subdivision
+
+    AABB get_block_aabb() const {
+        if (localTextureID == 0) return AABB::Zero();
+
+        float h = static_cast<float>(height) / 16.0f;
+        return AABB{
+            glm::vec3(0.0f, 0.0f, 0.0f),
+            glm::vec3(1.0f, h, 1.0f)
+        };
+    }
+};
+
 struct LoadedBy {};
 
 namespace voxel_chunk_state {
@@ -51,30 +65,32 @@ namespace voxel_chunk_state {
 struct VoxelChunkState {};
 
 struct VoxelChunk {
-    std::shared_ptr<std::array<uint8_t, CHUNK_VOLUME>> voxels;
+    // int16 = int8 for textureId (mapped by textureIds) + uint8 for height
+    std::shared_ptr<std::array<uint16_t, CHUNK_VOLUME>> voxels;
     std::unordered_map<AssetID, uint8_t> textureIDs;
 
-    VoxelChunk() : voxels(std::make_shared<std::array<uint8_t, CHUNK_VOLUME>>()) {
+    VoxelChunk() : voxels(std::make_shared<std::array<uint16_t, CHUNK_VOLUME>>()) {
         voxels->fill(0);
     }
 
     void ensure_unique() {
         if (voxels.use_count() > 1) {
-            voxels = std::make_shared<std::array<uint8_t, CHUNK_VOLUME>>(*voxels);
+            voxels = std::make_shared<std::array<uint16_t, CHUNK_VOLUME>>(*voxels);
         }
     }
 
-    void set(int x, int y, int z, uint8_t value) {
+    void set(int x, int y, int z, ChunkBlockInfo blockInfo) {
         ensure_unique();
-        (*voxels)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = value;
+
+        (*voxels)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = blockInfo.localTextureID | static_cast<uint16_t>(blockInfo.height) << 8;
     }
 
-    uint8_t& at(int x, int y, int z) {
-        return voxels->at(x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE);
+    ChunkBlockInfo at(int x, int y, int z) const {
+        return reinterpret_cast<const ChunkBlockInfo&>((*voxels)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE]);
     }
 
-    uint8_t at(int x, int y, int z) const {
-        return voxels->at(x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE);
+    ChunkBlockInfo at(glm::ivec3 localPos) const {
+        return at(localPos.x, localPos.y, localPos.z);
     }
 };
 

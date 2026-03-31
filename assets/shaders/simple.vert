@@ -21,8 +21,8 @@ layout (set = 1, binding = 0, std430) readonly buffer object_uniform_buffer {
 } oub;
 
 struct TerrainFace3d {
-    uint packed1;  // x:6, y:6, z:6, faceIndex:3, width:5, height:5, padding:1
-    uint packed2;  // textureSlot:16, padding:16
+    uint packed1;  // x:9, y:9, z:9, faceIndex:3, padding: 2
+    uint packed2;  // width:5, height:5, textureSlot:22
 };
 
 layout (set = 2, binding = 0, std430) readonly buffer face_buffer {
@@ -76,25 +76,34 @@ void main() {
     TerrainFace3d face = faceBuffer.faces[faceIndex];
 
     // Unpack data from packed integers
-    uint voxelX = (face.packed1 >> 0u) & 0x3Fu;
-    uint voxelY = (face.packed1 >> 6u) & 0x3Fu;
-    uint voxelZ = (face.packed1 >> 12u) & 0x3Fu;
-    uint faceDir = (face.packed1 >> 18u) & 0x7u;
-    uint packedWidth = (face.packed1 >> 21u) & 0x1Fu;
-    uint packedHeight = (face.packed1 >> 26u) & 0x1Fu;
-    uint textureSlot = (face.packed2 >> 0u) & 0xFFFFu;
+    // packed1: x:5 | y:9 | z:5 | faceIndex:3 | padding:10
+    uint voxelX  = (face.packed1 >> 0u)  & 0x1Fu;
+    uint voxelY  = (face.packed1 >> 5u)  & 0x1FFu; // sub-voxel: /16.0 = world units
+    uint voxelZ  = (face.packed1 >> 14u) & 0x1Fu;
+    uint faceDir = (face.packed1 >> 19u) & 0x7u;
+    // packed2: width:9 | height:9 | textureSlot:14
+    uint packedWidth  = (face.packed2 >> 0u) & 0x1FFu;
+    uint packedHeight = (face.packed2 >> 9u) & 0x1FFu;
+    uint textureSlot  = (face.packed2 >> 18u) & 0x3FFFu;
 
-    // Actual dimensions (stored as value-1)
-    float faceWidth = float(packedWidth + 1u);
-    float faceHeight = float(packedHeight + 1u);
+    // Dimensions in sub-voxel units (stored as value-1), convert to voxel space
+    float faceWidth  = float(packedWidth  + 1u) / 16.0;
+    float faceHeight = float(packedHeight + 1u) / 16.0;
 
-    vec3 voxelPos = vec3(float(voxelX), float(voxelY), float(voxelZ));
+    // Y is stored in sub-voxel units; x and z are in full voxel units
+    vec3 voxelPos = vec3(float(voxelX), float(voxelY) / 16.0, float(voxelZ));
     vec3 cornerOffset = QUAD_CORNERS[faceDir][cornerIndex];
 
     // Scale corner offset by face dimensions
     ivec2 scaleAxes = FACE_SCALE_AXES[faceDir];
     cornerOffset[scaleAxes.x] *= faceWidth;
     cornerOffset[scaleAxes.y] *= faceHeight;
+
+    // For +Y face: all corners have Y=1 but voxelPos.y already encodes the
+    // top position in sub-voxel units, so the offset must be 1/16 (one sub-voxel).
+    if (faceDir == 3u) {
+        cornerOffset.y /= 16.0;
+    }
 
     vec3 localPos = voxelPos + cornerOffset;
     debugFragLocalPos = localPos;
