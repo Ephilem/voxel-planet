@@ -108,27 +108,45 @@ bool WorldGenerator::generate_chunk(VoxelChunk &chunk, glm::ivec3 chunkPosition)
 
     for (int x = 0; x < CHUNK_SIZE; x++) {
         for (int z = 0; z < CHUNK_SIZE; z++) {
-            float noiseValue = heightmap[x + z * CHUNK_SIZE]; // value in [-1, 1]
-            int terrainHeight = m_params.baseHeight + static_cast<int>(noiseValue * m_params.heightAmplitude);
+            float noiseValue = heightmap[x + z * CHUNK_SIZE]; // [-1, 1]
+
+            // Ex: baseHeight=20, amplitude=10 -> range [10*16, 30*16]
+            float terrainHeightF = m_params.baseHeight + noiseValue * m_params.heightAmplitude;
+            int terrainHeightSubvoxel = static_cast<int>(terrainHeightF * 16.0f);
+
+            int surfaceBlockY = terrainHeightSubvoxel / 16;
+            int surfaceSubHeight = terrainHeightSubvoxel % 16;
 
             for (int y = 0; y < CHUNK_SIZE; y++) {
                 int worldYPos = worldY + y;
+                ChunkBlockInfo info{};
 
-                if (worldYPos < terrainHeight) {
-                    if (worldYPos == terrainHeight - 1) {
-                        chunk.at(x, y, z) = 1;
-                    } else if (worldYPos > terrainHeight - 2) {
-                        chunk.at(x, y, z) = 1;
-                    } else {
-                        chunk.at(x, y, z) = 2;
-                    }
+                if (worldYPos < surfaceBlockY) {
+                    // Under the surface -> solid
+                    info.localTextureID = 2; // cobblestone
+                    info.height = 15;
                     hasContent = true;
+                } else if (worldYPos == surfaceBlockY) {
+                    // Surface block
+                    if (surfaceSubHeight == 0) {
+                        info.localTextureID = 0; // air
+                        info.height = 0;
+                    } else {
+                        info.localTextureID = 1; // grass
+                        info.height = surfaceSubHeight - 1; // 0-15
+                        hasContent = true;
+                    }
                 } else {
-                    chunk.at(x, y, z) = 0;
+                    // Above the surface -> empty
+                    info.localTextureID = 0;
+                    info.height = 0;
                 }
+
+                chunk.set(x, y, z, info);
             }
         }
     }
+
 
     return hasContent;
 }
