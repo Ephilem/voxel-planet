@@ -31,7 +31,7 @@ struct TaskGeneratingInput {
 };
 
 struct TaskGeneratingOutput {
-    std::shared_ptr<std::array<uint8_t, (32 * 32 * 32)>> voxels;
+    std::shared_ptr<std::array<uint16_t, (32 * 32 * 32)>> voxels;
     std::unordered_map<AssetID, uint8_t> textureIDs;
     glm::ivec3 chunkCoord;
     bool success = false;
@@ -74,7 +74,7 @@ public:
     std::array<flecs::entity, 6> get_neighboring_chunks(const glm::ivec3 &chunkPos) const;
     flecs::entity get_chunk_entity(const glm::ivec3& chunkPos) const;
     bool can_mesh(const glm::ivec3& chunkPos) const;
-    bool is_solid(const glm::ivec3 blockPos) const {
+    ChunkBlockInfo get_block_info(const glm::ivec3 blockPos) const {
         glm::ivec3 chunkPos = {
             floor_div(blockPos.x, CHUNK_SIZE),
             floor_div(blockPos.y, CHUNK_SIZE),
@@ -83,18 +83,20 @@ public:
 
         // Get chunk
         auto chunkIt = m_loadedChunks.find(chunkPos);
-        if (chunkIt == m_loadedChunks.end()) return false; // Not loaded, treat as non-solid
+        if (chunkIt == m_loadedChunks.end()) return {}; // Not loaded, treat as empty
 
         auto chunk = chunkIt->second.get<VoxelChunk>();
-        if (chunk == nullptr) return false; // No chunk data, treat as non-solid. Normally not possible
+        if (chunk == nullptr) return {}; // No chunk data, treat as empty. Normally not possible
 
         glm::ivec3 local = {
             pos_mod(blockPos.x, CHUNK_SIZE),
             pos_mod(blockPos.y, CHUNK_SIZE),
             pos_mod(blockPos.z, CHUNK_SIZE)
         };
-        int index = local.x + local.y * CHUNK_SIZE + local.z * CHUNK_SIZE * CHUNK_SIZE;
-        return 0 != (*chunk->voxels)[index];
+        return chunk->at(local);
+    }
+    bool is_solid(const glm::ivec3 blockPos) const {
+        return get_block_info(blockPos).localTextureID != 0;
     }
 
     // Stats

@@ -73,6 +73,7 @@ void PhysicsSystem::init(flecs::world &ecs) {
                     // AABB after movement (if needed to cancel)
                     glm::vec3 bmin = newPos - halfExt;
                     glm::vec3 bmax = newPos + halfExt;
+                    AABB aabb{bmin, bmax};
                     // DebugDrawManager::Aabb(bmin, bmax, glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
 
                     // Check all block on the final AABB, if any is solid, move back to the edge of the block and stop movement on this axis.
@@ -83,15 +84,18 @@ void PhysicsSystem::init(flecs::world &ecs) {
                     for (int bx = blockMin.x; bx <= blockMax.x; bx++)
                         for (int by = blockMin.y; by <= blockMax.y; by++)
                             for (int bz = blockMin.z; bz <= blockMax.z; bz++) {
-                                if (!cm->is_solid({bx, by, bz})) continue;
+                                AABB localBlockAabb = cm->get_block_info({bx, by, bz}).get_block_aabb();
+                                AABB blockAabb = localBlockAabb + glm::vec3(bx, by, bz);
+                                DebugDrawManager::Aabb(blockAabb, glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
+                                if (!blockAabb.intersects(aabb)) continue;
+
+                                static constexpr float kEpsilon = 0.001f;
 
                                 // If solid, cancel movement and snap to the edge of the block
                                 if (delta > 0.0f) {
-                                    float wall = static_cast<float>(axis == 0 ? bx : axis == 1 ? by : bz);
-                                    newPos[axis] = wall - halfExt[axis] - 0.001f;
+                                    newPos[axis] = blockAabb.min[axis] - halfExt[axis] - kEpsilon;
                                 } else {
-                                    float wall = static_cast<float>((axis == 0 ? bx : axis == 1 ? by : bz) + 1);
-                                    newPos[axis] = wall + halfExt[axis] + 0.001f;
+                                    newPos[axis] = blockAabb.max[axis] + halfExt[axis] + kEpsilon;
                                 }
                                 vel[axis] = 0.0f;
                                 collided = true;
@@ -111,11 +115,16 @@ void PhysicsSystem::init(flecs::world &ecs) {
 
                     glm::ivec3 bMin = glm::ivec3(glm::floor(glm::vec3(pos.x - halfExt.x, probeY, pos.z - halfExt.z)));
                     glm::ivec3 bMax = glm::ivec3(glm::floor(glm::vec3(pos.x + halfExt.x, feetY,  pos.z + halfExt.z)));
+                    AABB aabb = AABB{glm::vec3(bMin), glm::vec3(bMax)};
+                    DebugDrawManager::Aabb(aabb, glm::vec4(1.0f, 0.0f, 1.0f, 0.5f));
 
                     for (int bx = bMin.x; bx <= bMax.x && !body.onGround; bx++)
                     for (int by = bMin.y; by <= bMax.y && !body.onGround; by++)
                     for (int bz = bMin.z; bz <= bMax.z && !body.onGround; bz++) {
-                        if (cm->is_solid({bx, by, bz})) {
+                        AABB localBlockAabb = cm->get_block_info({bx, by, bz}).get_block_aabb();
+                        AABB blockAabb = localBlockAabb + glm::vec3(bx, by, bz);
+                        DebugDrawManager::Aabb(blockAabb, glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
+                        if (blockAabb.intersects(aabb)) {
                             body.onGround = true;
                         }
                     }

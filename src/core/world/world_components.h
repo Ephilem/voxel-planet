@@ -3,10 +3,9 @@
 #include <memory>
 #include <glm/glm.hpp>
 #include <unordered_map>
-#include <unordered_set>
-#include <vector>
 #include <array>
 
+#include "core/math/aabb.h"
 #include "core/resource/asset_id.h"
 
 #define CHUNK_SIZE 32
@@ -45,6 +44,16 @@ struct ChunkLoader {
 struct ChunkBlockInfo {
     uint8_t localTextureID = 0; // index into the chunk's textureIDs map, which maps to an AssetID for the actual texture
     uint8_t height; // for terrain blocks. 0-15 is the height of the block, subdivision
+
+    AABB get_block_aabb() const {
+        if (localTextureID == 0) return AABB::Zero();
+
+        float h = static_cast<float>(height) / 16.0f;
+        return AABB{
+            glm::vec3(0.0f, 0.0f, 0.0f),
+            glm::vec3(1.0f, h, 1.0f)
+        };
+    }
 };
 
 struct LoadedBy {};
@@ -76,12 +85,12 @@ struct VoxelChunk {
         (*voxels)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] = blockInfo.localTextureID | static_cast<uint16_t>(blockInfo.height) << 8;
     }
 
-    ChunkBlockInfo& at(int x, int y, int z) {
-        return reinterpret_cast<ChunkBlockInfo&>((*voxels)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE]);
-    }
-
     ChunkBlockInfo at(int x, int y, int z) const {
         return reinterpret_cast<const ChunkBlockInfo&>((*voxels)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE]);
+    }
+
+    ChunkBlockInfo at(glm::ivec3 localPos) const {
+        return at(localPos.x, localPos.y, localPos.z);
     }
 };
 

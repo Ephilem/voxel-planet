@@ -45,6 +45,7 @@ void InputStateManager::bind_action_mouse(ActionInputType action, int mouseButto
 }
 
 void InputStateManager::unbind_action(ActionInputType action, int key, int modifier) {
+    throw std::runtime_error("Unbinding specific keys not implemented yet");
 }
 
 void InputStateManager::clear_action_bindings(ActionInputType action) {
