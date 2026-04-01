@@ -17,9 +17,9 @@
 
 struct TaskMeshingInput {
     glm::ivec3 chunkCoord;
-    std::shared_ptr<const std::array<uint8_t, CHUNK_VOLUME>> voxels;
-    std::array<std::shared_ptr<const std::array<uint8_t, CHUNK_VOLUME>>, 6> neighborVoxels; // size 6
-    std::unordered_map<AssetID, uint8_t> textureIDs;
+    std::shared_ptr<const std::array<uint16_t, CHUNK_VOLUME>> voxels;
+    std::array<std::shared_ptr<const std::array<uint16_t, CHUNK_VOLUME>>, 6> neighborVoxels; // size 6
+    std::unordered_map<uint8_t, uint16_t> textureIDs;
     float priority = 0.0f;
     uint32_t meshGeneration = 0; // Copied to output so stale results can be discarded
 };

@@ -7,22 +7,28 @@ typedef struct Vertex3d {
 } Vertex3d;
 
 struct TerrainFace3d {
-    // 6 bit for position of the face. 64 possible position each axis (32x32x32 chunk)
-    uint32_t x : 6{};
-    uint32_t y : 6{};
-    uint32_t z : 6{};
+    // packed1 layout: x:5 | y:9 | z:5 | faceIndex:3 | padding:10
+    //
+    // x, z : voxel position (0-31)
+    // y    : sub-voxel position (0-511), y / 16.0 = world-space voxel units
+    //   +Y face  -> y = voxelY * 16 + blockHeight  (exact top-face position)
+    //   all else -> y = voxelY * 16
+    uint32_t x : 5{};
+    uint32_t y : 9{};
+    uint32_t z : 5{};
+    uint32_t faceIndex : 3{};
+    uint32_t padding : 10 = 0;
 
-    // Direction of the face (so in the gpu, we can compute normal, uv's, etc)
-    uint32_t faceIndex : 3{}; // 0-5 for the 6 cube faces
-
-    // Greedy meshing: face dimensions in voxels
-    // Stored as (value - 1), so 0 = 1 voxel, 31 = 32 voxels
-    uint32_t width : 5{};
-    uint32_t height : 5{};
-
-    uint32_t padding : 1 = 0;
-
-    ////////
-
-    uint16_t textureSlot : 16{};
+    // packed2 layout: width:9 | height:9 | textureSlot:14
+    //
+    // Width and height in sub-voxel units (stored as value - 1).
+    // actual_voxel_size = (stored + 1) / 16.0
+    //
+    // For side faces, the Y-direction field encodes the partial block height:
+    //   partial block (blkH < 15) -> stored = blkH  (= (blkH+1)/16 voxels tall)
+    //   full / merged blocks      -> stored = mergedVoxels * 16 - 1
+    // Max value: 511 -> 512/16 = 32 voxels (full chunk side)
+    uint32_t width : 9{};
+    uint32_t height : 9{};
+    uint32_t textureSlot : 14{};
 };
