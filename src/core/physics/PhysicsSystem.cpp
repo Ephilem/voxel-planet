@@ -62,6 +62,31 @@ void PhysicsSystem::init(flecs::world &ecs) {
                 DebugDrawManager::Aabb(currBmin, currBmax, glm::vec4(0.0f, 1.0f, 0.0f, 0.5f));
                 body.onGround = false;
 
+                static constexpr float kEpsilon = 0.001f;
+                static constexpr float kStepHeight = 0.55f;
+
+                // Helper: returns true if the AABB at `center` is free of solid blocks.
+                auto aabbClear = [&](glm::vec3 center) -> bool {
+                    glm::vec3 bmin = center - halfExt;
+                    glm::vec3 bmax = center + halfExt;
+                    AABB aabb{bmin, bmax};
+                    glm::ivec3 bMin = glm::ivec3(glm::floor(bmin));
+                    glm::ivec3 bMax = glm::ivec3(glm::floor(bmax));
+                    for (int bx = bMin.x; bx <= bMax.x; bx++)
+                        for (int by = bMin.y; by <= bMax.y; by++)
+                            for (int bz = bMin.z; bz <= bMax.z; bz++) {
+                                AABB blockAabb = cm->get_block_info({bx, by, bz}).get_block_aabb()
+                                                 + glm::vec3(bx, by, bz);
+                                if (blockAabb.intersects(aabb)) return false;
+                            }
+                    return true;
+                };
+
+                float originalDeltaX = vel.x * dt;
+                float originalDeltaZ = vel.z * dt;
+                bool blockedX = false, blockedZ = false;
+                float maxBlockTopY = pos.y - halfExt.y; // highest top-Y of any horizontally-blocking block
+
                 // For each axis (so no corner sticking)
                 for (int axis = 0; axis < 3; axis++) {
                     float delta = vel[axis] * dt;
@@ -89,7 +114,9 @@ void PhysicsSystem::init(flecs::world &ecs) {
                                 DebugDrawManager::Aabb(blockAabb, glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
                                 if (!blockAabb.intersects(aabb)) continue;
 
-                                static constexpr float kEpsilon = 0.001f;
+                                // Track highest blocking block top for step-up (horizontal axes only)
+                                if (axis != 1)
+                                    maxBlockTopY = glm::max(maxBlockTopY, blockAabb.max.y);
 
                                 // If solid, cancel movement and snap to the edge of the block
                                 if (delta > 0.0f) {
@@ -102,32 +129,74 @@ void PhysicsSystem::init(flecs::world &ecs) {
                                 break;
                             }
 
+                    if (collided && axis == 0) blockedX = true;
+                    if (collided && axis == 2) blockedZ = true;
+
                     pos[axis] = newPos[axis];
 
                     // TODO Other collision checks (non-axis-aligned) will be handled after the full movement is applied, so we can react to the final position.
                 }
 
+                // Step-up: if blocked horizontally and not jumping, snap to the exact top of the blocking block.
+                if ((blockedX || blockedZ) && vel.y <= 0.0f) {
+                    float feetY = static_cast<glm::vec3>(pos).y - halfExt.y;
+                    float stepY = maxBlockTopY - feetY;
+
+                    if (stepY > 0.0f && stepY <= kStepHeight) {
+                        glm::vec3 steppedPos = static_cast<glm::vec3>(pos);
+                        steppedPos.y = maxBlockTopY + halfExt.y + kEpsilon;
+
+                        if (aabbClear(steppedPos)) {
+                            bool canStep = true;
+
+                            if (blockedX) {
+                                glm::vec3 testPos = steppedPos;
+                                testPos.x += originalDeltaX;
+                                if (aabbClear(testPos)) steppedPos.x = testPos.x;
+                                else canStep = false;
+                            }
+
+                            if (canStep && blockedZ) {
+                                glm::vec3 testPos = steppedPos;
+                                testPos.z += originalDeltaZ;
+                                if (aabbClear(testPos)) steppedPos.z = testPos.z;
+                                else canStep = false;
+                            }
+
+                            if (canStep) {
+                                pos = Position{steppedPos.x, steppedPos.y, steppedPos.z};
+                                vel.y = 0.0f;
+                                if (blockedX) vel.x = originalDeltaX / dt;
+                                if (blockedZ) vel.z = originalDeltaZ / dt;
+                            }
+                        }
+                    }
+                }
+
                 // Ground check with probe
-                body.onGround = false;
-                {
+                body.onGround = false; {
                     float feetY = pos.y - halfExt.y;
                     float probeY = feetY - 0.05f;
 
                     glm::ivec3 bMin = glm::ivec3(glm::floor(glm::vec3(pos.x - halfExt.x, probeY, pos.z - halfExt.z)));
-                    glm::ivec3 bMax = glm::ivec3(glm::floor(glm::vec3(pos.x + halfExt.x, feetY,  pos.z + halfExt.z)));
-                    AABB aabb = AABB{glm::vec3(bMin), glm::vec3(bMax)};
+                    glm::ivec3 bMax = glm::ivec3(glm::floor(glm::vec3(pos.x + halfExt.x, feetY, pos.z + halfExt.z)));
+                    AABB aabb = AABB{
+                        glm::vec3(pos.x - halfExt.x, probeY, pos.z - halfExt.z),
+                        glm::vec3(pos.x + halfExt.x, feetY, pos.z + halfExt.z)
+                    };
+
                     DebugDrawManager::Aabb(aabb, glm::vec4(1.0f, 0.0f, 1.0f, 0.5f));
 
                     for (int bx = bMin.x; bx <= bMax.x && !body.onGround; bx++)
-                    for (int by = bMin.y; by <= bMax.y && !body.onGround; by++)
-                    for (int bz = bMin.z; bz <= bMax.z && !body.onGround; bz++) {
-                        AABB localBlockAabb = cm->get_block_info({bx, by, bz}).get_block_aabb();
-                        AABB blockAabb = localBlockAabb + glm::vec3(bx, by, bz);
-                        DebugDrawManager::Aabb(blockAabb, glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
-                        if (blockAabb.intersects(aabb)) {
-                            body.onGround = true;
-                        }
-                    }
+                        for (int by = bMin.y; by <= bMax.y && !body.onGround; by++)
+                            for (int bz = bMin.z; bz <= bMax.z && !body.onGround; bz++) {
+                                AABB localBlockAabb = cm->get_block_info({bx, by, bz}).get_block_aabb();
+                                AABB blockAabb = localBlockAabb + glm::vec3(bx, by, bz);
+                                DebugDrawManager::Aabb(blockAabb, glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
+                                if (blockAabb.intersects(aabb)) {
+                                    body.onGround = true;
+                                }
+                            }
                 }
             });
 }
