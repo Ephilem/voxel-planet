@@ -359,8 +359,9 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
                         uint16_t nb = (x > 0)
                             ? voxels[(x - 1) + CHUNK_SIZE * (y + CHUNK_SIZE * z)]
                             : get_neighbor_voxel(1, CHUNK_SIZE - 1, y, z);
+                        const uint8_t nbTexID = nb & 0xFF;
                         const uint8_t nbH = static_cast<uint8_t>(nb >> 8);
-                        if (blkH > nbH)
+                        if (nbTexID == 0 || blkH > nbH)
                             allMasks[0][x][static_cast<uint32_t>(voxel) | (static_cast<uint32_t>(nbH) << 16)][y] |= (1u << z);
                     }
                     // Face 1: +X, check x+1
@@ -368,8 +369,9 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
                         uint16_t nb = (x + 1 < CHUNK_SIZE)
                             ? voxels[(x + 1) + CHUNK_SIZE * (y + CHUNK_SIZE * z)]
                             : get_neighbor_voxel(0, 0, y, z);
+                        const uint8_t nbTexID = nb & 0xFF;
                         const uint8_t nbH = static_cast<uint8_t>(nb >> 8);
-                        if (blkH > nbH)
+                        if (nbTexID == 0 || blkH > nbH)
                             allMasks[1][x][static_cast<uint32_t>(voxel) | (static_cast<uint32_t>(nbH) << 16)][y] |= (1u << z);
                     }
                     // Face 2: -Y, check y-1
@@ -397,8 +399,9 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
                         uint16_t nb = (z > 0)
                             ? voxels[x + CHUNK_SIZE * (y + CHUNK_SIZE * (z - 1))]
                             : get_neighbor_voxel(5, x, y, CHUNK_SIZE - 1);
+                        const uint8_t nbTexID = nb & 0xFF;
                         const uint8_t nbH = static_cast<uint8_t>(nb >> 8);
-                        if (blkH > nbH)
+                        if (nbTexID == 0 || blkH > nbH)
                             allMasks[4][z][static_cast<uint32_t>(voxel) | (static_cast<uint32_t>(nbH) << 16)][y] |= (1u << x);
                     }
                     // Face 5: +Z, check z+1
@@ -406,8 +409,9 @@ TaskMeshingOutput VoxelChunkMesher::build_mesh(const TaskMeshingInput &input) {
                         uint16_t nb = (z + 1 < CHUNK_SIZE)
                             ? voxels[x + CHUNK_SIZE * (y + CHUNK_SIZE * (z + 1))]
                             : get_neighbor_voxel(4, x, y, 0);
+                        const uint8_t nbTexID = nb & 0xFF;
                         const uint8_t nbH = static_cast<uint8_t>(nb >> 8);
-                        if (blkH > nbH)
+                        if (nbTexID == 0 || blkH > nbH)
                             allMasks[5][z][static_cast<uint32_t>(voxel) | (static_cast<uint32_t>(nbH) << 16)][y] |= (1u << x);
                     }
                 }

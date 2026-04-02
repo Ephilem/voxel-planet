@@ -121,9 +121,14 @@ bool WorldGenerator::generate_chunk(VoxelChunk &chunk, glm::ivec3 chunkPosition)
                 int worldYPos = worldY + y;
                 ChunkBlockInfo info{};
 
-                if (worldYPos < surfaceBlockY) {
-                    // Under the surface -> solid
+                if (worldYPos < surfaceBlockY - 1) {
+                    // Below the second grass layer -> solid
                     info.localTextureID = 2; // cobblestone
+                    info.height = 15;
+                    hasContent = true;
+                } else if (worldYPos == surfaceBlockY - 1) {
+                    // Second layer of grass (full block)
+                    info.localTextureID = 1; // grass
                     info.height = 15;
                     hasContent = true;
                 } else if (worldYPos == surfaceBlockY) {
