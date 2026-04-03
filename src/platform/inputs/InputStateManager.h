@@ -6,14 +6,18 @@
 
 #include "input_state.h"
 
+namespace vp::platform {
 struct PlatformState;
+struct InputModuleState;
+struct Window;
 
 struct KeyBinding {
-    int key; // GLFW key code or mouse button code
+    int key;      // GLFW key code or mouse button code
     int modifier; // GLFW modifier mask (e.g., GLFW_MOD_SHIFT)
     bool isMouse = false;
 
     KeyBinding() = default;
+
     explicit KeyBinding(int k, int mods = 0) : key(k), modifier(mods), isMouse(false) {}
 
     static KeyBinding Mouse(int btn, int mods) {
@@ -28,25 +32,19 @@ struct KeyBinding {
 class InputStateManager {
     std::unordered_map<ActionInputType, std::vector<KeyBinding>> m_actionKeyBindings;
 
-    float m_mouseSensitivityX = 1.0f;
-    float m_mouseSensitivityY = 1.0f;
-
-
 public:
     InputStateManager();
     ~InputStateManager();
 
     void bind_action(ActionInputType action, int key, int modifier = 0);
     void bind_action_mouse(ActionInputType action, int mouseButton, int modifier = 0);
-    void unbind_action(ActionInputType action, int key, int modifier = 0);
-    void clear_action_bindings(ActionInputType action);
 
     bool is_binding_active(const KeyBinding& binding, const InputState& inputState) const;
 
     void set_mouse_captured(GLFWwindow* window, InputState& inputState, bool captured);
 
-    static void Register(flecs::world& ecs);
-
-    static void capture_input_system(InputState &inputState, PlatformState& platformState);
-    static void update_action_states_system(InputState &inputState, InputActionState &actionState, PlatformState& platformState);
+    static void capture_input_system(InputState& inputState, PlatformState& platformState);
+    static void update_action_states_system(InputState& inputState, InputActionState& actionState,
+                                            InputModuleState& moduleState, Window& window);
 };
+} // namespace vp::platform

@@ -1,53 +1,49 @@
 #include "PlatformModule.h"
-#include "PlatformState.h"
+
 #include "events.h"
-#include "core/GameState.h"
+#include "inputs/InputModule.h"
+#include "PlatformState.h"
 #include <GLFW/glfw3.h>
-#include <iostream>
 
-#include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
+#include "core/TracyIntegration.h"
 
-PlatformModule::PlatformModule(flecs::world& ecs) {
-    auto* gameState = ecs.get<GameState>();
-    if (!gameState) {
-        throw std::runtime_error("PlatformModule: CoreModule must be imported before PlatformModule");
+namespace vp::platform {
+    void PlatformModule::init(flecs::world& ecs) {
+        auto* platformState = ecs.try_get_mut<PlatformState>();
+        platformState->window->setupCallbacks(ecs);
     }
 
-    ecs.component<WindowResizeEvent>();
+    void PlatformModule::register_components(flecs::world& ecs) {
+        ecs.component<WindowResizeEvent>();
+        ecs.component<PlatformState>().add(flecs::Singleton);
 
-    ecs.set<PlatformState>({
-        .window = std::make_unique<Window>(1280, 720, "VoxelPlanet")
-    });
+        ecs.set<PlatformState>({.window = std::make_unique<Window>(1280, 720, "VoxelPlanet")});
+    }
 
-    InputStateManager::Register(ecs);
+    void PlatformModule::register_systems(flecs::world& ecs) {
+        ecs.system("PlatformModule-Update").kind(flecs::PreUpdate).run([](flecs::iter& it) {
+            auto* platform = it.world().try_get_mut<PlatformState>();
 
-    ecs.system("PlatformUpdateSystem")
-        .kind(flecs::PreUpdate)
-        .run([](flecs::iter& it) {
-            VOXEL_ZONE_N("PlatformModule-Update");
-            auto* gameState = it.world().get_mut<GameState>();
-            auto* platform = it.world().get_mut<PlatformState>();
-            if (!gameState || !platform || !platform->window) return;
+            if (!platform || !platform->window) {
+                return;
+            }
 
             platform->window->pollEvents();
 
-            double currentTime = glfwGetTime();
-            gameState->deltaTime = currentTime - gameState->lastTime;
-            gameState->lastTime = currentTime;
-
             if (platform->window->shouldClose()) {
-                gameState->isRunning = false;
+                platform->closeRequested = true;
             }
         });
+    }
 
-    ecs.get_mut<PlatformState>()->window->setupCallbacks(ecs);
-}
+    void PlatformModule::register_pipelines(flecs::world& ecs) {
+    }
 
-void shutdown_platform(flecs::world& ecs) {
-    LOG_INFO("PlatformModule", "Shutting down...");
-    auto* platform = ecs.get_mut<PlatformState>();
-    if (platform && platform->window) {
-        platform->window.reset();
+    void PlatformModule::register_submodules(flecs::world& ecs) {
+        ecs.import<InputModule>();
+    }
+
+    void PlatformModule::register_entities(flecs::world& ecs) {
     }
 }

@@ -1,0 +1,90 @@
+#version 450
+
+layout(location = 0) in vec2 inGridUV;
+layout(location = 1) flat in uint inLevel;
+layout(location = 2) in float inHeight;
+layout(location = 3) in float inDistance;
+
+layout(location = 0) out vec4 outColor;
+
+const float SEA_LEVEL     = 0.0;
+const float DEEP_DEPTH    = 1500.0;
+const float SNOW_HEIGHT   = 1700.0;
+const float ROCK_SLOPE    = 0.35;
+
+const vec3 DEEP_WATER    = vec3(0.02, 0.07, 0.20);
+const vec3 SHALLOW_WATER = vec3(0.06, 0.28, 0.42);
+const vec3 SAND          = vec3(0.74, 0.68, 0.48);
+const vec3 GRASS_LOW     = vec3(0.20, 0.40, 0.12);
+const vec3 GRASS_HIGH    = vec3(0.34, 0.42, 0.20);
+const vec3 ROCK          = vec3(0.40, 0.38, 0.36);
+const vec3 SNOW          = vec3(0.92, 0.94, 0.97);
+
+layout(push_constant) uniform PushConstants {
+    mat4  viewProj;
+    vec3  camPosPlanet;
+    float radius;
+
+    float startFade;
+    float endFade;
+} pc;
+
+vec3 level_color(uint level) {
+    const vec3 COLORS[8] = vec3[](
+        vec3(0.35, 0.35, 0.40),
+        vec3(0.20, 0.45, 0.95),
+        vec3(0.15, 0.80, 0.85),
+        vec3(0.20, 0.90, 0.35),
+        vec3(0.75, 0.95, 0.20),
+        vec3(1.00, 0.85, 0.15),
+        vec3(1.00, 0.55, 0.10),
+        vec3(1.00, 0.25, 0.15)
+    );
+    return COLORS[min(level, 7u)];
+}
+
+// void main() {
+//     vec2 cell = floor(inGridUV * 8.0);
+//     float checker = mod(cell.x + cell.y, 2.0);
+
+//     float h = clamp(inHeight / 4000.0 * 0.5 + 0.5, 0.0, 1.0);
+
+//     float shade = mix(0.35, 1.25, h);
+
+//     vec3 base = inHeight < 0.0
+//         ? vec3(0.10, 0.25, 0.55)
+//         : level_color(inLevel);
+
+//     vec3 color = base * mix(0.55, 1.0, checker) * shade;
+
+
+//     if (inDistance < pc.startFade) {
+//         // in chunks
+//         discard;
+//     } else if (pc.startFade < inDistance && inDistance < pc.endFade) {
+//         // transition
+//         color *= (inDistance - pc.startFade) / (pc.endFade - pc.startFade);
+//     }
+
+//     outColor = vec4(color, 1.0);
+// }
+void main() {
+    if (inDistance < pc.startFade) {
+        discard;
+    }
+
+    vec3 color;
+    if (inHeight < SEA_LEVEL) {
+        color = mix(DEEP_WATER, SHALLOW_WATER, inHeight / DEEP_DEPTH);
+    } else if (inHeight < SNOW_HEIGHT) {
+        color = mix(GRASS_LOW, GRASS_HIGH, inHeight / 1700.0);
+    } else {
+        color = vec3(0.92, 0.94, 0.97);
+    }
+
+    if (inDistance < pc.endFade) {
+        color *= (inDistance - pc.startFade) / (pc.endFade - pc.startFade);
+    }
+
+    outColor = vec4(color, 1.0);
+}

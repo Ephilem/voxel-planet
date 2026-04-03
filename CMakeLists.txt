@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.25)
 project(VoxelPlanet VERSION 0.1.0 LANGUAGES CXX)
 
+set_property(GLOBAL APPEND PROPERTY JOB_POOLS compile_pool=6 link_pool=1)
+set(CMAKE_JOB_POOL_COMPILE compile_pool)
+set(CMAKE_JOB_POOL_LINK link_pool)
+
 ######
 ###### Versioning: MAJOR.MINOR.PATCH+build.NUMBER.HASH
 ######
@@ -91,18 +95,41 @@ endif()
 
 include(FetchContent)
 
+function(optimize_external_targets dir)
+    get_property(_targets DIRECTORY "${dir}" PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(_t IN LISTS _targets)
+        get_target_property(_type ${_t} TYPE)
+        get_target_property(_imported ${_t} IMPORTED)
+
+        if(NOT _imported AND _type MATCHES "^(STATIC_LIBRARY|SHARED_LIBRARY|OBJECT_LIBRARY|MODULE_LIBRARY|EXECUTABLE)$")
+            target_compile_options(${_t} PRIVATE
+                    $<$<CONFIG:Debug>:$<IF:$<CXX_COMPILER_ID:MSVC>,/O2,-O2>>
+            )
+        endif()
+    endforeach()
+
+    get_property(_subs DIRECTORY "${dir}" PROPERTY SUBDIRECTORIES)
+    foreach(_s IN LISTS _subs)
+        optimize_external_targets("${_s}")
+    endforeach()
+endfunction()
+
+
 # Optional: Tracy profiler
 option(ENABLE_TRACY "Enable Tracy profiler" ON)
 
 if(ENABLE_TRACY)
     FetchContent_Declare(
-        tracy
-        GIT_REPOSITORY https://github.com/wolfpld/tracy.git
-        GIT_TAG v0.13.1
-        GIT_SHALLOW TRUE
+            tracy
+            GIT_REPOSITORY https://github.com/wolfpld/tracy.git
+            GIT_TAG v0.14.1
+            GIT_SHALLOW TRUE
     )
     set(TRACY_ENABLE ON CACHE BOOL "" FORCE)
     set(TRACY_ON_DEMAND ON CACHE BOOL "" FORCE)
+    set(TRACY_VERBOSE OFF CACHE BOOL "" FORCE)
+    set(TRACY_TIMER_FALLBACK ON CACHE BOOL "" FORCE)
+    set(TRACY_DISALLOW_HW_TIMER ON CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(tracy)
     set(TRACY_FOUND TRUE)
     message(STATUS "Tracy profiler enabled")
@@ -120,13 +147,6 @@ FetchContent_Declare(
         GIT_TAG v1.3.290
 )
 FetchContent_MakeAvailable(vk-bootstrap)
-
-FetchContent_Declare(
-        VulkanMemoryAllocator
-        GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator
-        GIT_TAG v3.1.0
-)
-FetchContent_MakeAvailable(VulkanMemoryAllocator)
 
 FetchContent_Declare(
         glfw
@@ -148,9 +168,13 @@ FetchContent_MakeAvailable(glm)
 FetchContent_Declare(
         flecs
         GIT_REPOSITORY https://github.com/SanderMertens/flecs.git
-        GIT_TAG v4.0.3
+        GIT_TAG v4.1.6
 )
 FetchContent_MakeAvailable(flecs)
+
+if(ENABLE_TRACY)
+    target_compile_definitions(flecs_static PUBLIC FLECS_PERF_TRACE)
+endif()
 
 FetchContent_Declare(
         imgui
@@ -226,7 +250,22 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(fmt)
 
+# moodycamel concurrentqueue
+FetchContent_Declare(
+        concurrentqueue
+        GIT_REPOSITORY https://github.com/cameron314/concurrentqueue.git
+        GIT_TAG v1.0.5
+)
+FetchContent_MakeAvailable(concurrentqueue)
+
 set(CMAKE_CXX_FLAGS ${ORIGINAL_FLAGS})
+
+foreach(_dep tracy vk-bootstrap glfw nvrhi fastnoise2 fmt)
+    string(TOLOWER "${_dep}" _lc)
+    if(DEFINED ${_lc}_SOURCE_DIR)
+        optimize_external_targets("${${_lc}_SOURCE_DIR}")
+    endif()
+endforeach()
 
 ####
 #### End Dependencies
@@ -249,7 +288,8 @@ endif()
 
 add_executable(${PROJECT_NAME}
         src/main.cpp
-        src/vulkan_dispatcher.cpp)
+        src/vulkan_dispatcher.cpp
+)
 
 target_include_directories(${PROJECT_NAME} PRIVATE
         ${CMAKE_SOURCE_DIR}/src
@@ -264,7 +304,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         nvrhi
         Vulkan::Vulkan
         vk-bootstrap::vk-bootstrap
-        VulkanMemoryAllocator
         glfw
         glm::glm
         flecs::flecs_static
@@ -296,6 +335,14 @@ file(GLOB_RECURSE SHADER_SOURCES
         "${CMAKE_SOURCE_DIR}/assets/shaders/*.vert"
         "${CMAKE_SOURCE_DIR}/assets/shaders/*.frag"
         "${CMAKE_SOURCE_DIR}/assets/shaders/*.comp"
+)
+
+# Shared headers pulled in with #include. glslc does not emit a depfile here, so every shader is
+# made to depend on all of them: touching planet_lod_node.glsl has to rebuild the traversal, or
+# the SPIR-V silently keeps the previous definitions.
+file(GLOB_RECURSE SHADER_INCLUDES
+        CONFIGURE_DEPENDS
+        "${CMAKE_SOURCE_DIR}/assets/shaders/*.glsl"
 )
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
@@ -330,7 +377,7 @@ foreach(SHADER ${SHADER_SOURCES})
                 -fshader-stage=${SHADER_STAGE}
                 -g
                 ${SHADER} -o ${SHADER_OUTPUT}
-            DEPENDS ${SHADER}
+            DEPENDS ${SHADER} ${SHADER_INCLUDES}
             COMMENT "Compiling shader ${SHADER_NAME}"
     )
 

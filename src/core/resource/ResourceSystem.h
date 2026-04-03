@@ -4,19 +4,18 @@
 #include "AssetRegistry.h"
 #include "loaders/ResourceLoader.h"
 
+namespace vp::core {
 class ResourceSystem {
 public:
     ResourceSystem(AssetRegistry* assetRegistry);
     ~ResourceSystem();
 
-    template<typename ResourceT>
-    std::shared_ptr<ResourceT> load(const std::string& name, ResourceType type) {
+    template <typename ResourceT> std::shared_ptr<ResourceT> load(const std::string& name, ResourceType type) {
         auto resource = load(name, type);
         return std::dynamic_pointer_cast<ResourceT>(resource);
     }
 
-    template<typename ResourceT>
-    std::shared_ptr<ResourceT> load(const AssetID id) {
+    template <typename ResourceT> std::shared_ptr<ResourceT> load(const AssetID id) {
         if (!m_assetRegistry->has_asset(id)) {
             throw std::runtime_error("ResourceSystem: Asset ID not found in registry");
         }
@@ -50,3 +49,4 @@ private:
 
     std::shared_ptr<IResource> load(const std::string& name, ResourceType type);
 };
+} // namespace vp::core

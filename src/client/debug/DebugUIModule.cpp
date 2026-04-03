@@ -1,0 +1,33 @@
+#include "DebugUIModule.h"
+
+#include "DebugUIManager.h"
+#include "entities/PlayerPanel.h"
+#include "LogConsole.h"
+#include "performance/FpsCounter.h"
+#include "rendering/PlanetChunksRenderingDebug.h"
+#include "rendering/PlanetTilesDebug.h"
+#include "world/PlanetChunksDebug.h"
+#include "world/PlanetLayerViewer.h"
+#include "world/PlayerWorldInfo.h"
+
+namespace vp::client {
+void DebugUIModule::register_components(flecs::world& ecs)
+{
+    ecs.component<DebugUIManager>();
+}
+
+void DebugUIModule::register_systems(flecs::world& ecs)
+{
+    DebugUIManager::Register(ecs); // TODO make this more ecs friendly by not using a singleton
+
+    auto* debugUI = ecs.try_get_mut<DebugUIManager>();
+    debugUI->add_panel<FpsCounter>();
+    debugUI->add_panel<PlayerWorldInfo>();
+    debugUI->add_panel<LogConsole>();
+    debugUI->add_panel<PlayerPanel>();
+    debugUI->add_panel<PlanetLayerViewer>();
+    debugUI->add_panel<PlanetChunksDebug>();
+    debugUI->add_panel<PlanetTilesDebug>();
+    debugUI->add_panel<PlanetChunksRenderingDebug>();
+}
+} // namespace vp::client

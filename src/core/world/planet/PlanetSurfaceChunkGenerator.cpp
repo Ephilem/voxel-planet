@@ -1,0 +1,228 @@
+//
+// Created by raph on 11/08/2026.
+//
+
+#include "PlanetSurfaceChunkGenerator.h"
+
+#include "core/TracyIntegration.h"
+#include "core/world/planet/planet_transform.h"
+#include "core/world/planet/planet_types.h"
+
+namespace vp::core {
+
+PlanetSurfaceChunkGenerator::PlanetSurfaceChunkGenerator(PlanetTerrainParams params, double planetRadius,
+                                                         const PlanetVoxelRegistry& registry, unsigned workerCount)
+    : m_params(params), m_planetRadius(planetRadius), m_stoneId(registry.resolve("voxelplanet:cobblestone"_asset)),
+      m_grassId(registry.resolve("voxelplanet:grass"_asset)) {
+    if (workerCount == 0) {
+        const unsigned hw = std::thread::hardware_concurrency();
+        const unsigned total = hw > 4 ? hw - 2 : 2;
+        workerCount = std::max(1U, total * 6 / 10);
+    }
+
+    for (unsigned i = 0; i < workerCount; ++i) {
+        m_workers.emplace_back([this](std::stop_token stop) { worker_loop(std::move(stop)); });
+    }
+
+    LOG_DEBUG("PlanetSurfaceChunkGenerator", "Started {} worker threads", m_workers.size());
+}
+
+PlanetSurfaceChunkGenerator::~PlanetSurfaceChunkGenerator() {
+    const size_t count = m_workers.size();
+
+    for (auto& worker : m_workers)
+        worker.request_stop();
+    for (auto& worker : m_workers)
+        worker.join();
+    m_workers.clear();
+
+    LOG_DEBUG("PlanetSurfaceChunkGenerator", "Stopped {} worker threads", count);
+}
+
+void PlanetSurfaceChunkGenerator::request(const PlanetSurfaceChunkKey& key, float priority) {
+    if (!key.valid()) {
+        return;
+    }
+    if (m_inFlight.contains(key)) {
+        m_cancelled.erase(key);
+        ++m_stats.dedupRejects;
+        return;
+    }
+    if (m_pendingSet.contains(key)) {
+        m_cancelled.erase(key);
+        ++m_stats.dedupRejects;
+        return;
+    }
+
+    m_pending.emplace_back(Pending{.key = key, .priority = priority});
+    m_pendingSet.insert(key);
+    ++m_stats.requested;
+    ++m_stats.requestedThisFrame;
+    m_stats.peakPending = std::max(m_stats.peakPending, uint32_t(m_pending.size()));
+}
+
+void PlanetSurfaceChunkGenerator::submit_pending(uint32_t maxInFlight) {
+    const auto inFlight = uint32_t(m_inFlight.size());
+    if (m_pending.empty() || inFlight >= maxInFlight) {
+        return;
+    }
+
+    const uint32_t count = std::min<uint32_t>(maxInFlight - inFlight, uint32_t(m_pending.size()));
+
+    // apply priority
+    if (count < m_pending.size()) {
+        std::partial_sort(m_pending.begin(), m_pending.begin() + count, m_pending.end(),
+                          [](const Pending& a, const Pending& b) { return a.priority < b.priority; });
+    }
+
+    if (m_keyScratch.size() < count) {
+        m_keyScratch.resize(count);
+    }
+
+    for (uint32_t i = 0; i < count; ++i) {
+        m_pendingSet.erase(m_pending[i].key);
+        m_inFlight.insert(m_pending[i].key);
+        m_keyScratch[i] = m_pending[i].key;
+    }
+    m_requestQueue.enqueue_bulk(m_keyScratch.data(), count);
+
+    m_stats.submitted += count;
+    m_stats.submittedThisFrame += count;
+    m_stats.peakInFlight = std::max(m_stats.peakInFlight, uint32_t(m_inFlight.size()));
+
+    m_pending.erase(m_pending.begin(), m_pending.begin() + count);
+}
+
+uint32_t PlanetSurfaceChunkGenerator::drain(std::vector<PlanetSurfaceChunkGenerationResult>& out, uint32_t maxDrain) {
+    PlanetSurfaceChunkGenerationResult result;
+    uint32_t count = 0;
+
+    while (count < maxDrain && m_resultQueue.try_dequeue(result)) {
+        m_inFlight.erase(result.key);
+        if (!m_cancelled.contains(result.key)) {
+            out.emplace_back(std::move(result));
+            ++count;
+        } else {
+            m_cancelled.erase(result.key);
+        }
+    }
+
+    m_stats.completed += count;
+    m_stats.completedThisFrame += count;
+    return count;
+}
+
+void PlanetSurfaceChunkGenerator::begin_frame() {
+    m_stats.requestedThisFrame = 0;
+    m_stats.submittedThisFrame = 0;
+    m_stats.completedThisFrame = 0;
+}
+
+void PlanetSurfaceChunkGenerator::worker_loop(std::stop_token stop) {
+    PlanetTerrainSampler sampler = PlanetTerrainSampler(m_params);
+    PlanetTerrainSampler::BatchScratch scratch;
+
+    while (!stop.stop_requested()) {
+        PlanetSurfaceChunkKey key;
+        if (!m_requestQueue.wait_dequeue_timed(key, std::chrono::milliseconds(100))) {
+            continue;
+        }
+
+        m_resultQueue.enqueue(PlanetSurfaceChunkGenerationResult{.key = key, .chunk = generate(key, sampler, scratch)});
+    }
+}
+
+std::shared_ptr<PlanetSurfaceVoxelChunk>
+PlanetSurfaceChunkGenerator::generate(const PlanetSurfaceChunkKey& key, const PlanetTerrainSampler& sampler,
+                                      PlanetTerrainSampler::BatchScratch& scratch) const {
+    VOXEL_ZONE_N("PlanetSurfaceChunkGenerator::generate");
+    int8_t maxDensity = -127;
+
+    constexpr int COLUMNS = CHUNK_SIZE * CHUNK_SIZE;
+
+    const double voxelSize = planet_chunk_voxel_size(key.level);
+    const double voxelSpan = 2.0 / planet_voxels_per_face_side(m_planetRadius, key.level);
+    const double chunkSpan = voxelSpan * double(CHUNK_SIZE);
+    const double u0 = -1.0 + (double(key.x) * chunkSpan);
+    const double v0 = -1.0 + (double(key.y) * chunkSpan);
+
+    const double chunkBottom = double(key.alt) * double(CHUNK_SIZE) * voxelSize;
+    const double chunkTop = chunkBottom + (double(CHUNK_SIZE) * voxelSize);
+
+    thread_local std::vector<float> dirX, dirY, dirZ, heights;
+    dirX.resize(COLUMNS);
+    dirY.resize(COLUMNS);
+    dirZ.resize(COLUMNS);
+    heights.resize(COLUMNS);
+
+    int idx = 0;
+    for (int j = 0; j < CHUNK_SIZE; ++j) {
+        for (int i = 0; i < CHUNK_SIZE; ++i, ++idx) {
+            // voxel cente
+            const double u = u0 + ((double(i) + 0.5) * voxelSpan);
+            const double v = v0 + ((double(j) + 0.5) * voxelSpan);
+            const glm::dvec3 dir = face_uv_to_direction(key.face, u, v);
+            dirX[idx] = float(dir.x);
+            dirY[idx] = float(dir.y);
+            dirZ[idx] = float(dir.z);
+        }
+    }
+
+    // key.level is a voxel LOD. The sampler wants the quadtree level
+    const int samplerLod = planet_lod_for_voxel_level(m_planetRadius, key.level);
+
+    sampler.sample_height_batch(dirX.data(), dirY.data(), dirZ.data(), COLUMNS, samplerLod, heights.data(), scratch);
+
+    const auto [minIt, maxIt] = std::minmax_element(heights.begin(), heights.end());
+    const float minH = *minIt;
+    const float maxH = *maxIt;
+
+    if (chunkBottom >= double(maxH)) {
+        return nullptr;
+    }
+
+    PlanetSurfaceChunkPalette palette;
+    const LocalVoxelID stoneLocal = palette.intern(m_stoneId);
+    const LocalVoxelID grassLocal = palette.intern(m_grassId);
+    // const PlanetSurfaceChunkVoxelInfo stone = {.localBlockID = palette.intern(m_stoneId), .density = -64};
+    // const PlanetSurfaceChunkVoxelInfo grass = {.localBlockID = palette.intern(m_grassId), .density = -64};
+    // const PlanetSurfaceChunkVoxelInfo air = {.localBlockID = palette.intern(VoxelID::Air), .density = 64};
+
+    // only writable here: the chunk gets it as const
+    auto voxels = std::make_shared<PlanetVoxelArray>();
+    const PlanetSurfaceChunkVoxelInfo fullStone{.localBlockID = stoneLocal, .density = -127};
+
+    if (chunkTop <= double(minH - 32.0)) {
+        voxels->fill(fullStone);
+    } else {
+        idx = 0;
+        for (int j = 0; j < CHUNK_SIZE; ++j) {
+            for (int i = 0; i < CHUNK_SIZE; ++i, ++idx) {
+                const double colTop = double(heights[idx]);
+
+                for (int z = 0; z < CHUNK_SIZE; ++z) {
+                    // same point as the column direction: voxel center
+                    const double h = chunkBottom + ((double(z) + 0.5) * voxelSize);
+                    const double dist = (h - colTop) / voxelSize; // voxel units, < 0 under the ground
+
+                    const long q = std::lround(dist * PlanetSurfaceVoxelChunk::DENSITY_SCALE);
+                    const auto density = int8_t(std::clamp(q, -127L, 127L));
+
+                    LocalVoxelID id = LocalVoxelID::Air;
+                    if (density < 0) { // same test as the mesher
+                        // 1.5 voxel thick: covers the quantization window of the air test above and the solid
+                        // end of X/Y edges on moderate slopes
+                        const bool surface = dist > -1.5 && colTop > 0;
+                        id = surface ? grassLocal : stoneLocal;
+                    }
+                    (*voxels)[planet_voxel_index(i, j, z)] = {.localBlockID = id, .density = density};
+                    maxDensity = std::max(maxDensity, density);
+                }
+            }
+        }
+    }
+
+    return std::make_shared<PlanetSurfaceVoxelChunk>(std::move(voxels), std::move(palette), maxDensity);
+}
+
+} // namespace vp::core

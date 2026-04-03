@@ -1,0 +1,17 @@
+---
+Checks: >
+  -*,
+  bugprone-*,
+  performance-*,
+  modernize-*,
+  readability-*,
+  clang-analyzer-*,
+  -modernize-use-trailing-return-type,
+  -readability-magic-numbers,
+  -readability-identifier-length,
+  -bugprone-easily-swappable-parameters,
+  -performance-avoid-endl
+
+HeaderFilterRegex: '^.*/src/.*\.(h|hpp)$'
+WarningsAsErrors: ''
+FormatStyle: file

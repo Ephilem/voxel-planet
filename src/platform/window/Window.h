@@ -1,9 +1,10 @@
 #pragma once
-#include <string>
-#include <glm/glm.hpp>
-#include <GLFW/glfw3.h>
 #include <flecs.h>
+#include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
+#include <string>
 
+namespace vp::platform {
 struct Window {
     uint16_t width;
     uint16_t height;
@@ -16,7 +17,7 @@ struct Window {
 
     bool shouldClose() const;
     void pollEvents() const;
-    glm::ivec2 getFramebufferSize() const;
 
     void setupCallbacks(flecs::world& ecs);
 };
+} // namespace vp::platform

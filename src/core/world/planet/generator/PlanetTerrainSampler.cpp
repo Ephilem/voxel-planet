@@ -1,0 +1,145 @@
+//
+// Created by raph on 03/08/2026.
+//
+
+#include "PlanetTerrainSampler.h"
+
+#include <algorithm>
+#include <cmath>
+#include <utility>
+
+#include "core/log/Logger.h"
+#include "core/TracyIntegration.h"
+
+namespace vp::core {
+constexpr float GAIN = 0.5f;
+constexpr float LACUNARITY = 2.0f;
+
+constexpr int RIDGED_SEED_OFFSET = 100;
+
+constexpr float LAND_MASK_LOW = -200.0f;
+constexpr float LAND_MASK_HIGH = 200.0f;
+
+PlanetTerrainSampler::PlanetTerrainSampler(PlanetTerrainParams params)
+    : m_params(std::move(params)), m_noise(FastNoise::New<FastNoise::Simplex>()) {}
+
+float PlanetTerrainSampler::fractal_bounding(int octave) {
+    float amplitude = 1.0f;
+    float norm = 0.0f;
+
+    for (int i = 0; i < octave; ++i) {
+        norm += amplitude;
+        amplitude *= GAIN;
+    }
+
+    return norm;
+}
+
+// Règle n°2 : band-limiting. Une octave n'est incluse que si sa longueur
+// d'onde dépasse 2 x la taille de cellule du LOD courant (Nyquist).
+// Sans ça, popping permanent au LOD switch.
+int PlanetTerrainSampler::octave_for_lod(int lod) const {
+    return std::clamp(3 + lod, 1, m_params.maxOctave);
+}
+
+void PlanetTerrainSampler::BatchScratch::resize(int count) {
+    // Le padding couvre l'overread SIMD de GenPositionArray3D.
+    const size_t padded = static_cast<size_t>(count) + SIMD_PADDING;
+    if (sx.size() >= padded)
+        return;
+
+    sx.resize(padded);
+    sy.resize(padded);
+    sz.resize(padded);
+    noise.resize(padded);
+    continents.resize(padded);
+    mountains.resize(padded);
+}
+
+// GenSingle3D calcule un vecteur SIMD complet puis n'en garde qu'une voie
+// (Generator.inl:337). En passant par GenPositionArray3D on remplit toutes les
+// voies : la boucle des octaves passe donc a l'exterieur, un appel par octave.
+void PlanetTerrainSampler::fbm_batch(const float* px, const float* py, const float* pz, int count, float freq,
+                                     int octave, float* out, BatchScratch& scratch) const {
+    VOXEL_ZONE_N("PlanetTerrainSampler::fbm_batch");
+    std::fill(out, out + count, 0.0f);
+
+    const int baseSeed = m_params.seed;
+    float amplitude = 1.0f;
+    float f = freq;
+
+    for (int i = 0; i < octave; ++i) {
+        for (int k = 0; k < count; ++k) {
+            scratch.sx[k] = px[k] * f;
+            scratch.sy[k] = py[k] * f;
+            scratch.sz[k] = pz[k] * f;
+        }
+
+        m_noise->GenPositionArray3D(scratch.noise.data(), count, scratch.sx.data(), scratch.sy.data(),
+                                    scratch.sz.data(), 0.0f, 0.0f, 0.0f, baseSeed + i);
+
+        for (int k = 0; k < count; ++k)
+            out[k] += amplitude * scratch.noise[k];
+
+        amplitude *= GAIN;
+        f *= LACUNARITY;
+    }
+
+    const float inv = 1.0f / fractal_bounding(m_params.maxOctave);
+    for (int k = 0; k < count; ++k)
+        out[k] *= inv;
+}
+
+void PlanetTerrainSampler::ridged_batch(const float* px, const float* py, const float* pz, int count, float freq,
+                                        int octave, float* out, BatchScratch& scratch) const {
+    VOXEL_ZONE_N("PlanetTerrainSampler::ridged_batch");
+    std::fill(out, out + count, 0.0f);
+
+    const int baseSeed = m_params.seed + RIDGED_SEED_OFFSET;
+    float amplitude = 1.0f;
+    float f = freq;
+
+    for (int i = 0; i < octave; ++i) {
+        for (int k = 0; k < count; ++k) {
+            scratch.sx[k] = px[k] * f;
+            scratch.sy[k] = py[k] * f;
+            scratch.sz[k] = pz[k] * f;
+        }
+
+        m_noise->GenPositionArray3D(scratch.noise.data(), count, scratch.sx.data(), scratch.sy.data(),
+                                    scratch.sz.data(), 0.0f, 0.0f, 0.0f, baseSeed + i);
+
+        for (int k = 0; k < count; ++k)
+            out[k] += amplitude * (1.0f - std::abs(scratch.noise[k])); // ridge
+
+        amplitude *= GAIN;
+        f *= LACUNARITY;
+    }
+
+    const float inv = 1.0f / fractal_bounding(m_params.maxOctave);
+    for (int k = 0; k < count; ++k)
+        out[k] = (out[k] * inv) * 2.0f - 1.0f; // [-1, 1]
+}
+
+void PlanetTerrainSampler::sample_height_batch(const float* dirX, const float* dirY, const float* dirZ, int count,
+                                               int lod, float* outHeights, BatchScratch& scratch) const {
+    if (count <= 0)
+        return;
+
+    VOXEL_ZONE_N("PlanetTerrainSampler::sample_height_batch");
+    scratch.resize(count);
+
+    const int octave = octave_for_lod(lod);
+
+    fbm_batch(dirX, dirY, dirZ, count, m_params.continentFrequency, m_params.continentOctave, scratch.continents.data(),
+              scratch);
+    ridged_batch(dirX, dirY, dirZ, count, m_params.mountainFrequency, octave, scratch.mountains.data(), scratch);
+
+    for (int k = 0; k < count; ++k) {
+        float h = scratch.continents[k] * m_params.continentAmplitude;
+        const float landMask = glm::smoothstep(LAND_MASK_LOW, LAND_MASK_HIGH, h);
+        h += scratch.mountains[k] * m_params.mountainAmplitude * landMask;
+        outHeights[k] = h - m_params.seaLevel;
+    }
+}
+} // namespace vp::core

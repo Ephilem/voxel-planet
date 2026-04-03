@@ -1,0 +1,176 @@
+#pragma once
+#include <cmath>
+
+#include <glm/glm.hpp>
+
+#include "planet_types.h"
+
+namespace vp::core {
+/**
+ * Tangent warp
+ * @param s face coordinate in [-1, 1]
+ */
+inline double face_warp(double s) {
+    return std::tan(s * 0.78539816339744830961); // s * pi/4
+}
+
+/// Inverse of face_warp
+inline double face_warp_inv(double t) {
+    return std::atan(t) * 1.27323954473516268615; // * 4/pi
+}
+
+/**
+ * Face coordinates -> unit direction
+ * @param u,v in [-1, 1], centered on the face
+ */
+inline glm::dvec3 face_uv_to_direction(CubemapFace face, double u, double v) {
+    const double a = face_warp(u);
+    const double b = face_warp(v);
+
+    glm::dvec3 dir;
+    switch (face) {
+    case FACE_POS_X:
+        dir = {1.0, b, -a};
+        break;
+    case FACE_NEG_X:
+        dir = {-1.0, b, a};
+        break;
+    case FACE_POS_Y:
+        dir = {a, 1.0, -b};
+        break;
+    case FACE_NEG_Y:
+        dir = {a, -1.0, b};
+        break;
+    case FACE_POS_Z:
+        dir = {a, b, 1.0};
+        break;
+    case FACE_NEG_Z:
+        dir = {-a, b, -1.0};
+        break;
+    default:
+        return {0.0, 0.0, 1.0};
+    }
+
+    return glm::normalize(dir);
+}
+
+/**
+ * Unit direction -> face coordinates
+ * @param out_u,out_v in [-1, 1]
+ */
+inline void direction_to_face_uv(const glm::dvec3& dir, CubemapFace& out_face, double& out_u, double& out_v) {
+    const double ax = std::abs(dir.x);
+    const double ay = std::abs(dir.y);
+    const double az = std::abs(dir.z);
+
+    double a, b;
+
+    if (ax >= ay && ax >= az) {
+        if (dir.x > 0.0) {
+            out_face = FACE_POS_X;
+            a = -dir.z / ax;
+            b = dir.y / ax;
+        } else {
+            out_face = FACE_NEG_X;
+            a = dir.z / ax;
+            b = dir.y / ax;
+        }
+    } else if (ay >= az) {
+        if (dir.y > 0.0) {
+            out_face = FACE_POS_Y;
+            a = dir.x / ay;
+            b = -dir.z / ay;
+        } else {
+            out_face = FACE_NEG_Y;
+            a = dir.x / ay;
+            b = dir.z / ay;
+        }
+    } else {
+        if (dir.z > 0.0) {
+            out_face = FACE_POS_Z;
+            a = dir.x / az;
+            b = dir.y / az;
+        } else {
+            out_face = FACE_NEG_Z;
+            a = -dir.x / az;
+            b = dir.y / az;
+        }
+    }
+
+    out_u = face_warp_inv(a);
+    out_v = face_warp_inv(b);
+}
+
+/**
+ * Arc length of a face edge, measured on the sphere.
+ *
+ * The tangent warp is what makes this exact: face_warp is tan(s * pi/4) and the
+ * projection back to an angle is atan, so the two cancel and the angle is linear
+ * in the face coordinate. A face therefore covers pi/2 of arc, split evenly,
+ * which is the whole point of warping instead of projecting a flat cube
+ */
+inline double planet_face_size(double radius) {
+    return radius * 1.5707963267948966192; // R * pi/2
+}
+
+inline double planet_node_size(double radius, uint8_t level) {
+    return planet_face_size(radius) / double(1u << level);
+}
+
+inline double planet_chunk_voxel_size(uint8_t level) {
+    return PLANET_VOXEL_SIZE_LOD0 * double(1U << level);
+}
+
+inline double planet_voxels_per_face_side(double radius, uint8_t level) {
+    return planet_face_size(radius) / planet_chunk_voxel_size(level);
+}
+
+/**
+ * Voxel LOD -> quadtree level, the convention the terrain sampler takes.
+ */
+inline int planet_lod_for_voxel_level(double radius, uint8_t level, uint32_t tileResolution = 256) {
+    const double nodesPerFace = planet_face_size(radius) / (planet_chunk_voxel_size(level) * double(tileResolution));
+    if (nodesPerFace <= 1.0) {
+        return 0;
+    }
+    return int(std::lround(std::log2(nodesPerFace)));
+}
+
+/**
+ * Voxel coordinates -> position in planet space (inverse of planet_pos_to_voxel)
+ * Accepts fractional coordinates so edges can be subdivided.
+ */
+inline glm::dvec3 planet_voxel_to_pos(CubemapFace face, double vx, double vy, double vz, double radius, uint8_t level) {
+    const double N = planet_voxels_per_face_side(radius, level);
+    const double u = (vx / N) * 2.0 - 1.0;
+    const double v = (vy / N) * 2.0 - 1.0;
+    const double r = radius + vz * planet_chunk_voxel_size(level);
+    return face_uv_to_direction(face, u, v) * r;
+}
+
+inline PlanetVoxelCoord planet_pos_to_voxel(const glm::dvec3& posPlanet, double radius, uint8_t level) {
+    const double r = glm::length(posPlanet);
+    PlanetVoxelCoord out;
+    if (r < 1e-9) {
+        return out;
+    }
+
+    double u;
+    double v;
+    direction_to_face_uv(posPlanet / r, out.face, u, v);
+
+    const double N = planet_voxels_per_face_side(radius, level);
+    const double voxelSize = planet_chunk_voxel_size(level);
+
+    out.voxel.x = int64_t(std::floor(((u * 0.5) + 0.5) * N));
+    out.voxel.y = int64_t(std::floor(((v * 0.5) + 0.5) * N));
+    out.voxel.z = int64_t(std::floor((r - radius) / voxelSize));
+    return out;
+}
+
+inline PlanetSurfaceChunkKey planet_pos_to_chunk(const glm::dvec3& posPlanet, double radius, uint8_t level) {
+    const PlanetVoxelCoord vc = planet_pos_to_voxel(posPlanet, radius, level);
+    return PlanetSurfaceChunkKey(vc.face, level, glm::ivec3(vc.voxel));
+}
+
+} // namespace vp::core

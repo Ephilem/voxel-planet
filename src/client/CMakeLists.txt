@@ -1,26 +1,8 @@
-add_library(VoxelPlanetClient STATIC
-        ClientModule.cpp
-        ClientModule.h
-        PlayerControllerSystem.cpp
-        PlayerControllerSystem.h
-        debug/IDebugPanel.h
-        debug/DebugUISystem.cpp
-        debug/DebugUISystem.h
-        debug/LogConsole.h
-        debug/LogConsole.cpp
-        debug/world/WorldInfo.h
-        debug/world/WorldInfo.cpp
-        debug/performance/FpsCounter.h
-        debug/performance/FpsCounter.cpp
-        debug/renderer/VoxelBufferVisualizer.h
-        debug/renderer/VoxelBufferVisualizer.cpp
-        debug/entities/PlayerPanel.cpp
-        debug/entities/PlayerPanel.h
-        debug/world/ChunkManagerPanel.cpp
-        debug/world/ChunkManagerPanel.h
-        debug/world/WorldGenPanel.cpp
-        debug/world/WorldGenPanel.h
-)
+file(GLOB_RECURSE CLIENT_SOURCES CONFIGURE_DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/*.h)
+
+add_library(VoxelPlanetClient STATIC ${CLIENT_SOURCES})
 
 add_library(VoxelPlanet::Client ALIAS VoxelPlanetClient)
 
@@ -29,11 +11,18 @@ target_include_directories(VoxelPlanetClient
         ${CMAKE_SOURCE_DIR}/src
 )
 
+# std::async / std::future : sans pthread, GCC + glibc lancent un
+# std::system_error a l'execution au lieu de demarrer le thread.
+find_package(Threads REQUIRED)
+
 target_link_libraries(VoxelPlanetClient
         PUBLIC
         glm::glm
         flecs::flecs_static
+        concurrentqueue
         PRIVATE
+        implot
+        Threads::Threads
         VoxelPlanet::Core
         VoxelPlanet::Platform
         VoxelPlanet::Renderer

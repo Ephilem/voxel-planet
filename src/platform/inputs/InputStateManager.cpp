@@ -4,10 +4,12 @@
 
 #include "InputStateManager.h"
 
-#include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
+#include "platform/inputs/InputModuleState.h"
 #include "platform/PlatformState.h"
+#include "platform/window/Window.h"
 
+namespace vp::platform {
 InputStateManager::InputStateManager() {
     bind_action(ActionInputType::DebugMenuBar, GLFW_KEY_F3);
     bind_action(ActionInputType::ToggleMouseCapture, GLFW_KEY_LEFT_ALT);
@@ -16,43 +18,27 @@ InputStateManager::InputStateManager() {
     bind_action(ActionInputType::Backward, GLFW_KEY_S);
     bind_action(ActionInputType::Left, GLFW_KEY_A);
     bind_action(ActionInputType::Right, GLFW_KEY_D);
-    bind_action(ActionInputType::Up, GLFW_KEY_SPACE);
     bind_action(ActionInputType::Down, GLFW_KEY_LEFT_SHIFT);
-
-    bind_action(ActionInputType::Debug1, GLFW_KEY_F1);
-    bind_action(ActionInputType::Debug2, GLFW_KEY_F2);
-    bind_action(ActionInputType::Debug3, GLFW_KEY_F3);
 
     bind_action(ActionInputType::Accelerate, GLFW_KEY_PAGE_UP);
     bind_action(ActionInputType::Slowdown, GLFW_KEY_PAGE_DOWN);
 
     bind_action(ActionInputType::Jump, GLFW_KEY_SPACE);
-    bind_action(ActionInputType::Sprint, GLFW_KEY_LEFT_SHIFT);
     bind_action(ActionInputType::ToggleControllerMode, GLFW_KEY_F6);
     bind_action(ActionInputType::ToggleCameraView, GLFW_KEY_F5);
 }
 
-InputStateManager::~InputStateManager() {
-}
+InputStateManager::~InputStateManager() {}
 
 void InputStateManager::bind_action(ActionInputType action, int key, int modifier) {
-    LOG_DEBUG("InputStateManager", "Binding action {} to key {} with modifier {}", static_cast<int>(action), key, modifier);
     m_actionKeyBindings[action].emplace_back(key, modifier);
 }
 
 void InputStateManager::bind_action_mouse(ActionInputType action, int mouseButton, int modifier) {
-    m_actionKeyBindings[action].emplace_back(mouseButton, modifier);
+    m_actionKeyBindings[action].push_back(KeyBinding::Mouse(mouseButton, modifier));
 }
 
-void InputStateManager::unbind_action(ActionInputType action, int key, int modifier) {
-    throw std::runtime_error("Unbinding specific keys not implemented yet");
-}
-
-void InputStateManager::clear_action_bindings(ActionInputType action) {
-    m_actionKeyBindings[action].clear();
-}
-
-bool InputStateManager::is_binding_active(const KeyBinding &binding, const InputState &inputState) const {
+bool InputStateManager::is_binding_active(const KeyBinding& binding, const InputState& inputState) const {
     if (binding.isMouse) {
         return inputState.is_mouse_button_down(binding.key);
     } else {
@@ -61,7 +47,8 @@ bool InputStateManager::is_binding_active(const KeyBinding &binding, const Input
 }
 
 void InputStateManager::set_mouse_captured(GLFWwindow* window, InputState& inputState, bool captured) {
-    if (inputState.mouseCaptured == captured) return;
+    if (inputState.mouseCaptured == captured)
+        return;
 
     inputState.mouseCaptured = captured;
 
@@ -77,40 +64,6 @@ void InputStateManager::set_mouse_captured(GLFWwindow* window, InputState& input
 
     inputState.mouseDeltaX = 0.0f;
     inputState.mouseDeltaY = 0.0f;
-}
-
-void InputStateManager::Register(flecs::world &ecs) {
-    ecs.set<InputState>({});
-    ecs.set<InputActionState>({});
-
-    auto* platformState = ecs.get_mut<PlatformState>();
-    if (!platformState || !platformState->window) {
-        throw std::runtime_error("InputStateManager: PlatformState with valid Window is required");
-    }
-    platformState->inputManager = std::make_unique<InputStateManager>();
-
-    ecs.system("CaptureInputSystem")
-        .kind(flecs::OnLoad)
-        .run([](flecs::iter& it) {
-            VOXEL_ZONE_N("InputStateManager-CaptureInput");
-            auto* inputState = it.world().get_mut<InputState>();
-            auto* platformState = it.world().get_mut<PlatformState>();
-            if (inputState && platformState) {
-                capture_input_system(*inputState, *platformState);
-            }
-        });
-
-    ecs.system("UpdateActionStatesSystem")
-        .kind(flecs::PreUpdate)
-        .run([](flecs::iter& it) {
-            VOXEL_ZONE_N("InputStateManager-UpdateAction");
-            auto* inputState = it.world().get_mut<InputState>();
-            auto* actionState = it.world().get_mut<InputActionState>();
-            auto* platformState = it.world().get_mut<PlatformState>();
-            if (inputState && actionState && platformState) {
-                update_action_states_system(*inputState, *actionState, *platformState);
-            }
-        });
 }
 
 void InputStateManager::capture_input_system(InputState& inputState, PlatformState& platformState) {
@@ -132,8 +85,8 @@ void InputStateManager::capture_input_system(InputState& inputState, PlatformSta
         }
     }
 
-    // Update
-    for (int i = 0; i <= GLFW_KEY_LAST; ++i) {
+    // Update. Codes below GLFW_KEY_SPACE are invalid for glfwGetKey (GLFW_INVALID_ENUM)
+    for (int i = GLFW_KEY_SPACE; i <= GLFW_KEY_LAST; ++i) {
         int state = glfwGetKey(window, i);
         if (state == GLFW_PRESS) {
             if (inputState.keys[i] == KeyState::Up) {
@@ -172,14 +125,16 @@ void InputStateManager::capture_input_system(InputState& inputState, PlatformSta
     inputState.scrollDeltaY = 0.0f;
 }
 
-void InputStateManager::update_action_states_system(InputState &inputState, InputActionState &actionState, PlatformState &platformState) {
-    auto* inputManager = platformState.inputManager.get();
-    if (!inputManager) return;
+void InputStateManager::update_action_states_system(InputState& inputState, InputActionState& actionState,
+                                                    InputModuleState& moduleState, Window& win) {
+    auto* inputManager = moduleState.inputManager.get();
+    if (!inputManager)
+        return;
 
-    GLFWwindow* window = platformState.window->window;
+    GLFWwindow* window = win.window;
 
     // Handle transitions
-    for (KeyState & action : actionState.actions) {
+    for (KeyState& action : actionState.actions) {
         if (action == KeyState::Pressed) {
             action = KeyState::Down;
         } else if (action == KeyState::Released) {
@@ -214,3 +169,4 @@ void InputStateManager::update_action_states_system(InputState &inputState, Inpu
         LOG_TRACE("InputStateManager", "Mouse capture toggled: {}", inputState.mouseCaptured);
     }
 }
+} // namespace vp::platform

@@ -1,6 +1,7 @@
 #pragma once
 #include <GLFW/glfw3.h>
 
+namespace vp::platform {
 enum class ActionInputType {
     DebugMenuBar,
     ToggleMouseCapture,
@@ -9,18 +10,12 @@ enum class ActionInputType {
     Backward,
     Left,
     Right,
-    Up,
     Down,
-
-    Debug1,
-    Debug2,
-    Debug3,
 
     Accelerate,
     Slowdown,
 
     Jump,
-    Sprint,
     ToggleControllerMode,
     ToggleCameraView,
 
@@ -44,17 +39,7 @@ struct InputState {
 
     bool mouseCaptured = false;
 
-    inline bool is_key_down(int key) const {
-        return keys[key] == KeyState::Down || keys[key] == KeyState::Pressed;
-    }
-
-    inline bool is_key_pressed(int key) const {
-        return keys[key] == KeyState::Pressed;
-    }
-
-    inline bool is_key_released(int key) const {
-        return keys[key] == KeyState::Released;
-    }
+    inline bool is_key_down(int key) const { return keys[key] == KeyState::Down || keys[key] == KeyState::Pressed; }
 
     inline bool is_mouse_button_down(int button) const {
         return mouseButtons[button] == KeyState::Down || mouseButtons[button] == KeyState::Pressed;
@@ -62,13 +47,15 @@ struct InputState {
 };
 
 struct InputActionState {
-    KeyState actions[static_cast<size_t>(ActionInputType::Last)] = { KeyState::Up };
+    KeyState actions[static_cast<size_t>(ActionInputType::Last)] = {KeyState::Up};
 
     inline bool is_action_active(ActionInputType action) const {
-        return actions[static_cast<size_t>(action)] == KeyState::Down || actions[static_cast<size_t>(action)] == KeyState::Pressed;
+        return actions[static_cast<size_t>(action)] == KeyState::Down ||
+               actions[static_cast<size_t>(action)] == KeyState::Pressed;
     }
 
     inline bool is_action_pressed(ActionInputType action) const {
         return actions[static_cast<size_t>(action)] == KeyState::Pressed;
     }
 };
+} // namespace vp::platform

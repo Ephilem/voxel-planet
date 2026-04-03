@@ -5,6 +5,7 @@
 
 #include <imgui.h>
 
+namespace vp::client {
 class IDebugPanel {
 public:
     virtual ~IDebugPanel() = default;
@@ -28,3 +29,4 @@ public:
 
     bool is_visible = false;
 };
+} // namespace vp::client

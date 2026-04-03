@@ -3,7 +3,7 @@
 #include "loaders/ImageLoader.h"
 #include "loaders/ShaderLoader.h"
 
-
+namespace vp::core {
 ResourceSystem::ResourceSystem(AssetRegistry* assetRegistry) {
     m_assetRegistry = assetRegistry;
     register_loader(ResourceType::IMAGE, std::make_unique<ImageLoader>());
@@ -18,10 +18,11 @@ void ResourceSystem::register_loader(ResourceType type, std::unique_ptr<IResourc
     loaders[type] = std::move(loader);
 }
 
-std::shared_ptr<IResource> ResourceSystem::load(const std::string &name, ResourceType type) {
+std::shared_ptr<IResource> ResourceSystem::load(const std::string& name, ResourceType type) {
     auto it = loaders.find(type);
     if (it != loaders.end()) {
         return it->second->load(name);
     }
     return nullptr;
 }
+} // namespace vp::core

@@ -1,0 +1,38 @@
+#pragma once
+
+#include <flecs.h>
+#include <glm/glm.hpp>
+#include <vector>
+
+#include "core/ecs/BaseModule.h"
+
+namespace vp::core {
+
+struct DebugVertex {
+    glm::vec3 position;
+    glm::vec4 color;
+};
+
+struct DebugDrawBuffer {
+    std::vector<DebugVertex> lines;
+    std::vector<DebugVertex> points;
+};
+
+class DebugDrawModule : public BaseModule<DebugDrawModule> {
+public:
+    DebugDrawModule(flecs::world& ecs) : BaseModule(ecs) { register_all(ecs); }
+
+private:
+    void register_components(flecs::world& ecs);
+    void register_systems(flecs::world& ecs);
+
+    void register_pipelines(flecs::world& ecs) {}
+
+    void register_submodules(flecs::world& ecs) {}
+
+    void register_entities(flecs::world& ecs) {}
+
+    friend class BaseModule;
+};
+
+} // namespace vp::core
