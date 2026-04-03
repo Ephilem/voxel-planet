@@ -95,7 +95,7 @@ RendererModule::RendererModule(flecs::world& ecs) {
 
     DebugDrawRenderer::Register(ecs);
     SkyRenderer::Register(ecs);
-    VoxelTerrainRenderer::Register(ecs);
+    // VoxelTerrainRenderer::Register(ecs);
     ImGuiManager::Register(ecs);
 
     Camera3dSystems::Register(ecs);

@@ -26,7 +26,7 @@ enum class ControllerMode : uint8_t {
 };
 
 struct PlayerController {
-    ControllerMode mode = ControllerMode::Walking;
+    ControllerMode mode = ControllerMode::FreeCam;
 
     // Walking
     float walkSpeed     = 5.0f;

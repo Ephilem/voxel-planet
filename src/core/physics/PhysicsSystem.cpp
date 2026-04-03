@@ -185,14 +185,14 @@ void PhysicsSystem::init(flecs::world &ecs) {
                         glm::vec3(pos.x + halfExt.x, feetY, pos.z + halfExt.z)
                     };
 
-                    DebugDrawManager::Aabb(aabb, glm::vec4(1.0f, 0.0f, 1.0f, 0.5f));
+                    // DebugDrawManager::Aabb(aabb, glm::vec4(1.0f, 0.0f, 1.0f, 0.5f));
 
                     for (int bx = bMin.x; bx <= bMax.x && !body.onGround; bx++)
                         for (int by = bMin.y; by <= bMax.y && !body.onGround; by++)
                             for (int bz = bMin.z; bz <= bMax.z && !body.onGround; bz++) {
                                 AABB localBlockAabb = cm->get_block_info({bx, by, bz}).get_block_aabb();
                                 AABB blockAabb = localBlockAabb + glm::vec3(bx, by, bz);
-                                DebugDrawManager::Aabb(blockAabb, glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
+                                // DebugDrawManager::Aabb(blockAabb, glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
                                 if (blockAabb.intersects(aabb)) {
                                     body.onGround = true;
                                 }
