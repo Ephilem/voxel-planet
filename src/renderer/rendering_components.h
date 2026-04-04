@@ -2,6 +2,7 @@
 
 #include <vector>
 #include "render_types.h"
+#include "world/planet/PlanetOctree.h"
 
 #define MAX_FRAMES_IN_FLIGHT 2
 
@@ -21,8 +22,12 @@ struct Camera3d {
     glm::mat4 viewMatrix = glm::mat4(1.0f);
     glm::mat4 projectionMatrix = glm::mat4(1.0f);
     glm::float32 nearClip = 0.1f;
-    glm::float32 farClip = 10000.0f;
+    glm::float32 farClip = 1000000.0f; // TODO see how can we manage this better
     glm::float32 aspect_ratio = 16.0f / 9.0f;
+};
+
+struct PlanetRenderComp {
+    PlanetOctree renderOctree = {};
 };
 
 namespace voxel_chunk_mesh_state {

@@ -22,6 +22,7 @@
 #include "debug/DebugDrawRenderer.h"
 #include "debug/ImGuiManager.h"
 #include "nvrhi/utils.h"
+#include "world/planet/PlanetDebugRenderer.h"
 
 
 #ifdef TRACY_ENABLE
@@ -93,8 +94,9 @@ RendererModule::RendererModule(flecs::world& ecs) {
             }
         });
 
+    PlanetDebugRenderer::Register(ecs);
     DebugDrawRenderer::Register(ecs);
-    SkyRenderer::Register(ecs);
+    // SkyRenderer::Register(ecs);
     // VoxelTerrainRenderer::Register(ecs);
     ImGuiManager::Register(ecs);
 

@@ -26,6 +26,10 @@ add_library(VoxelPlanetRenderer STATIC
         world/VoxelMeshUploadBatcher.h
         debug/DebugDrawRenderer.cpp
         debug/DebugDrawRenderer.h
+        world/planet/PlanetOctree.cpp
+        world/planet/PlanetOctree.h
+        world/planet/PlanetDebugRenderer.cpp
+        world/planet/PlanetDebugRenderer.h
 )
 
 add_library(VoxelPlanet::Renderer ALIAS VoxelPlanetRenderer)

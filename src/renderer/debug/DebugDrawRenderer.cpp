@@ -35,6 +35,7 @@ void DebugDrawRenderer::Register(flecs::world &ecs) {
 
 void DebugDrawRenderer::render(nvrhi::CommandListHandle cmd, Camera3d &camera, VulkanBackend &backend) {
     render_lines(cmd, camera, backend);
+    render_points(cmd, camera, backend);
 }
 
 void DebugDrawRenderer::init_gpu() {
@@ -56,7 +57,7 @@ void DebugDrawRenderer::init_gpu() {
     /////////////////////// LINES PIPELINE ///////////////////////
     // lines vertex buffer
     auto lineBufferDesc = nvrhi::BufferDesc()
-            .setByteSize(1024 * 1024)
+            .setByteSize(1024 * 1024 * 10)
             .setDebugName("DebugDrawLines")
             .setIsVertexBuffer(true)
             .setInitialState(nvrhi::ResourceStates::VertexBuffer)
@@ -109,6 +110,33 @@ void DebugDrawRenderer::init_gpu() {
             })
             .addBindingLayout(m_pushConstantLayout);
     m_linePipeline = m_backend->device->createGraphicsPipeline(pipelineDesc, framebufferInfo);
+
+    /////////////////////// POINTS PIPELINE ///////////////////////
+    auto pointBufferDesc = nvrhi::BufferDesc()
+            .setByteSize(1024 * 1024)
+            .setDebugName("DebugDrawPoints")
+            .setIsVertexBuffer(true)
+            .setInitialState(nvrhi::ResourceStates::VertexBuffer)
+            .setKeepInitialState(true);
+    m_pointBuffer = m_backend->device->createBuffer(pointBufferDesc);
+
+    std::shared_ptr<ShaderResource> pointVertRes = m_resourceSystem->load<ShaderResource>("debug_draw_point.vert", ResourceType::SHADER);
+    auto pointVertexShader = m_backend->device->createShader(
+        nvrhi::ShaderDesc().setShaderType(nvrhi::ShaderType::Vertex),
+        pointVertRes->get_data(), pointVertRes->get_data_size());
+
+    auto pointPipelineDesc = nvrhi::GraphicsPipelineDesc()
+            .setVertexShader(pointVertexShader)
+            .setPixelShader(pixelShader)
+            .setInputLayout(m_lineInputLayout)
+            .setPrimType(nvrhi::PrimitiveType::PointList)
+            .setRenderState({
+                .depthStencilState = depthStencilState,
+                .rasterState = rasterizerState,
+            })
+            .addBindingLayout(m_pushConstantLayout);
+    m_pointPipeline = m_backend->device->createGraphicsPipeline(pointPipelineDesc, framebufferInfo);
+
 }
 
 void DebugDrawRenderer::destroy() {
@@ -137,6 +165,32 @@ void DebugDrawRenderer::render_lines(nvrhi::CommandListHandle cmd, Camera3d &cam
 
     nvrhi::DrawArguments drawArgs;
     drawArgs.vertexCount = lines.size(); // 2 vertices par ligne
+    cmd->draw(drawArgs);
+
+    cmd->clearState();
+}
+
+void DebugDrawRenderer::render_points(nvrhi::CommandListHandle cmd, Camera3d &camera, VulkanBackend &backend) {
+    auto &points = DebugDrawManager::GetPoints();
+    if (points.empty()) return;
+
+    cmd->writeBuffer(m_pointBuffer, points.data(), points.size() * sizeof(DebugVertex));
+
+    auto extent = m_backend->get_swapchain_extent();
+    DebugDrawPushConstants pc{camera.projectionMatrix * camera.viewMatrix};
+
+    auto state = nvrhi::GraphicsState()
+            .setPipeline(m_pointPipeline)
+            .setFramebuffer(m_backend->get_current_framebuffer())
+            .setViewport(nvrhi::ViewportState()
+                .addViewportAndScissorRect(nvrhi::Viewport(extent.width, extent.height)))
+            .addVertexBuffer({m_pointBuffer, 0, 0});
+    cmd->setGraphicsState(state);
+
+    cmd->setPushConstants(&pc, sizeof(pc));
+
+    nvrhi::DrawArguments drawArgs;
+    drawArgs.vertexCount = points.size();
     cmd->draw(drawArgs);
 
     cmd->clearState();

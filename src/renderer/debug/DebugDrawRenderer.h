@@ -25,6 +25,7 @@ private:
 
     // render steps
     void render_lines(nvrhi::CommandListHandle cmd, Camera3d &camera, VulkanBackend &backend);
+    void render_points(nvrhi::CommandListHandle cmd, Camera3d &camera, VulkanBackend &backend);
 
     VulkanBackend* m_backend;
     ResourceSystem* m_resourceSystem;
@@ -34,6 +35,8 @@ private:
 
     nvrhi::InputLayoutHandle m_lineInputLayout;
     nvrhi::BufferHandle m_lineBuffer;
-
     nvrhi::GraphicsPipelineHandle m_linePipeline;
+
+    nvrhi::BufferHandle m_pointBuffer;
+    nvrhi::GraphicsPipelineHandle m_pointPipeline;
 };

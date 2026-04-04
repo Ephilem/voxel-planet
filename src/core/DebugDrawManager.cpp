@@ -11,6 +11,7 @@ void DebugDrawManager::init(flecs::world &ecs) {
         .kind(flecs::OnLoad)
         .run([](flecs::iter& it) {
             GetInstance()->m_lines.clear();
+            GetInstance()->m_points.clear();
         });
 }
 
@@ -45,7 +46,40 @@ void DebugDrawManager::Aabb(const glm::vec3 &min, const glm::vec3 &max, const gl
     }
 }
 
+void DebugDrawManager::Point(const glm::vec3& position, const glm::vec4& color) {
+    auto instance = GetInstance();
+    instance->m_points.push_back({position, color});
+}
+
+void DebugDrawManager::Arrow(const glm::vec3& origin, const glm::vec3& direction, float length, const glm::vec4& color) {
+    glm::vec3 dir = glm::normalize(direction);
+    glm::vec3 tip = origin + dir * length;
+
+    Line(origin, tip, color);
+
+    glm::vec3 up = glm::abs(glm::dot(dir, glm::vec3(0, 1, 0))) < 0.99f
+                   ? glm::vec3(0, 1, 0)
+                   : glm::vec3(1, 0, 0);
+    glm::vec3 right = glm::normalize(glm::cross(dir, up));
+    up = glm::cross(right, dir);
+
+    float headLen   = length * 0.2f;
+    float headWidth = length * 0.1f;
+    glm::vec3 base  = tip - dir * headLen;
+
+    Line(tip, base + right * headWidth, color);
+    Line(tip, base - right * headWidth, color);
+    Line(tip, base + up    * headWidth, color);
+    Line(tip, base - up    * headWidth, color);
+}
+
+
 const std::vector<DebugVertex>& DebugDrawManager::GetLines() {
     const auto instance = GetInstance();
     return instance->m_lines;
+}
+
+const std::vector<DebugVertex> & DebugDrawManager::GetPoints() {
+    const auto instance = GetInstance();
+    return instance->m_points;
 }

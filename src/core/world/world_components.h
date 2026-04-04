@@ -8,6 +8,13 @@
 #include "core/math/aabb.h"
 #include "core/resource/asset_id.h"
 
+struct PlanetComp {
+    // world unit (meter)
+    float radius = 6371.0f;
+};
+
+/////////////////////
+/// Chunks related components
 #define CHUNK_SIZE 32
 #define CHUNK_VOLUME (CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE)
 

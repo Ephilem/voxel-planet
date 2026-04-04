@@ -72,6 +72,14 @@ ClientModule::ClientModule(flecs::world &ecs) {
             .haftExtent = {0.3f, 0.9f, 0.3f}
         })
         .set<PlayerController>({});
+
+
+    ecs.entity("PlanetTest")
+        .set<Position>({0.0f, 0.0f, 0.0f})
+        .set<PlanetComp>({
+            // .radius = 100.f
+        })
+        .set<PlanetRenderComp>({});
 }
 
 void shutdown_client(flecs::world &ecs) {

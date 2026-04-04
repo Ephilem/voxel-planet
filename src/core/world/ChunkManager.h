@@ -110,7 +110,7 @@ public:
     void unload_all_chunks(flecs::world& ecs);
 
     // Debugs flags
-    bool enqueueCandidates = true;
+    bool enqueueCandidates = false;
     bool loadingEnabled = true;
     bool unloadQueueEnabled = true;
 

@@ -59,7 +59,7 @@ void PhysicsSystem::init(flecs::world &ecs) {
                 glm::vec3 halfExt = body.haftExtent;
                 glm::vec3 currBmin = glm::vec3(pos) - halfExt;
                 glm::vec3 currBmax = glm::vec3(pos) + halfExt;
-                DebugDrawManager::Aabb(currBmin, currBmax, glm::vec4(0.0f, 1.0f, 0.0f, 0.5f));
+                // DebugDrawManager::Aabb(currBmin, currBmax, glm::vec4(0.0f, 1.0f, 0.0f, 0.5f));
                 body.onGround = false;
 
                 static constexpr float kEpsilon = 0.001f;
