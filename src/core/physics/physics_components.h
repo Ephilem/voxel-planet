@@ -37,8 +37,9 @@ struct PlayerController {
     float groundFriction = 50.0f;
 
     // FreeCam
-    float freeCamSpeed       = 20.0f;
-    float freeCamFastMult    = 4.0f;
+    float freeCamSpeed           = 20.0f;
+    float freeCamFastMult        = 4.0f;
+    float freeCamSpeedMultiplier = 1.0f;
 };
 
 struct Acceleration : glm::vec3 { using glm::vec3::vec3; };

@@ -77,7 +77,7 @@ ClientModule::ClientModule(flecs::world &ecs) {
     ecs.entity("PlanetTest")
         .set<Position>({0.0f, 0.0f, 0.0f})
         .set<PlanetComp>({
-            // .radius = 100.f
+            .radius = 6371000.f
         })
         .set<PlanetRenderComp>({});
 }

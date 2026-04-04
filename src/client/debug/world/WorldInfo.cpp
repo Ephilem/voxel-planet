@@ -15,7 +15,7 @@ void WorldInfo::pre_render() {
 void WorldInfo::render(flecs::world& ecs) {
     VOXEL_ZONE_N("WorldF3Info-Display");
 
-    ecs.each([](const Camera3d& camera, const Position& position, const Orientation& orientation, const RigidBody& body) {
+    ecs.each([](const Camera3d& camera, const Position& position, const Orientation& orientation, const RigidBody& body, const PlayerController& ctrl) {
         ImGui::Text("Position: %.2f, %.2f, %.2f", position.x, position.y, position.z);
         ImGui::Text("Orientation:");
         ImGui::Text("  Pitch: %.2f°", orientation.pitch);
@@ -30,6 +30,10 @@ void WorldInfo::render(flecs::world& ecs) {
 
         ImGui::Separator();
         ImGui::Text("Player:");
+        ImGui::Text("  Mode: %s", ctrl.mode == ControllerMode::Walking ? "Walking" : "FreeCam");
+        if (ctrl.mode == ControllerMode::FreeCam) {
+            ImGui::Text("  Speed Multiplier: %.2fx", ctrl.freeCamSpeedMultiplier);
+        }
         ImGui::Text("  On Ground: %s", body.onGround ? "Yes" : "No");
 
         glm::vec3 forward = glm::normalize(glm::vec3(

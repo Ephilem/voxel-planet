@@ -6,6 +6,7 @@
 #include "core/log/Logger.h"
 #include "platform/PlatformState.h"
 #include "platform/events.h"
+#include "platform/inputs/input_state.h"
 
 Window::Window(uint16_t w, uint16_t h, const std::string& t)
     : width(w), height(h), title(t) {
@@ -64,4 +65,15 @@ void Window::setupCallbacks(flecs::world &ecs) {
             .ctx(evt)
             .emit();
         });
+
+    glfwSetScrollCallback(window,
+    [](GLFWwindow* win, double xoffset, double yoffset) {
+        auto* world_c = static_cast<ecs_world_t*>(glfwGetWindowUserPointer(win));
+        flecs::world world(world_c);
+        auto* inputState = world.get_mut<InputState>();
+        if (inputState) {
+            inputState->scrollDeltaX += static_cast<float>(xoffset);
+            inputState->scrollDeltaY += static_cast<float>(yoffset);
+        }
+    });
 }

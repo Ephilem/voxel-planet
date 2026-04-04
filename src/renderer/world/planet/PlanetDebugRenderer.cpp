@@ -29,7 +29,7 @@ void PlanetDebugRenderer::Register(flecs::world &ecs) {
                 .each([&](const Camera3d& camera, const Position& camPos_) {
                     camPos = camPos_;
                 });
-            renderComp.renderOctree.build(planet.radius, camPos, 5, 100.0f);
+            renderComp.renderOctree.build(planet.radius, camPos, 5, 1000.0f);
 
             auto nodes = renderComp.renderOctree.get_nodes();
             for (const auto& node : nodes) {

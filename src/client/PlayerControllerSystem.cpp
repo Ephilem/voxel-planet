@@ -4,6 +4,7 @@
 
 #include "PlayerControllerSystem.h"
 
+#include <cmath>
 #include <glm/glm.hpp>
 
 #include "core/main_components.h"
@@ -98,18 +99,26 @@ void PlayerControllerSystem::Register(flecs::world& ecs) {
         });
 
     // --- FreeCam movement ---
-    ecs.system<const Orientation, const PlayerController, Velocity>("PlayerController-FreeCam")
+    ecs.system<const Orientation, PlayerController, Velocity>("PlayerController-FreeCam")
         .kind(flecs::OnUpdate)
         .with<Player>()
-        .each([](flecs::entity e, const Orientation& ori, const PlayerController& ctrl, Velocity& vel) {
+        .each([](flecs::entity e, const Orientation& ori, PlayerController& ctrl, Velocity& vel) {
             if (ctrl.mode != ControllerMode::FreeCam) return;
 
-            const auto* actions = e.world().get<InputActionState>();
+            const auto* actions    = e.world().get<InputActionState>();
+            const auto* inputState = e.world().get<InputState>();
             auto* pos = e.get_mut<Position>();
             if (!pos) return;
 
             float dt = e.world().delta_time();
-            float speed = ctrl.freeCamSpeed;
+
+            if (inputState && inputState->scrollDeltaY != 0.0f) {
+                constexpr float scrollSensitivity = 0.15f;
+                ctrl.freeCamSpeedMultiplier *= std::pow(2.0f, inputState->scrollDeltaY * scrollSensitivity);
+                ctrl.freeCamSpeedMultiplier = glm::clamp(ctrl.freeCamSpeedMultiplier, 0.01f, 1000000.0f);
+            }
+
+            float speed = ctrl.freeCamSpeed * ctrl.freeCamSpeedMultiplier;
             if (actions->is_action_active(ActionInputType::Accelerate))
                 speed *= ctrl.freeCamFastMult;
             if (actions->is_action_active(ActionInputType::Slowdown))
