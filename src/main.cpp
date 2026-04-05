@@ -11,10 +11,10 @@ int main() {
     try {
         auto ecs = std::make_unique<flecs::world>();
 
-        ecs->import<CoreModule>();
-        ecs->import<PlatformModule>();
-        ecs->import<RendererModule>();
-        ecs->import<ClientModule>();
+        ecs->import<vp::CoreModule>();
+        ecs->import<vp::PlatformModule>();
+        ecs->import<vp::RendererModule>();
+        ecs->import<vp::ClientModule>();
         ecs->import<flecs::stats>();
         ecs->set<flecs::Rest>({});
 
@@ -26,10 +26,10 @@ int main() {
                 flecs::world world = it.world();
                 auto* gameState = world.get<GameState>();
                 if (gameState && !gameState->isRunning) {
-                    shutdown_client(world);
-                    shutdown_renderer(world);
-                    shutdown_platform(world);
-                    shutdown_core(world);
+                    // shutdown_client(world);
+                    // vp::shutdown_renderer(world);
+                    // shutdown_platform(world);
+                    // vp::shutdown_core(world);
                     world.quit();
                 }
             });

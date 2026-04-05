@@ -8,9 +8,21 @@
 #include "core/main_components.h"
 #include "core/world/ChunkManager.h"
 #include "core/world/world_components.h"
-#include "../DebugDrawManager.h"
+#include "core/debug/DebugDraw.h"
+
+using namespace vp;
 
 void PhysicsSystem::Register(flecs::world &ecs) {
+    ecs.component<Velocity>()
+            .member<float>("x", 0, 0)
+            .member<float>("y", 0, 0)
+            .member<float>("z", 0, 0);
+    ecs.component<Gravity>()
+            .member<float>("x", 0, 0)
+            .member<float>("y", 0, 0)
+            .member<float>("z", 0, 0);
+    ecs.component<RigidBody>();
+
     PhysicsSystem system;
     system.init(ecs);
 }
@@ -111,7 +123,7 @@ void PhysicsSystem::init(flecs::world &ecs) {
                             for (int bz = blockMin.z; bz <= blockMax.z; bz++) {
                                 AABB localBlockAabb = cm->get_block_info({bx, by, bz}).get_block_aabb();
                                 AABB blockAabb = localBlockAabb + glm::vec3(bx, by, bz);
-                                DebugDrawManager::Aabb(blockAabb, glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
+                                DebugDraw::Aabb(blockAabb, glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
                                 if (!blockAabb.intersects(aabb)) continue;
 
                                 // Track highest blocking block top for step-up (horizontal axes only)

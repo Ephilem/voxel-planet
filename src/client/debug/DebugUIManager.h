@@ -4,17 +4,19 @@
 #include <vector>
 
 #include "IDebugPanel.h"
+#include "core/log/Logger.h"
 
-class DebugUISystem {
+class DebugUIManager {
 public:
-    DebugUISystem() = default;
-    DebugUISystem(DebugUISystem&&) = default;
-    DebugUISystem& operator=(DebugUISystem&&) = default;
-    DebugUISystem(const DebugUISystem&) = delete;
-    DebugUISystem& operator=(const DebugUISystem&) = delete;
+    DebugUIManager() = default;
+    DebugUIManager(DebugUIManager&&) = default;
+    DebugUIManager& operator=(DebugUIManager&&) = default;
+    DebugUIManager(const DebugUIManager&) = delete;
+    DebugUIManager& operator=(const DebugUIManager&) = delete;
 
     template<typename T, typename... Args>
     void add_panel(Args&&... args) {
+        LOG_TRACE("DebugUIManager", "Adding panel: {}", typeid(T).name());
         m_panels.push_back(std::make_unique<T>(std::forward<Args>(args)...));
     }
 

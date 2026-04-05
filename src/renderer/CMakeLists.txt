@@ -7,16 +7,12 @@ add_library(VoxelPlanetRenderer STATIC
         vulkan/vulkan_type.inl
         debug/ImGuiManager.h
         debug/ImGuiManager.cpp
-        world/SkyRenderer.cpp
-        world/SkyRenderer.h
         world/VoxelTerrainRenderer.cpp
         world/VoxelTerrainRenderer.h
         world/VoxelBuffer.cpp
         world/VoxelBuffer.h
         render_types.h
         IRenderPass.h
-        Camera3dSystems.cpp
-        Camera3dSystems.h
         world/VoxelTextureManager.cpp
         world/VoxelTextureManager.h
         world/VoxelChunkMesher.cpp
@@ -30,6 +26,11 @@ add_library(VoxelPlanetRenderer STATIC
         world/planet/PlanetOctree.h
         world/planet/PlanetDebugRenderer.cpp
         world/planet/PlanetDebugRenderer.h
+        camera/Camera3dModule.cpp
+        camera/Camera3dModule.h
+        camera/camera3d_systems.h
+        debug/DebugRenderModule.cpp
+        debug/DebugRenderModule.h
 )
 
 add_library(VoxelPlanet::Renderer ALIAS VoxelPlanetRenderer)

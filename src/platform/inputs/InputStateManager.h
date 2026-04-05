@@ -7,6 +7,8 @@
 #include "input_state.h"
 
 struct PlatformState;
+struct InputModuleState;
+struct Window;
 
 struct KeyBinding {
     int key; // GLFW key code or mouse button code
@@ -45,8 +47,7 @@ public:
 
     void set_mouse_captured(GLFWwindow* window, InputState& inputState, bool captured);
 
-    static void Register(flecs::world& ecs);
-
-    static void capture_input_system(InputState &inputState, PlatformState& platformState);
-    static void update_action_states_system(InputState &inputState, InputActionState &actionState, PlatformState& platformState);
+    static void capture_input_system(InputState& inputState, PlatformState& platformState);
+    static void update_action_states_system(InputState& inputState, InputActionState& actionState,
+                                            InputModuleState& moduleState, Window& window);
 };

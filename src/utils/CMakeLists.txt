@@ -1,4 +1,5 @@
-add_library(VoxelPlanetUtils INTERFACE)
+add_library(VoxelPlanetUtils INTERFACE
+        common/BaseModule.h)
 
 add_library(VoxelPlanet::Utils ALIAS VoxelPlanetUtils)
 

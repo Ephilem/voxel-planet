@@ -1,6 +1,6 @@
 add_library(VoxelPlanetCore STATIC
-    CoreModule.cpp
-    CoreModule.h
+        CoreModule.cpp
+        CoreModule.h
     GameState.h
     events.h
     log/Logger.cpp
@@ -18,8 +18,8 @@ add_library(VoxelPlanetCore STATIC
     resource/loaders/ShaderLoader.h
     world/world_components.h
     world/WorldGenerator.cpp
-    DebugDrawManager.cpp
-    DebugDrawManager.h
+        debug/DebugDrawModule.cpp
+        debug/DebugDrawModule.h
     world/WorldGenerator.h
     main_components.h
     world/ChunkManager.cpp
@@ -30,6 +30,8 @@ add_library(VoxelPlanetCore STATIC
     physics/PhysicsSystem.cpp
     physics/PhysicsSystem.h
     math/utils.h
+        debug/DebugDraw.cpp
+        debug/DebugDraw.h
 )
 
 add_library(VoxelPlanet::Core ALIAS VoxelPlanetCore)

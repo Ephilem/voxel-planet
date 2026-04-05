@@ -1,6 +1,7 @@
 #include "WorldInfo.h"
 
 #include "imgui.h"
+#include "client/player/player_components.h"
 #include "core/main_components.h"
 #include "renderer/rendering_components.h"
 #include "core/TracyIntegration.h"

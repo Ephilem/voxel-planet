@@ -1,20 +1,22 @@
-//
-// Created by raph on 07/12/2025.
-//
+#include "Camera3dModule.h"
 
-#include "Camera3dSystems.h"
+#include <GLFW/glfw3.h>
 
-#include <glm/ext/matrix_clip_space.hpp>
-#include <glm/ext/matrix_transform.hpp>
-
+#include "camera3d_systems.h"
 #include "core/TracyIntegration.h"
 #include "core/physics/physics_components.h"
 #include "platform/inputs/input_state.h"
+#include "renderer/Renderer.h"
+#include "renderer/rendering_components.h"
 
-void Camera3dSystems::Register(flecs::world &ecs) {
+using namespace vp;
+
+void Camera3dModule::register_components(flecs::world &ecs) {
     ecs.component<Camera3d>();
     ecs.component<Camera3dParameters>();
+}
 
+void Camera3dModule::register_systems(flecs::world &ecs) {
     ecs.system<Camera3dParameters>("ToggleCameraViewSystem")
         .kind(flecs::OnUpdate)
         .each([](flecs::entity e, Camera3dParameters &parameters) {
@@ -36,7 +38,7 @@ void Camera3dSystems::Register(flecs::world &ecs) {
                 if (auto* body = e.get<RigidBody>()) {
                     eyePos.y += body->haftExtent.y * 0.75f;
                 }
-                update_camera_view_system(camera, eyePos, orientation);
+                systems::update_camera_view_system(camera, eyePos, orientation);
             } else if (type == CameraViewType::ThirdPerson) {
                 float distance = 10.0f;
                 float yawRad = glm::radians(orientation.yaw);
@@ -44,7 +46,7 @@ void Camera3dSystems::Register(flecs::world &ecs) {
                 eyePos.x -= distance * cos(pitchRad) * sin(yawRad);
                 eyePos.y -= distance * sin(pitchRad);
                 eyePos.z -= distance * cos(pitchRad) * cos(yawRad);
-                update_camera_third_person_system(camera, eyePos, playerPos);
+                systems::update_camera_third_person_system(camera, eyePos, playerPos);
             }
         });
 
@@ -54,45 +56,7 @@ void Camera3dSystems::Register(flecs::world &ecs) {
             VOXEL_ZONE_N("Camera-UpdateProjection");
             const auto* renderer = e.world().get<Renderer>();
             if (renderer) {
-                update_camera_projection_system(camera, parameters, *renderer);
+                systems::update_camera_projection_system(camera, parameters, *renderer);
             }
         });
-}
-
-void Camera3dSystems::update_camera_projection_system(Camera3d &camera, const Camera3dParameters &parameters,
-                                                      const Renderer &renderer) {
-    // calculate aspect ratio
-    auto rendererParameters = renderer.backend->renderParameters;
-    camera.aspect_ratio = static_cast<glm::float32>(rendererParameters.width) / static_cast<glm::float32>(rendererParameters.height);
-
-    camera.projectionMatrix = glm::perspective(
-        glm::radians(parameters.fov),
-        camera.aspect_ratio,
-        camera.nearClip,
-        camera.farClip);
-}
-
-void Camera3dSystems::update_camera_third_person_system(Camera3d &camera, const glm::vec3 &cameraPos, const glm::vec3 &target) {
-    glm::vec3 worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
-    camera.viewMatrix = glm::lookAt(cameraPos, target, worldUp);
-}
-
-void Camera3dSystems::update_camera_view_system(Camera3d &camera, const glm::vec3 &position, const Orientation &orientation) {
-    float yawRad = glm::radians(orientation.yaw);
-    float pitchRad = glm::radians(orientation.pitch);
-
-    glm::vec3 forward;
-    forward.x = cos(pitchRad) * sin(yawRad);
-    forward.y = sin(pitchRad);
-    forward.z = cos(pitchRad) * cos(yawRad);
-    forward = glm::normalize(forward);
-
-    glm::vec3 worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
-    glm::vec3 right = glm::normalize(glm::cross(worldUp, forward));
-
-    glm::vec3 up = glm::cross(forward, right);
-
-    glm::vec3 cameraPos = glm::vec3(position.x, position.y, position.z);
-
-    camera.viewMatrix = glm::lookAt(cameraPos, cameraPos + forward, up);
 }

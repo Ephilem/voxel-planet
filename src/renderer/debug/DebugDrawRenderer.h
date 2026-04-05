@@ -13,8 +13,6 @@ public:
     ~DebugDrawRenderer() override;
 
     void render(nvrhi::CommandListHandle cmd, Camera3d &camera, VulkanBackend &backend) override;
-
-    static void Register(flecs::world& ecs);
 private:
     struct DebugDrawPushConstants {
         glm::mat4 viewProj;

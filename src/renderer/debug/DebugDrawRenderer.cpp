@@ -1,36 +1,15 @@
 #include "DebugDrawRenderer.h"
 
-#include "core/DebugDrawManager.h"
+#include "../../core/debug/DebugDrawModule.h"
+#include "core/debug/DebugDraw.h"
+
+using namespace vp;
 #include "core/GameState.h"
 #include "core/TracyIntegration.h"
-#include "core/log/Logger.h"
 #include "renderer/Renderer.h"
 
 DebugDrawRenderer::~DebugDrawRenderer() {
     destroy();
-}
-
-void DebugDrawRenderer::Register(flecs::world &ecs) {
-    auto* renderer = ecs.get_mut<Renderer>();
-    auto* gameState = ecs.get_mut<GameState>();
-    if (!renderer) {
-        LOG_ERROR("DebugDrawRenderer", "Cannot register: missing Renderer");
-        return;
-    }
-
-    auto pass = std::make_unique<DebugDrawRenderer>(renderer->backend.get(), gameState->resourceSystem.get());
-    auto* debugPass = pass.get();
-    renderer->renderPasses.push_back(std::move(pass));
-
-    ecs.system<Renderer>("DebugDrawRenderer-Render")
-            .kind(flecs::OnStore)
-            .each([debugPass](flecs::entity e, Renderer &renderer) {
-                if (!renderer.frameContext.frameActive) return;
-                VOXEL_ZONE_N("DebugDrawRenderer-Render");
-                e.world().each<Camera3d>([&](flecs::entity cam_entity, Camera3d &camera) {
-                    debugPass->render(renderer.frameContext.commandList, camera, *renderer.backend);
-                });
-            });
 }
 
 void DebugDrawRenderer::render(nvrhi::CommandListHandle cmd, Camera3d &camera, VulkanBackend &backend) {
@@ -143,7 +122,7 @@ void DebugDrawRenderer::destroy() {
 }
 
 void DebugDrawRenderer::render_lines(nvrhi::CommandListHandle cmd, Camera3d &camera, VulkanBackend &backend) {
-    auto &lines = DebugDrawManager::GetLines();
+    auto &lines = vp::DebugDraw::GetLines();
     if (lines.empty()) return;
 
     // upload CPU -> GPU
@@ -164,14 +143,14 @@ void DebugDrawRenderer::render_lines(nvrhi::CommandListHandle cmd, Camera3d &cam
     cmd->setPushConstants(&pc, sizeof(pc));
 
     nvrhi::DrawArguments drawArgs;
-    drawArgs.vertexCount = lines.size(); // 2 vertices par ligne
+    drawArgs.vertexCount = lines.size();
     cmd->draw(drawArgs);
 
     cmd->clearState();
 }
 
 void DebugDrawRenderer::render_points(nvrhi::CommandListHandle cmd, Camera3d &camera, VulkanBackend &backend) {
-    auto &points = DebugDrawManager::GetPoints();
+    auto &points = DebugDraw::GetPoints();
     if (points.empty()) return;
 
     cmd->writeBuffer(m_pointBuffer, points.data(), points.size() * sizeof(DebugVertex));

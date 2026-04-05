@@ -14,10 +14,10 @@ struct FrameContext {
 
 struct Renderer {
     std::unique_ptr<VulkanBackend> backend;
-
-    std::unique_ptr<ImGuiManager> imguiManager;
-
-    std::vector<std::unique_ptr<IRenderPass>> renderPasses;
+    //
+    // std::unique_ptr<ImGuiManager> imguiManager;
+    //
+    // std::vector<std::unique_ptr<IRenderPass>> renderPasses;
 
     FrameContext frameContext = {};
 };

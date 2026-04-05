@@ -1,44 +1,68 @@
 #include "CoreModule.h"
-#include "GameState.h"
+
 #include <GLFW/glfw3.h>
 #include <iostream>
 
-#include "DebugDrawManager.h"
+#include "GameState.h"
 #include "main_components.h"
+#include "debug/DebugDrawModule.h"
 #include "log/Logger.h"
-#include "physics/PhysicsSystem.h"
 #include "world/ChunkManager.h"
-#include "world/world_components.h"
-#include "world/WorldGenerator.h"
 
-CoreModule::CoreModule(flecs::world& ecs) {
+using namespace vp;
 
-    ecs.component<VoxelChunk>();
-    ecs.component<Position>();
-    ecs.component<ChunkCoordinate>();
+void CoreModule::register_components(flecs::world &ecs) {
+    ecs.component<Transform>()
+        .member<float>("pos", 3, 0)
+        .member<float>("rot", 3, 3 * sizeof(float))
+        .member<float>("scale", 3, 6 * sizeof(float));
+
+    ecs.component<LocalFloatingOriginTransform>()
+        .member<float>("pos", 3, 0)
+        .member<float>("rot", 3, 3 * sizeof(float))
+        .member<float>("scale", 3, 6 * sizeof(float));
+
+    ecs.component<GlobalTransform>()
+        .member<float>("pos", 3, 0)
+        .member<float>("rot", 3, 3 * sizeof(float))
+        .member<float>("scale", 3, 6 * sizeof(float));
+
+    ecs.component<Grid>()
+        .member<double>("Cell Size");
+
+    ecs.component<FloatingOrigin>();
+    ecs.component<Player>();
+
 
     auto assetRegistry = std::make_unique<AssetRegistry>();
-
-    ecs.set<GameState>({
+    ecs.component<GameState>().set<GameState>({
         .resourceSystem = std::make_unique<ResourceSystem>(assetRegistry.get()),
         .assetRegistry = std::move(assetRegistry),
         .isRunning = true,
         .deltaTime = 0.0,
         .lastTime = glfwGetTime()
     });
-
-    ecs.set<WorldGenerator>(WorldGenerator{std::time(nullptr)});
-    DebugDrawManager::Register(ecs);
-    ChunkManager::Register(ecs);
-    PhysicsSystem::Register(ecs);
 }
 
-CoreModule::~CoreModule() = default;
-
-void shutdown_core(flecs::world& ecs) {
-    LOG_INFO("CoreModule", "Shutting down...");
-    auto* gameState = ecs.get_mut<GameState>();
-    if (gameState && gameState->resourceSystem) {
-        gameState->resourceSystem.reset();
-    }
+void CoreModule::register_systems(flecs::world &ecs) {
 }
+
+void CoreModule::register_pipelines(flecs::world &ecs) {
+}
+
+void CoreModule::register_submodules(flecs::world &ecs) {
+    ecs.import<DebugDrawModule>();
+}
+
+void CoreModule::register_entities(flecs::world &ecs) {
+    ecs.entity("Planet")
+        .set<Transform>({});
+}
+
+// void vp::shutdown_core(flecs::world& ecs) {
+//     LOG_INFO("Core", "Shutting down...");
+//     auto* gameState = ecs.get_mut<GameState>();
+//     if (gameState && gameState->resourceSystem) {
+//         gameState->resourceSystem.reset();
+//     }
+// }

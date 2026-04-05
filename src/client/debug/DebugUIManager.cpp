@@ -1,4 +1,4 @@
-#include "DebugUISystem.h"
+#include "DebugUIManager.h"
 
 #include "imgui.h"
 #include "platform/inputs/input_state.h"
@@ -8,14 +8,14 @@
 #include "renderer/Renderer.h"
 
 
-void DebugUISystem::tick(flecs::world& ecs) {
+void DebugUIManager::tick(flecs::world& ecs) {
     render_menu_bar();
     render_panels(ecs);
 }
 
-void DebugUISystem::Register(flecs::world& ecs) {
-    ecs.set<DebugUISystem>(DebugUISystem{});
-    auto* debugUI = ecs.get_mut<DebugUISystem>();
+void DebugUIManager::Register(flecs::world& ecs) {
+    ecs.set<DebugUIManager>(DebugUIManager{});
+    auto* debugUI = ecs.get_mut<DebugUIManager>();
 
     ecs.system("DebugUISystem")
         .kind(flecs::PostUpdate)
@@ -36,7 +36,7 @@ void DebugUISystem::Register(flecs::world& ecs) {
         });
 }
 
-void DebugUISystem::render_menu_bar() {
+void DebugUIManager::render_menu_bar() {
     if (!m_menuBarVisible) return;
     if (!ImGui::BeginMainMenuBar()) return;
 
@@ -55,7 +55,7 @@ void DebugUISystem::render_menu_bar() {
     ImGui::EndMainMenuBar();
 }
 
-void DebugUISystem::render_panels(flecs::world& ecs) {
+void DebugUIManager::render_panels(flecs::world& ecs) {
     for (auto& panel : m_panels) {
         if (!panel->is_visible) continue;
 

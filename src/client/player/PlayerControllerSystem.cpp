@@ -7,9 +7,12 @@
 #include <cmath>
 #include <glm/glm.hpp>
 
+#include "player_components.h"
 #include "core/main_components.h"
+#include "core/TracyIntegration.h"
 #include "core/physics/physics_components.h"
 #include "platform/inputs/input_state.h"
+#include "renderer/rendering_components.h"
 
 static glm::vec2 move_towards(glm::vec2 current, glm::vec2 target, float maxDelta) {
     glm::vec2 diff = target - current;
@@ -151,5 +154,24 @@ void PlayerControllerSystem::Register(flecs::world& ecs) {
             pos->y += dir.y * speed * dt;
             pos->z += dir.z * speed * dt;
             vel = glm::vec3(0.0f);
+        });
+
+
+    ecs.system<Orientation>("MouseLookSystem")
+        .kind(flecs::OnUpdate)
+        .with<Camera3d>()
+        .each([](flecs::entity e, Orientation& orientation) {
+            VOXEL_ZONE_N("ClientModule-MouseLook");
+            auto* inputState = e.world().get_mut<InputState>();
+            if (!inputState->mouseCaptured) return;
+
+            float sensitivity = -0.1f;
+            orientation.yaw += inputState->mouseDeltaX * sensitivity;
+            orientation.yaw = fmod(orientation.yaw, 360.0f);
+            orientation.pitch += inputState->mouseDeltaY * sensitivity;
+            orientation.pitch = fmod(orientation.pitch, 360.0f);
+
+            if (orientation.pitch > 89.0f) orientation.pitch = 89.0f;
+            if (orientation.pitch < -89.0f) orientation.pitch = -89.0f;
         });
 }

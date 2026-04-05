@@ -4,8 +4,10 @@
 
 #include "PlanetDebugRenderer.h"
 
-#include "core/DebugDrawManager.h"
 #include "core/main_components.h"
+#include "core/debug/DebugDraw.h"
+
+using namespace vp;
 
 static constexpr glm::vec4 OCTREE_NODE_COLORS[] = {
     {1.0f, 0.0f, 0.0f, 1.0f},
@@ -36,8 +38,8 @@ void PlanetDebugRenderer::Register(flecs::world &ecs) {
                 if (!node.isLeaf) continue;
 
                 AABB aabb = node.get_debug_aabb() + position;
-                DebugDrawManager::Point(node.center + position, OCTREE_NODE_COLORS[node.level]);
-                DebugDrawManager::Aabb(aabb, OCTREE_NODE_COLORS[node.level]);
+                DebugDraw::Point(node.center + position, OCTREE_NODE_COLORS[node.level]);
+                DebugDraw::Aabb(aabb, OCTREE_NODE_COLORS[node.level]);
             }
         });
 }

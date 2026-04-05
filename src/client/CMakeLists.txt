@@ -1,11 +1,11 @@
 add_library(VoxelPlanetClient STATIC
         ClientModule.cpp
         ClientModule.h
-        PlayerControllerSystem.cpp
-        PlayerControllerSystem.h
+        player/PlayerControllerSystem.cpp
+        player/PlayerControllerSystem.h
         debug/IDebugPanel.h
-        debug/DebugUISystem.cpp
-        debug/DebugUISystem.h
+        debug/DebugUIManager.cpp
+        debug/DebugUIManager.h
         debug/LogConsole.h
         debug/LogConsole.cpp
         debug/world/WorldInfo.h
@@ -20,6 +20,11 @@ add_library(VoxelPlanetClient STATIC
         debug/world/ChunkManagerPanel.h
         debug/world/WorldGenPanel.cpp
         debug/world/WorldGenPanel.h
+        debug/DebugUIModule.cpp
+        debug/DebugUIModule.h
+        player/PlayerClientModule.cpp
+        player/PlayerClientModule.h
+        player/player_components.h
 )
 
 add_library(VoxelPlanet::Client ALIAS VoxelPlanetClient)

@@ -17,8 +17,6 @@ public:
     void begin_frame();
     void render(VkCommandBuffer commandBuffer);
 
-    static void Register(flecs::world& world);
-
 private:
     bool m_initialized = false;
     VulkanBackend* m_backend = nullptr;

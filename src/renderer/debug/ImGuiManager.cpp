@@ -18,22 +18,22 @@ ImGuiManager::~ImGuiManager() {
     shutdown();
 }
 
-void ImGuiManager::init(GLFWwindow* window, VulkanBackend* backend) {
+void ImGuiManager::init(GLFWwindow *window, VulkanBackend *backend) {
     if (m_initialized) return;
     m_backend = backend;
 
     VkDescriptorPoolSize poolSize[] = {
-        { VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
-        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
-        { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
-        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
-        { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
-        { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
-        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
-        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
-        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
-        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
-        { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
+        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
+        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
+        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
+        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
+        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
+        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
+        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}
     };
 
     VkDescriptorPoolCreateInfo poolInfo = {};
@@ -50,14 +50,15 @@ void ImGuiManager::init(GLFWwindow* window, VulkanBackend* backend) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImPlot::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImGuiIO &io = ImGui::GetIO();
+    (void) io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
     ImGui::StyleColorsDark();
 
     ImGui_ImplGlfw_InitForVulkan(window, true);
 
-    ImGui_ImplVulkan_InitInfo initInfo {};
+    ImGui_ImplVulkan_InitInfo initInfo{};
     initInfo.Instance = backend->instance;
     initInfo.PhysicalDevice = backend->vkDevice.physical_device;
     initInfo.Device = backend->vkDevice;
@@ -147,41 +148,41 @@ void ImGuiManager::render(VkCommandBuffer commandBuffer) {
     vkCmdEndRendering(commandBuffer);
 }
 
-void ImGuiManager::Register(flecs::world& ecs) {
-    auto *renderer = ecs.get_mut<Renderer>();
-    auto *platform = ecs.get<PlatformState>();
-    if (renderer && renderer->backend && platform && platform->window) {
-        renderer->imguiManager->init(platform->window->window, renderer->backend.get());
-    }
-
-    // Start ImGui Frame (at Load so we can use ImGui in other systems)
-    ecs.system<Renderer>("BeginImGuiFrameSystem")
-        .kind(flecs::OnLoad)
-        .each([](flecs::entity e, Renderer& renderer) {
-            VOXEL_ZONE_N("ImGuiManager-BeginFrame");
-            if (renderer.imguiManager) {
-                renderer.imguiManager->begin_frame();
-            }
-        });
-
-
-    // Renderer System
-    ecs.system<Renderer>("RenderImGuiSystem")
-        .kind(flecs::OnStore)
-        .each([](flecs::entity e, Renderer& renderer) {
-            VOXEL_ZONE_N("ImGuiManager-Render");
-            auto& ctx = renderer.frameContext;
-            if (!ctx.frameActive || !ctx.commandList) {
-                // need to close the begin frame first
-                ImGui::EndFrame();
-                return;
-            }
-            VOXEL_VK_NVRHI_ZONE(renderer.backend->tracyVkCtx, ctx.commandList, "RenderImGui-Render");
-
-            VkCommandBuffer vkCmdBuf = ctx.commandList->getNativeObject(nvrhi::ObjectTypes::VK_CommandBuffer);
-
-            if (vkCmdBuf && renderer.imguiManager) {
-                renderer.imguiManager->render(vkCmdBuf);
-            }
-        });
-}
+// void ImGuiManager::Register(flecs::world& ecs) {
+//     auto *renderer = ecs.get_mut<Renderer>();
+//     auto *platform = ecs.get<PlatformState>();
+//     if (renderer && renderer->backend && platform && platform->window) {
+//         renderer->imguiManager->init(platform->window->window, renderer->backend.get());
+//     }
+//
+//     // Start ImGui Frame (at Load so we can use ImGui in other systems)
+//     ecs.system<Renderer>("BeginImGuiFrameSystem")
+//         .kind(flecs::OnLoad)
+//         .each([](flecs::entity e, Renderer& renderer) {
+//             VOXEL_ZONE_N("ImGuiManager-BeginFrame");
+//             if (renderer.imguiManager) {
+//                 renderer.imguiManager->begin_frame();
+//             }
+//         });
+//
+//
+//     // Renderer System
+//     ecs.system<Renderer>("RenderImGuiSystem")
+//         .kind(flecs::OnStore)
+//         .each([](flecs::entity e, Renderer& renderer) {
+//             VOXEL_ZONE_N("ImGuiManager-Render");
+//             auto& ctx = renderer.frameContext;
+//             if (!ctx.frameActive || !ctx.commandList) {
+//                 // need to close the begin frame first
+//                 ImGui::EndFrame();
+//                 return;
+//             }
+//             VOXEL_VK_NVRHI_ZONE(renderer.backend->tracyVkCtx, ctx.commandList, "RenderImGui-Render");
+//
+//             VkCommandBuffer vkCmdBuf = ctx.commandList->getNativeObject(nvrhi::ObjectTypes::VK_CommandBuffer);
+//
+//             if (vkCmdBuf && renderer.imguiManager) {
+//                 renderer.imguiManager->render(vkCmdBuf);
+//             }
+//         });
+// }

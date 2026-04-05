@@ -14,14 +14,14 @@ void VoxelBufferVisualizer::render(flecs::world& ecs) {
     auto* renderer = ecs.get_mut<Renderer>();
     if (!renderer) return;
 
-    VoxelTerrainRenderer* voxelRenderer = nullptr;
-    for (auto& pass : renderer->renderPasses) {
-        voxelRenderer = dynamic_cast<VoxelTerrainRenderer*>(pass.get());
-        if (voxelRenderer) break;
-    }
-    if (!voxelRenderer) return;
-
-    draw(voxelRenderer);
+    // VoxelTerrainRenderer* voxelRenderer = nullptr;
+    // for (auto& pass : renderer->renderPasses) {
+    //     voxelRenderer = dynamic_cast<VoxelTerrainRenderer*>(pass.get());
+    //     if (voxelRenderer) break;
+    // }
+    // if (!voxelRenderer) return;
+    //
+    // draw(voxelRenderer);
 }
 
 void VoxelBufferVisualizer::draw(VoxelTerrainRenderer* voxelRenderer) {

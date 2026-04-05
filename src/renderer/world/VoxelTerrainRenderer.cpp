@@ -213,7 +213,7 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
         ecs.get_mut<VoxelTextureManager>()
     );
     auto *voxelRenderer = pass.get();
-    renderer->renderPasses.push_back(std::move(pass));
+    // renderer->renderPasses.push_back(std::move(pass));
 
     ecs.component<VoxelChunkMesh>();
 

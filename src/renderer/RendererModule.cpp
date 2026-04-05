@@ -1,48 +1,68 @@
 #include "RendererModule.h"
 
-#include "Renderer.h"
+#include <iostream>
+#include <nvrhi/utils.h>
 
-#include "core/GameState.h"
+
+#include "camera/Camera3dModule.h"
+#include "debug/DebugRenderModule.h"
+
+#include "Renderer.h"
+#include "rendering_components.h"
+#include "world/VoxelTerrainRenderer.h"
+#include "vulkan/VulkanBackend.h"
+
 #include "platform/PlatformState.h"
 #include "platform/events.h"
 
-#include "vulkan/VulkanBackend.h"
-
-#include <iostream>
-
-#include "Camera3dSystems.h"
-#include "../core/DebugDrawManager.h"
-#include "rendering_components.h"
 #include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
-#include "world/SkyRenderer.h"
-#include "world/VoxelTerrainRenderer.h"
 #include "core/world/world_components.h"
 #include "core/world/ChunkManager.h"
-#include "debug/DebugDrawRenderer.h"
-#include "debug/ImGuiManager.h"
-#include "nvrhi/utils.h"
-#include "world/planet/PlanetDebugRenderer.h"
 
 
 #ifdef TRACY_ENABLE
 #include <tracy/TracyVulkan.hpp>
 #endif
 
+using namespace vp;
 
-RendererModule::RendererModule(flecs::world& ecs) {
+// RendererModule::RendererModule(flecs::world& ecs) {
+//     auto* platform = ecs.get<PlatformState>();
+//     if (!platform || !platform->window) {
+//         throw std::runtime_error("RendererModule: PlatformModule must be initialized before RendererModule");
+//     }
+//
+//     ecs.component<Renderer>();
+//
+//     ecs.set<Renderer>({
+//         .backend = std::make_unique<VulkanBackend>(platform->window->window, RenderParameters{platform->window->width, platform->window->height}),
+//         .imguiManager = std::make_unique<ImGuiManager>(),
+//     });
+//
+//
+//     // PlanetDebugRenderer::Register(ecs);
+//     // SkyRenderer::Register(ecs);
+//     // VoxelTerrainRenderer::Register(ecs);
+//     DebugDrawRenderer::Register(ecs);
+//     ImGuiManager::Register(ecs);
+//
+//     Camera3dSystems::Register(ecs);
+// }
+
+void RendererModule::register_components(flecs::world &ecs) {
     auto* platform = ecs.get<PlatformState>();
     if (!platform || !platform->window) {
         throw std::runtime_error("RendererModule: PlatformModule must be initialized before RendererModule");
     }
 
     ecs.component<Renderer>();
-
     ecs.set<Renderer>({
         .backend = std::make_unique<VulkanBackend>(platform->window->window, RenderParameters{platform->window->width, platform->window->height}),
-        .imguiManager = std::make_unique<ImGuiManager>(),
     });
+}
 
+void RendererModule::register_systems(flecs::world &ecs) {
     ecs.system<Renderer>("Renderer-BeginFrameSystem")
         .kind(flecs::PreStore)
         .each([](flecs::entity e, Renderer& renderer) {
@@ -58,11 +78,19 @@ RendererModule::RendererModule(flecs::world& ecs) {
                 nvrhi::utils::ClearColorAttachment(ctx.commandList, renderer.backend->get_current_framebuffer(), 0, nvrhi::Color(0.0f, 0.0f, 0.0f, 1.0f));
                 nvrhi::utils::ClearDepthStencilAttachment(ctx.commandList, renderer.backend->get_current_framebuffer(), 1.0f, 0);
 
+                nvrhi::TextureHandle currentTexture = renderer.backend->get_current_texture();
+                ctx.commandList->setTextureState(
+                  currentTexture,
+                  nvrhi::TextureSubresourceSet(0, 1, 0, 1),
+                  nvrhi::ResourceStates::RenderTarget
+                );
+                ctx.commandList->commitBarriers();
+
                 ctx.frameActive = true;
             }
         });
 
-    ecs.system<const VoxelChunk, const ChunkCoordinate>("InitializeChunkMeshSystem")
+    /*ecs.system<const VoxelChunk, const ChunkCoordinate>("InitializeChunkMeshSystem")
         .kind(flecs::OnUpdate)
         .without<VoxelChunkMesh>()
         .each([](flecs::entity e, const VoxelChunk& chunk, const ChunkCoordinate& coord) {
@@ -92,15 +120,7 @@ RendererModule::RendererModule(flecs::world& ecs) {
                     neighbor.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
                 }
             }
-        });
-
-    PlanetDebugRenderer::Register(ecs);
-    DebugDrawRenderer::Register(ecs);
-    // SkyRenderer::Register(ecs);
-    // VoxelTerrainRenderer::Register(ecs);
-    ImGuiManager::Register(ecs);
-
-    Camera3dSystems::Register(ecs);
+    });*/
 
     ecs.system<Renderer>("EndFrameSystem")
         .kind(flecs::PostFrame)
@@ -143,21 +163,29 @@ RendererModule::RendererModule(flecs::world& ecs) {
         });
 }
 
-void shutdown_renderer(flecs::world& ecs) {
-    LOG_INFO("RendererModule", "Shutting down...");
-    auto* renderer = ecs.get_mut<Renderer>();
-    if (renderer) {
-        renderer->renderPasses.clear();
-        // TODO please find a better way to do this
-        if (auto* vtm = ecs.get_mut<VoxelTextureManager>()) {
-            vtm->release_resources();
-        }
-        if (renderer->imguiManager) {
-            renderer->imguiManager.reset();
-        }
-        renderer->frameContext.commandList = nullptr;
-        if (renderer->backend) {
-            renderer->backend.reset();
-        }
-    }
+void RendererModule::register_pipelines(flecs::world &ecs) {
 }
+
+void RendererModule::register_submodules(flecs::world &ecs) {
+    ecs.import<Camera3dModule>();
+    ecs.import<DebugRenderModule>();
+}
+
+void RendererModule::register_entities(flecs::world &ecs) {
+}
+
+// void vp::shutdown_renderer(flecs::world& ecs) {
+//     LOG_INFO("RendererModule", "Shutting down...");
+//     auto* renderer = ecs.get_mut<Renderer>();
+//     if (renderer) {
+//         // renderer->renderPasses.clear();
+//         // TODO please find a better way to do this
+//         if (auto* vtm = ecs.get_mut<VoxelTextureManager>()) {
+//             vtm->release_resources();
+//         }
+//         renderer->frameContext.commandList = nullptr;
+//         if (renderer->backend) {
+//             renderer->backend.reset();
+//         }
+//     }
+// }

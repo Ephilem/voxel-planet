@@ -4,9 +4,10 @@
 
 #include "InputStateManager.h"
 
-#include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
 #include "platform/PlatformState.h"
+#include "platform/inputs/InputModuleState.h"
+#include "platform/window/Window.h"
 
 InputStateManager::InputStateManager() {
     bind_action(ActionInputType::DebugMenuBar, GLFW_KEY_F3);
@@ -36,7 +37,7 @@ InputStateManager::~InputStateManager() {
 }
 
 void InputStateManager::bind_action(ActionInputType action, int key, int modifier) {
-    LOG_DEBUG("InputStateManager", "Binding action {} to key {} with modifier {}", static_cast<int>(action), key, modifier);
+    // LOG_DEBUG("InputStateManager", "Binding action {} to key {} with modifier {}", static_cast<int>(action), key, modifier);
     m_actionKeyBindings[action].emplace_back(key, modifier);
 }
 
@@ -77,40 +78,6 @@ void InputStateManager::set_mouse_captured(GLFWwindow* window, InputState& input
 
     inputState.mouseDeltaX = 0.0f;
     inputState.mouseDeltaY = 0.0f;
-}
-
-void InputStateManager::Register(flecs::world &ecs) {
-    ecs.set<InputState>({});
-    ecs.set<InputActionState>({});
-
-    auto* platformState = ecs.get_mut<PlatformState>();
-    if (!platformState || !platformState->window) {
-        throw std::runtime_error("InputStateManager: PlatformState with valid Window is required");
-    }
-    platformState->inputManager = std::make_unique<InputStateManager>();
-
-    ecs.system("CaptureInputSystem")
-        .kind(flecs::OnLoad)
-        .run([](flecs::iter& it) {
-            VOXEL_ZONE_N("InputStateManager-CaptureInput");
-            auto* inputState = it.world().get_mut<InputState>();
-            auto* platformState = it.world().get_mut<PlatformState>();
-            if (inputState && platformState) {
-                capture_input_system(*inputState, *platformState);
-            }
-        });
-
-    ecs.system("UpdateActionStatesSystem")
-        .kind(flecs::PreUpdate)
-        .run([](flecs::iter& it) {
-            VOXEL_ZONE_N("InputStateManager-UpdateAction");
-            auto* inputState = it.world().get_mut<InputState>();
-            auto* actionState = it.world().get_mut<InputActionState>();
-            auto* platformState = it.world().get_mut<PlatformState>();
-            if (inputState && actionState && platformState) {
-                update_action_states_system(*inputState, *actionState, *platformState);
-            }
-        });
 }
 
 void InputStateManager::capture_input_system(InputState& inputState, PlatformState& platformState) {
@@ -172,11 +139,12 @@ void InputStateManager::capture_input_system(InputState& inputState, PlatformSta
     inputState.scrollDeltaY = 0.0f;
 }
 
-void InputStateManager::update_action_states_system(InputState &inputState, InputActionState &actionState, PlatformState &platformState) {
-    auto* inputManager = platformState.inputManager.get();
+void InputStateManager::update_action_states_system(InputState& inputState, InputActionState& actionState,
+                                                     InputModuleState& moduleState, Window& win) {
+    auto* inputManager = moduleState.inputManager.get();
     if (!inputManager) return;
 
-    GLFWwindow* window = platformState.window->window;
+    GLFWwindow* window = win.window;
 
     // Handle transitions
     for (KeyState & action : actionState.actions) {

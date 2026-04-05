@@ -8,6 +8,9 @@ add_library(VoxelPlanetPlatform STATIC
         inputs/InputStateManager.cpp
         inputs/InputStateManager.h
         inputs/input_state.h
+        inputs/InputModule.cpp
+        inputs/InputModule.h
+        inputs/InputModuleState.h
 )
 
 add_library(VoxelPlanet::Platform ALIAS VoxelPlanetPlatform)
