@@ -5,6 +5,7 @@
 #include "camera3d_systems.h"
 #include "core/TracyIntegration.h"
 #include "core/physics/physics_components.h"
+#include "core/world/spatial/spatial_components.h"
 #include "platform/inputs/input_state.h"
 #include "renderer/Renderer.h"
 #include "renderer/rendering_components.h"
@@ -27,22 +28,22 @@ void Camera3dModule::register_systems(flecs::world &ecs) {
                 : CameraViewType::FirstPerson;
         });
 
-    ecs.system<Camera3d, const Position, const Orientation, const Camera3dParameters>("UpdateCameraViewSystem")
+    ecs.system<Camera3d, const Transform, const Camera3dParameters>("UpdateCameraViewSystem")
         .kind(flecs::OnUpdate)
-        .each([](flecs::entity e, Camera3d &camera, const Position &position, const Orientation &orientation, const Camera3dParameters &parameters) {
+        .each([](flecs::entity e, Camera3d &camera, const Transform &transform, const Camera3dParameters &parameters) {
             VOXEL_ZONE_N("Camera-UpdateView");
-            glm::vec3 playerPos = position;
-            glm::vec3 eyePos = position;
+            glm::vec3 playerPos = glm::vec3(0.f);
+            glm::vec3 eyePos = glm::vec3(0.f);
             auto type = parameters.viewType;
             if (type == CameraViewType::FirstPerson) {
                 if (auto* body = e.get<RigidBody>()) {
                     eyePos.y += body->haftExtent.y * 0.75f;
                 }
-                systems::update_camera_view_system(camera, eyePos, orientation);
+                systems::update_camera_view_system(camera, eyePos, transform.rot);
             } else if (type == CameraViewType::ThirdPerson) {
                 float distance = 10.0f;
-                float yawRad = glm::radians(orientation.yaw);
-                float pitchRad = glm::radians(orientation.pitch);
+                float yawRad = glm::radians(transform.rot.y);
+                float pitchRad = glm::radians(transform.rot.x);
                 eyePos.x -= distance * cos(pitchRad) * sin(yawRad);
                 eyePos.y -= distance * sin(pitchRad);
                 eyePos.z -= distance * cos(pitchRad) * cos(yawRad);

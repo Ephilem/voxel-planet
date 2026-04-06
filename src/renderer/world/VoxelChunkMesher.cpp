@@ -93,13 +93,13 @@ void VoxelChunkMesher::init(flecs::world &ecs) {
     //             ImGui::End();
     //         });
 
-    ecs.system<Camera3d, const Position, const Orientation>("VoxelChunkMesher-UpdateFrustum")
+    ecs.system<Camera3d, const Transform>("VoxelChunkMesher-UpdateFrustum")
             .kind(flecs::PreUpdate)
-            .each([this](flecs::entity e, Camera3d &camera, const Position &pos, const Orientation &orient) {
+            .each([this](flecs::entity e, Camera3d &camera, const Transform &transform) {
                 VOXEL_ZONE_N("Mesher-Frustum");
                 glm::mat4 viewProjection = camera.projectionMatrix * camera.viewMatrix;
-                glm::vec3 viewDir = orient.forward();
-                glm::vec3 cameraPos = {pos.x, pos.y, pos.z};
+                glm::vec3 viewDir = transform.forward();
+                glm::vec3 cameraPos = transform.pos;
 
                 this->update_frustum(viewProjection, cameraPos, viewDir);
             });

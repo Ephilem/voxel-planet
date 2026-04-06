@@ -16,6 +16,7 @@ public:
 private:
     struct DebugDrawPushConstants {
         glm::mat4 viewProj;
+        float farPlane = 1e12f;
     };
 
     void init_gpu();

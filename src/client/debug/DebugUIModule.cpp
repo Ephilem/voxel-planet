@@ -2,7 +2,7 @@
 
 #include "DebugUIManager.h"
 #include "LogConsole.h"
-#include "world/WorldInfo.h"
+#include "world/PlayerWorldInfo.h"
 #include "entities/PlayerPanel.h"
 #include "performance/FpsCounter.h"
 #include "renderer/VoxelBufferVisualizer.h"
@@ -20,7 +20,7 @@ void DebugUIModule::register_systems(flecs::world &ecs) {
 
     auto *debugUI = ecs.get_mut<DebugUIManager>();
     debugUI->add_panel<FpsCounter>();
-    debugUI->add_panel<WorldInfo>();
+    debugUI->add_panel<PlayerWorldInfo>();
     debugUI->add_panel<LogConsole>();
     debugUI->add_panel<VoxelBufferVisualizer>();
     debugUI->add_panel<ChunkManagerPanel>();

@@ -33,7 +33,7 @@ void PhysicsSystem::init(flecs::world &ecs) {
             .member<float>("y", 0, 0)
             .member<float>("z", 0, 0);
 
-    ecs.system<const Velocity, Position>("Physics-ApplyVelocitySystem")
+    ecs.system<const Velocity, Transform>("Physics-ApplyVelocitySystem")
             .kind(flecs::OnUpdate)
             .without<RigidBody>()
             .run([this](flecs::iter &it) {
@@ -55,9 +55,10 @@ void PhysicsSystem::init(flecs::world &ecs) {
                 velocity.z += gravity.z * dt;
             });
 
-    ecs.system<Velocity, Position, RigidBody>("Physics-Collision")
+    ecs.system<Velocity, Transform, RigidBody>("Physics-Collision")
             .kind(flecs::OnValidate)
-            .each([](flecs::entity e, Velocity &vel, Position &pos, RigidBody &body) {
+            .each([](flecs::entity e, Velocity &vel, Transform &transform, RigidBody &body) {
+                auto &pos = transform.pos;
                 if (body.noClip) {
                     // No clip, just velocity
                     pos += vel * e.world().delta_time();
@@ -69,8 +70,8 @@ void PhysicsSystem::init(flecs::world &ecs) {
                 if (!cm) return;
 
                 glm::vec3 halfExt = body.haftExtent;
-                glm::vec3 currBmin = glm::vec3(pos) - halfExt;
-                glm::vec3 currBmax = glm::vec3(pos) + halfExt;
+                glm::vec3 currBmin = pos - halfExt;
+                glm::vec3 currBmax = pos + halfExt;
                 // DebugDrawManager::Aabb(currBmin, currBmax, glm::vec4(0.0f, 1.0f, 0.0f, 0.5f));
                 body.onGround = false;
 
@@ -104,7 +105,7 @@ void PhysicsSystem::init(flecs::world &ecs) {
                     float delta = vel[axis] * dt;
                     if (delta == 0.0f) continue;
 
-                    glm::vec3 newPos = static_cast<glm::vec3>(pos);
+                    glm::vec3 newPos = pos;
                     newPos[axis] += delta;
 
                     // AABB after movement (if needed to cancel)
@@ -151,11 +152,11 @@ void PhysicsSystem::init(flecs::world &ecs) {
 
                 // Step-up: if blocked horizontally and not jumping, snap to the exact top of the blocking block.
                 if ((blockedX || blockedZ) && vel.y <= 0.0f) {
-                    float feetY = static_cast<glm::vec3>(pos).y - halfExt.y;
+                    float feetY = pos.y - halfExt.y;
                     float stepY = maxBlockTopY - feetY;
 
                     if (stepY > 0.0f && stepY <= kStepHeight) {
-                        glm::vec3 steppedPos = static_cast<glm::vec3>(pos);
+                        glm::vec3 steppedPos = pos;
                         steppedPos.y = maxBlockTopY + halfExt.y + kEpsilon;
 
                         if (aabbClear(steppedPos)) {
@@ -176,7 +177,7 @@ void PhysicsSystem::init(flecs::world &ecs) {
                             }
 
                             if (canStep) {
-                                pos = Position{steppedPos.x, steppedPos.y, steppedPos.z};
+                                pos = steppedPos;
                                 vel.y = 0.0f;
                                 if (blockedX) vel.x = originalDeltaX / dt;
                                 if (blockedZ) vel.z = originalDeltaZ / dt;
@@ -216,12 +217,12 @@ void PhysicsSystem::init(flecs::world &ecs) {
 void PhysicsSystem::apply_velocity(flecs::iter &it) {
     while (it.next()) {
         auto velocities = it.field<const Velocity>(0);
-        auto positions = it.field<Position>(1);
+        auto transforms = it.field<Transform>(1);
 
         for (auto i: it) {
-            positions[i].x += velocities[i].x * it.delta_time();
-            positions[i].y += velocities[i].y * it.delta_time();
-            positions[i].z += velocities[i].z * it.delta_time();
+            transforms[i].pos.x += velocities[i].x * it.delta_time();
+            transforms[i].pos.y += velocities[i].y * it.delta_time();
+            transforms[i].pos.z += velocities[i].z * it.delta_time();
         }
     }
 }

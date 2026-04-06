@@ -11,6 +11,7 @@
 #include "core/main_components.h"
 #include "core/TracyIntegration.h"
 #include "core/physics/physics_components.h"
+#include "core/world/spatial/spatial_components.h"
 #include "platform/inputs/input_state.h"
 #include "renderer/rendering_components.h"
 
@@ -47,10 +48,10 @@ void PlayerControllerSystem::Register(flecs::world& ecs) {
         });
 
     // --- Walking input + physics ---
-    ecs.system<const Orientation, PlayerController, Velocity>("PlayerController-Walking")
+    ecs.system<const Transform, PlayerController, Velocity>("PlayerController-Walking")
         .kind(flecs::OnUpdate)
         .with<Player>()
-        .each([](flecs::entity e, const Orientation& ori, PlayerController& ctrl, Velocity& vel) {
+        .each([](flecs::entity e, const Transform& transform, PlayerController& ctrl, Velocity& vel) {
             if (ctrl.mode != ControllerMode::Walking) return;
 
             const auto* actions = e.world().get<InputActionState>();
@@ -59,14 +60,14 @@ void PlayerControllerSystem::Register(flecs::world& ecs) {
 
             // Horizontal direction from input (yaw only, no pitch)
             glm::vec3 forward = glm::vec3(
-                sin(glm::radians(ori.yaw)),
+                sin(glm::radians(transform.rot.y)),
                 0.0f,
-                cos(glm::radians(ori.yaw))
+                cos(glm::radians(transform.rot.y))
             );
             glm::vec3 right = glm::vec3(
-                cos(glm::radians(ori.yaw)),
+                cos(glm::radians(transform.rot.y)),
                 0.0f,
-                -sin(glm::radians(ori.yaw))
+                -sin(glm::radians(transform.rot.y))
             );
 
             glm::vec3 wishDir = glm::vec3(0.0f);
@@ -102,16 +103,14 @@ void PlayerControllerSystem::Register(flecs::world& ecs) {
         });
 
     // --- FreeCam movement ---
-    ecs.system<const Orientation, PlayerController, Velocity>("PlayerController-FreeCam")
+    ecs.system<Transform, PlayerController, Velocity>("PlayerController-FreeCam")
         .kind(flecs::OnUpdate)
         .with<Player>()
-        .each([](flecs::entity e, const Orientation& ori, PlayerController& ctrl, Velocity& vel) {
+        .each([](flecs::entity e, Transform& transform, PlayerController& ctrl, Velocity& vel) {
             if (ctrl.mode != ControllerMode::FreeCam) return;
 
             const auto* actions    = e.world().get<InputActionState>();
             const auto* inputState = e.world().get<InputState>();
-            auto* pos = e.get_mut<Position>();
-            if (!pos) return;
 
             float dt = e.world().delta_time();
 
@@ -128,14 +127,14 @@ void PlayerControllerSystem::Register(flecs::world& ecs) {
                 speed *= 0.25f;
 
             glm::vec3 forward = glm::vec3(
-                cos(glm::radians(ori.pitch)) * sin(glm::radians(ori.yaw)),
+                cos(glm::radians(transform.rot.x)) * sin(glm::radians(transform.rot.y)),
                 0,
-                cos(glm::radians(ori.pitch)) * cos(glm::radians(ori.yaw))
+                cos(glm::radians(transform.rot.x)) * cos(glm::radians(transform.rot.y))
             );
             glm::vec3 right = glm::vec3(
-                cos(glm::radians(ori.yaw)),
+                cos(glm::radians(transform.rot.y)),
                 0.0f,
-                -sin(glm::radians(ori.yaw))
+                -sin(glm::radians(transform.rot.y))
             );
             glm::vec3 up = glm::vec3(0, 1, 0);
 
@@ -150,28 +149,28 @@ void PlayerControllerSystem::Register(flecs::world& ecs) {
             if (glm::length(dir) > 0.01f)
                 dir = glm::normalize(dir);
 
-            pos->x += dir.x * speed * dt;
-            pos->y += dir.y * speed * dt;
-            pos->z += dir.z * speed * dt;
+            transform.pos.x += dir.x * speed * dt;
+            transform.pos.y += dir.y * speed * dt;
+            transform.pos.z += dir.z * speed * dt;
             vel = glm::vec3(0.0f);
         });
 
 
-    ecs.system<Orientation>("MouseLookSystem")
+    ecs.system<Transform>("MouseLookSystem")
         .kind(flecs::OnUpdate)
         .with<Camera3d>()
-        .each([](flecs::entity e, Orientation& orientation) {
+        .each([](flecs::entity e, Transform& transform) {
             VOXEL_ZONE_N("ClientModule-MouseLook");
             auto* inputState = e.world().get_mut<InputState>();
             if (!inputState->mouseCaptured) return;
 
             float sensitivity = -0.1f;
-            orientation.yaw += inputState->mouseDeltaX * sensitivity;
-            orientation.yaw = fmod(orientation.yaw, 360.0f);
-            orientation.pitch += inputState->mouseDeltaY * sensitivity;
-            orientation.pitch = fmod(orientation.pitch, 360.0f);
+            transform.rot.y += inputState->mouseDeltaX * sensitivity;
+            transform.rot.y = fmod(transform.rot.y, 360.0f);
+            transform.rot.x += inputState->mouseDeltaY * sensitivity;
+            transform.rot.x = fmod(transform.rot.x, 360.0f);
 
-            if (orientation.pitch > 89.0f) orientation.pitch = 89.0f;
-            if (orientation.pitch < -89.0f) orientation.pitch = -89.0f;
+            if (transform.rot.x > 89.0f) transform.rot.x = 89.0f;
+            if (transform.rot.x < -89.0f) transform.rot.x = -89.0f;
         });
 }

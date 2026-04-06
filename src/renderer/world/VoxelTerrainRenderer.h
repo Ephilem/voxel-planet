@@ -11,7 +11,7 @@
 #include "nvrhi/nvrhi.h"
 #include "renderer/IRenderPass.h"
 
-struct Position;
+struct Transform;
 struct Camera3d;
 class VulkanBackend;
 struct Renderer;
@@ -82,7 +82,7 @@ private:
 
     bool upload_chunk_mesh_system(
         const Renderer *renderer,
-        VoxelChunkMesh &mesh, const Position &pos);
+        VoxelChunkMesh &mesh, const Transform &transform);
 
     VoxelBuffer &create_buffer();
 

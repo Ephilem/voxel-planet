@@ -8,8 +8,8 @@ add_library(VoxelPlanetClient STATIC
         debug/DebugUIManager.h
         debug/LogConsole.h
         debug/LogConsole.cpp
-        debug/world/WorldInfo.h
-        debug/world/WorldInfo.cpp
+        debug/world/PlayerWorldInfo.h
+        debug/world/PlayerWorldInfo.cpp
         debug/performance/FpsCounter.h
         debug/performance/FpsCounter.cpp
         debug/renderer/VoxelBufferVisualizer.h

@@ -76,14 +76,14 @@ void ChunkManager::init(flecs::world &ecs) {
     ecs.component<VoxelChunkState>()
             .add(flecs::Exclusive);
 
-    ecs.system<ChunkLoader, const Position>("ChunkManager-UpdateChunksSystem")
+    ecs.system<ChunkLoader, const Transform>("ChunkManager-UpdateChunksSystem")
             .kind(flecs::OnUpdate)
-            .each([this](flecs::entity e, ChunkLoader &loader, const Position &position) {
+            .each([this](flecs::entity e, ChunkLoader &loader, const Transform &transform) {
                 VOXEL_ZONE_N("ChunkManager-UpdateChunks")
                 auto* generator = e.world().get_mut<WorldGenerator>();
                 auto* inputManager = e.world().get_mut<InputActionState>();
                 // if (!inputManager->is_action_pressed(ActionInputType::Debug1)) return;
-                update_chunks_system(e, loader, position, generator);
+                update_chunks_system(e, loader, transform, generator);
             });
 
     ecs.system("ChunkManager-DrainCandidateBuffer")
@@ -123,8 +123,8 @@ void ChunkManager::init(flecs::world &ecs) {
 }
 
 void ChunkManager::update_chunks_system(flecs::entity e, ChunkLoader &loader,
-                                        const Position &position, WorldGenerator* generator) {
-    glm::ivec3 currentChunk = world_pos_to_chunk_pos({position.x, position.y, position.z});
+                                        const Transform &transform, WorldGenerator* generator) {
+    glm::ivec3 currentChunk = world_pos_to_chunk_pos(transform.pos);
 
     if (loader.has_visited() && currentChunk == loader.lastVisitedChunk) {
         return;
@@ -388,11 +388,11 @@ void ChunkManager::poll_generation_results_system(flecs::iter &it) {
                 VOXEL_ZONE_N("CreateChunkEntity");
                 chunk = it.world().entity()
                         .set<ChunkCoordinate>(result.chunkCoord)
-                        .set<Position>({
+                        .set<Transform>({.pos = {
                             static_cast<float>(result.chunkCoord.x * CHUNK_SIZE),
                             static_cast<float>(result.chunkCoord.y * CHUNK_SIZE),
                             static_cast<float>(result.chunkCoord.z * CHUNK_SIZE)
-                        })
+                        }})
                         .set<VoxelChunk>(chunkData);
             }
 
