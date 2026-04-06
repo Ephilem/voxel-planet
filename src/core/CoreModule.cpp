@@ -8,29 +8,11 @@
 #include "debug/DebugDrawModule.h"
 #include "log/Logger.h"
 #include "world/ChunkManager.h"
+#include "world/spatial/SpatialModule.h"
 
 using namespace vp;
 
 void CoreModule::register_components(flecs::world &ecs) {
-    ecs.component<Transform>()
-        .member<float>("pos", 3, 0)
-        .member<float>("rot", 3, 3 * sizeof(float))
-        .member<float>("scale", 3, 6 * sizeof(float));
-
-    ecs.component<LocalFloatingOriginTransform>()
-        .member<float>("pos", 3, 0)
-        .member<float>("rot", 3, 3 * sizeof(float))
-        .member<float>("scale", 3, 6 * sizeof(float));
-
-    ecs.component<GlobalTransform>()
-        .member<float>("pos", 3, 0)
-        .member<float>("rot", 3, 3 * sizeof(float))
-        .member<float>("scale", 3, 6 * sizeof(float));
-
-    ecs.component<Grid>()
-        .member<double>("Cell Size");
-
-    ecs.component<FloatingOrigin>();
     ecs.component<Player>();
 
 
@@ -51,6 +33,7 @@ void CoreModule::register_pipelines(flecs::world &ecs) {
 }
 
 void CoreModule::register_submodules(flecs::world &ecs) {
+    ecs.import<SpatialModule>();
     ecs.import<DebugDrawModule>();
 }
 

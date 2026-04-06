@@ -6,6 +6,7 @@
 
 #include "imgui.h"
 #include "core/main_components.h"
+#include "core/world/spatial/spatial_components.h"
 #include "renderer/rendering_components.h"
 
 void PlayerPanel::render(flecs::world &ecs) {
@@ -13,10 +14,11 @@ void PlayerPanel::render(flecs::world &ecs) {
     ImGui::InputFloat3("Position", m_teleportPos);
 
     if (ImGui::Button("Teleport")) {
-        ecs.each([this](const Camera3d&, Position& position, const Player&) {
-            position.x = m_teleportPos[0];
-            position.y = m_teleportPos[1];
-            position.z = m_teleportPos[2];
+        ecs.each([this](const Camera3d&, Transform& transform, const Player&) {
+            auto& pos = transform.pos;
+            pos.x = m_teleportPos[0];
+            pos.y = m_teleportPos[1];
+            pos.z = m_teleportPos[2];
         });
     }
 }

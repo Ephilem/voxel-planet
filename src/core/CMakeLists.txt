@@ -32,6 +32,10 @@ add_library(VoxelPlanetCore STATIC
     math/utils.h
         debug/DebugDraw.cpp
         debug/DebugDraw.h
+        world/spatial/SpatialModule.cpp
+        world/spatial/SpatialModule.h
+        world/spatial/spatial_components.h
+        world/spatial/spatial_prefabs.h
 )
 
 add_library(VoxelPlanet::Core ALIAS VoxelPlanetCore)

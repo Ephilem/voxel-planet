@@ -9,9 +9,9 @@
 #include <thread>
 
 #include "world_components.h"
-#include "core/main_components.h"
 #include "core/TracyIntegration.h"
 #include "core/math/utils.h"
+#include "spatial/spatial_components.h"
 
 class WorldGenerator;
 
@@ -137,7 +137,7 @@ private:
     void shutdown();
 
     // ECS Systems
-    void update_chunks_system(flecs::entity e, ChunkLoader& loader, const Position& position, WorldGenerator* generator);
+    void update_chunks_system(flecs::entity e, ChunkLoader& loader, const Transform& transform, WorldGenerator* generator);
     void poll_generation_results_system(flecs::iter& it);
     void process_unload_queue_system(flecs::iter& it);
     void drain_candidate_buffer_system();

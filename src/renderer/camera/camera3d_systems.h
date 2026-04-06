@@ -14,9 +14,9 @@ void update_camera_third_person_system(Camera3d &camera, const glm::vec3 &camera
     camera.viewMatrix = glm::lookAt(cameraPos, target, worldUp);
 }
 
-void update_camera_view_system(Camera3d &camera, const glm::vec3 &position, const Orientation &orientation) {
-    float yawRad = glm::radians(orientation.yaw);
-    float pitchRad = glm::radians(orientation.pitch);
+void update_camera_view_system(Camera3d &camera, const glm::vec3 &position, const glm::vec3 &rot) {
+    float yawRad = glm::radians(rot.y);
+    float pitchRad = glm::radians(rot.x);
 
     glm::vec3 forward;
     forward.x = cos(pitchRad) * sin(yawRad);

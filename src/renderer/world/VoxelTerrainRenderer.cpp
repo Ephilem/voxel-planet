@@ -6,15 +6,15 @@
 
 #include <memory>
 
-#include "../rendering_components.h"
+#include "renderer/rendering_components.h"
 #include "core/GameState.h"
-#include "core/main_components.h"
 #include "core/log/Logger.h"
 #include "renderer/Renderer.h"
 #include <glm/glm.hpp>
 
 #include "VoxelChunkMesher.h"
 #include "VoxelTextureManager.h"
+#include "core/world/spatial/spatial_components.h"
 #include "renderer/TracyVulkanIntegration.h"
 
 VoxelTerrainRenderer::VoxelTerrainRenderer(VulkanBackend *backend, ResourceSystem *resourceSystem,
@@ -217,17 +217,17 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
 
     ecs.component<VoxelChunkMesh>();
 
-    ecs.system<VoxelChunkMesh, const Position>("VoxelTerrainRenderer-UploadVoxelChunkMesh")
+    ecs.system<VoxelChunkMesh, const Transform>("VoxelTerrainRenderer-UploadVoxelChunkMesh")
             .kind(flecs::PreStore)
             .with<VoxelChunkMeshState, voxel_chunk_mesh_state::ReadyForUpload>()
-            .each([voxelRenderer](flecs::entity e, VoxelChunkMesh &mesh, const Position &pos) {
+            .each([voxelRenderer](flecs::entity e, VoxelChunkMesh &mesh, const Transform &transform) {
                 VOXEL_ZONE_N("VoxelTerrainRenderer-UploadChunkMesh");
                 const auto *renderer = e.world().get<Renderer>();
                 if (!renderer) {
                     LOG_ERROR("VoxelTerrainRenderer", "Can't upload chunk mesh, Renderer not found in ECS");
                     return;
                 }
-                voxelRenderer->upload_chunk_mesh_system(renderer, mesh, pos);
+                voxelRenderer->upload_chunk_mesh_system(renderer, mesh, transform);
                 e.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Clean>();
             });
 
@@ -255,7 +255,7 @@ void VoxelTerrainRenderer::Register(flecs::world &ecs) {
 }
 
 bool VoxelTerrainRenderer::upload_chunk_mesh_system(const Renderer *renderer, VoxelChunkMesh &mesh,
-                                                    const Position &pos) {
+                                                    const Transform &transform) {
     auto &commandList = renderer->frameContext.commandList;
     VOXEL_VK_NVRHI_ZONE(renderer->backend->tracyVkCtx, commandList, "GPU Upload Chunk Meshes");
     // TODO use the buffer with the position
@@ -273,13 +273,13 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(const Renderer *renderer, Vo
             if (buffer.reallocate(mesh)) {
                 // Stage-4 probe: log remesh uploads
                 // LOG_DEBUG("VoxelTerrainRenderer", "[UPLOAD remesh] ({:.0f},{:.0f},{:.0f}) faces={} slot={} region:{}->{} ",
-                // pos.x, pos.y, pos.z, mesh.faceCount, mesh.drawSlotIndex, oldRegionStart, mesh.faceRegionStart);
+                // transform.pos.x, transform.pos.y, transform.pos.z, mesh.faceCount, mesh.drawSlotIndex, oldRegionStart, mesh.faceRegionStart);
                 TerrainOUB oub = {
                     .model = {
                         1.0f, 0.0f, 0.0f, 0.0f,
                         0.0f, 1.0f, 0.0f, 0.0f,
                         0.0f, 0.0f, 1.0f, 0.0f,
-                        pos.x, pos.y, pos.z, 1.0f
+                        transform.pos.x, transform.pos.y, transform.pos.z, 1.0f
                     }
                 };
                 m_meshUploader.enqueue(mesh, oub, &buffer);
@@ -287,7 +287,7 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(const Renderer *renderer, Vo
             }
             LOG_WARN("VoxelTerrainRenderer",
                      "[UPLOAD remesh FALLBACK] ({:.0f},{:.0f},{:.0f}) reallocate failed, doing free+alloc",
-                     pos.x, pos.y, pos.z);
+                     transform.pos.x, transform.pos.y, transform.pos.z);
             // If reallocate failed (fragmentation), fall through to try other buffers
             // But first free the draw slot since we'll allocate fresh
             buffer.free(mesh);
@@ -308,7 +308,7 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(const Renderer *renderer, Vo
                 1.0f, 0.0f, 0.0f, 0.0f, // column 0
                 0.0f, 1.0f, 0.0f, 0.0f, // column 1
                 0.0f, 0.0f, 1.0f, 0.0f, // column 2
-                pos.x, pos.y, pos.z, 1.0f // column 3 (translation)
+                transform.pos.x, transform.pos.y, transform.pos.z, 1.0f // column 3 (translation)
             }
         };
         m_meshUploader.enqueue(mesh, oub, &buffer);
@@ -318,7 +318,7 @@ bool VoxelTerrainRenderer::upload_chunk_mesh_system(const Renderer *renderer, Vo
     if (!uploaded) {
         LOG_WARN("VoxelTerrainRenderer", "Can't upload chunk mesh, creating new buffer");
         create_buffer();
-        upload_chunk_mesh_system(renderer, mesh, pos);
+        upload_chunk_mesh_system(renderer, mesh, transform);
     }
 
     return true;

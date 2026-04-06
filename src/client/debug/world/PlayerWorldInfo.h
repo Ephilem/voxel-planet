@@ -1,9 +1,9 @@
 #pragma once
 #include "../IDebugPanel.h"
 
-class WorldInfo : public IDebugPanel {
+class PlayerWorldInfo : public IDebugPanel {
 public:
-    WorldInfo() {
+    PlayerWorldInfo() {
         is_visible = true;
     }
 

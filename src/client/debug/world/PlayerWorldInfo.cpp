@@ -1,33 +1,39 @@
-#include "WorldInfo.h"
+#include "PlayerWorldInfo.h"
+
+#include <glm/gtc/quaternion.hpp>
 
 #include "imgui.h"
 #include "client/player/player_components.h"
-#include "core/main_components.h"
 #include "renderer/rendering_components.h"
 #include "core/TracyIntegration.h"
 #include "core/physics/physics_components.h"
+#include "core/world/spatial/spatial_components.h"
 
-void WorldInfo::pre_render() {
+void PlayerWorldInfo::pre_render() {
     ImGuiIO& io = ImGui::GetIO();
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 10, 25), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
     ImGui::SetNextWindowBgAlpha(0.35f);
 }
 
-void WorldInfo::render(flecs::world& ecs) {
+void PlayerWorldInfo::render(flecs::world& ecs) {
     VOXEL_ZONE_N("WorldF3Info-Display");
 
-    ecs.each([](const Camera3d& camera, const Position& position, const Orientation& orientation, const RigidBody& body, const PlayerController& ctrl) {
-        ImGui::Text("Position: %.2f, %.2f, %.2f", position.x, position.y, position.z);
-        ImGui::Text("Orientation:");
-        ImGui::Text("  Pitch: %.2f°", orientation.pitch);
-        ImGui::Text("  Yaw: %.2f°", orientation.yaw);
-        ImGui::Text("  Roll: %.2f°", orientation.roll);
+    ecs.each([](const Camera3d& camera, const Transform& transform, const RigidBody& body, const PlayerController& ctrl) {
+        constexpr float kMetersPerWorldUnit = 1.0f;
+        const glm::vec3 positionMeters = transform.pos * kMetersPerWorldUnit;
+        const glm::vec3 orientationDeg = transform.rot;
 
-        ImGui::Separator();
-        ImGui::Text("Camera:");
-        ImGui::Text("  Near: %.2f", camera.nearClip);
-        ImGui::Text("  Far: %.2f", camera.farClip);
-        ImGui::Text("  Aspect: %.2f", camera.aspect_ratio);
+        ImGui::Text("Position: %f m, %f m, %f m", positionMeters.x, positionMeters.y, positionMeters.z);
+        ImGui::Text("Orientation:");
+        ImGui::Text("  Pitch: %.2f°", orientationDeg.x);
+        ImGui::Text("  Yaw: %.2f°", orientationDeg.y);
+        ImGui::Text("  Roll: %.2f°", orientationDeg.z);
+        //
+        // ImGui::Separator();
+        // ImGui::Text("Camera:");
+        // ImGui::Text("  Near: %.2f", camera.nearClip);
+        // ImGui::Text("  Far: %.2f", camera.farClip);
+        // ImGui::Text("  Aspect: %.2f", camera.aspect_ratio);
 
         ImGui::Separator();
         ImGui::Text("Player:");

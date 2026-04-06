@@ -4,8 +4,8 @@
 
 #include "PlanetDebugRenderer.h"
 
-#include "core/main_components.h"
 #include "core/debug/DebugDraw.h"
+#include "core/world/spatial/spatial_components.h"
 
 using namespace vp;
 
@@ -22,14 +22,15 @@ static constexpr glm::vec4 OCTREE_NODE_COLORS[] = {
 
 void PlanetDebugRenderer::Register(flecs::world &ecs) {
 
-    ecs.system<const PlanetComp, PlanetRenderComp, const Position>("PlanetDebugRenderer-DrawOctree")
+    ecs.system<const PlanetComp, PlanetRenderComp, const Transform>("PlanetDebugRenderer-DrawOctree")
         .kind(flecs::OnStore)
-        .each([](flecs::entity e, const PlanetComp& planet, PlanetRenderComp& renderComp, const Position& position) {
+        .each([](flecs::entity e, const PlanetComp& planet, PlanetRenderComp& renderComp, const Transform& transform) {
+            auto& position = transform.pos;
             // get cameras
             glm::vec3 camPos(0.0f);
-            e.world().query<const Camera3d, const Position>()
-                .each([&](const Camera3d& camera, const Position& camPos_) {
-                    camPos = camPos_;
+            e.world().query<const Camera3d, const Transform>()
+                .each([&](const Camera3d& camera, const Transform& camTransform) {
+                    camPos = camTransform.pos;
                 });
             renderComp.renderOctree.build(planet.radius, camPos, 5, 1000.0f);
 

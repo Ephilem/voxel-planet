@@ -7,6 +7,13 @@
 #include <flecs.h>
 #include <iostream>
 
+#include "client/player/player_components.h"
+#include "core/main_components.h"
+#include "core/physics/physics_components.h"
+#include "core/world/spatial/spatial_components.h"
+#include "core/world/spatial/spatial_prefabs.h"
+#include "renderer/rendering_components.h"
+
 int main() {
     try {
         auto ecs = std::make_unique<flecs::world>();
@@ -33,6 +40,25 @@ int main() {
                     world.quit();
                 }
             });
+
+        auto worldGrid = ecs->entity("WorldGrid")
+            .set<Grid>({ .cellSize = 10'000.0 })
+            .add<FloatingOrigin>();
+
+        ecs->entity("Player")
+            .set<Camera3d>({})
+            .set<Camera3dParameters>({
+                .fov = 80.0f
+            })
+            .set<PlayerController>({})
+            .set<RigidBody>({})
+            .set<Velocity>({})
+            .set<GridCellCoord>({0, 0, 0})
+            .set<LocalFloatingOriginTransform>({})
+            .set<GlobalTransform>({})
+            .set<Transform>({})
+            .child_of(worldGrid)
+            .add<Player>();
 
         ecs->app()
           .target_fps(99999)

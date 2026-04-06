@@ -33,15 +33,15 @@ void WorldGenPanel::render(flecs::world &ecs) {
     }
 
     if (m_followPlayer) {
-        ecs.each([this](const Camera3d &, const Position &pos) {
+        ecs.each([this](const Camera3d &, const Transform &transform) {
             // Ne recalcule que si le joueur a changé de chunk
-            const int cx = static_cast<int>(std::floor(pos.x / CHUNK_SIZE));
-            const int cz = static_cast<int>(std::floor(pos.z / CHUNK_SIZE));
+            const int cx = static_cast<int>(std::floor(transform.pos.x / CHUNK_SIZE));
+            const int cz = static_cast<int>(std::floor(transform.pos.z / CHUNK_SIZE));
             if (cx != m_playerChunkX || cz != m_playerChunkZ) {
                 m_playerChunkX   = cx;
                 m_playerChunkZ   = cz;
-                m_previewCenterX = static_cast<int>(pos.x);
-                m_previewCenterZ = static_cast<int>(pos.z);
+                m_previewCenterX = static_cast<int>(transform.pos.x);
+                m_previewCenterZ = static_cast<int>(transform.pos.z);
                 m_previewDirty   = true;
             }
         });

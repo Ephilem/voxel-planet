@@ -15,11 +15,6 @@ struct Velocity : glm::vec3 {
     }
 };
 
-struct Movement {
-    glm::vec3 direction = glm::vec3(0.0f, 0.0f, 0.0f);
-    float speed = 1.0f;
-};
-
 struct Acceleration : glm::vec3 { using glm::vec3::vec3; };
 
 struct RigidBody : glm::vec3 {
