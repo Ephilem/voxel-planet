@@ -9,9 +9,9 @@
 
 #include "client/player/player_components.h"
 #include "core/main_components.h"
+#include "core/debug/DebugDraw.h"
 #include "core/physics/physics_components.h"
 #include "core/world/spatial/spatial_components.h"
-#include "core/world/spatial/spatial_prefabs.h"
 #include "renderer/rendering_components.h"
 
 int main() {
@@ -42,23 +42,46 @@ int main() {
             });
 
         auto worldGrid = ecs->entity("WorldGrid")
-            .set<Grid>({ .cellSize = 10'000.0 })
-            .add<FloatingOrigin>();
+            .set<Grid>({ .cellSize = 10'000.0 });
 
         ecs->entity("Player")
             .set<Camera3d>({})
             .set<Camera3dParameters>({
                 .fov = 80.0f
             })
+
             .set<PlayerController>({})
+            .add<Player>()
+            .add<FloatingOrigin>()
+
             .set<RigidBody>({})
             .set<Velocity>({})
-            .set<GridCellCoord>({0, 0, 0})
-            .set<LocalFloatingOriginTransform>({})
+
+            .set<CellCoord>({0, 0, 0})
             .set<GlobalTransform>({})
             .set<Transform>({})
-            .child_of(worldGrid)
-            .add<Player>();
+
+            .child_of(worldGrid);
+
+
+        // debug: draw aabb of the current player cell
+        ecs->system<const Player, const CellCoord>("CellsDebug")
+            .with<Grid>().up(flecs::ChildOf)
+            .run([](flecs::iter& iter) {
+                while (iter.next()) {
+                    const auto& cells = iter.field<const CellCoord>(1);
+                    const Grid &grid = *iter.field<const Grid>(2);
+
+                    vp::DebugDraw::Point(glm::vec3(0.f), glm::vec4(0.5f, 1.0f, 0.5f, 1.f));
+
+                    for (auto i : iter) {
+                        auto cell = cells[i];
+                        glm::vec3 min = -glm::vec3(grid.cellSize/2.f);
+                        glm::vec3 max = glm::vec3(grid.cellSize/2.f);
+                        vp::DebugDraw::Aabb(AABB{ min, max }, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
+                    }
+                }
+            });
 
         ecs->app()
           .target_fps(99999)

@@ -18,17 +18,19 @@ void PlayerWorldInfo::pre_render() {
 void PlayerWorldInfo::render(flecs::world& ecs) {
     VOXEL_ZONE_N("WorldF3Info-Display");
 
-    ecs.each([](const Camera3d& camera, const Transform& transform, const RigidBody& body, const PlayerController& ctrl) {
+    ecs.each([](const Camera3d& camera, const Transform& transform, const RigidBody& body, const PlayerController& ctrl, const CellCoord& gridCell) {
         constexpr float kMetersPerWorldUnit = 1.0f;
         const glm::vec3 positionMeters = transform.pos * kMetersPerWorldUnit;
         const glm::vec3 orientationDeg = transform.rot;
 
-        ImGui::Text("Position: %f m, %f m, %f m", positionMeters.x, positionMeters.y, positionMeters.z);
+        ImGui::Text("Transform: %f m, %f m, %f m", positionMeters.x, positionMeters.y, positionMeters.z);
+        ImGui::Text("World Cell: %d %d %d", gridCell.x, gridCell.y, gridCell.z);
+        ImGui::Separator();
         ImGui::Text("Orientation:");
         ImGui::Text("  Pitch: %.2f°", orientationDeg.x);
         ImGui::Text("  Yaw: %.2f°", orientationDeg.y);
         ImGui::Text("  Roll: %.2f°", orientationDeg.z);
-        //
+
         // ImGui::Separator();
         // ImGui::Text("Camera:");
         // ImGui::Text("  Near: %.2f", camera.nearClip);
