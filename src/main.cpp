@@ -44,6 +44,15 @@ int main() {
         auto worldGrid = ecs->entity("WorldGrid")
             .set<Grid>({ .cellSize = 10'000.0 });
 
+        struct TestyBox {};
+        ecs->component<TestyBox>("TestyBox"); // box at the true origin to test redering outside the current cell
+        ecs->entity("TestyBoxEntity")
+            .child_of(worldGrid)
+            .add<TestyBox>()
+            .set<GlobalTransform>({})
+            .set<CellCoord>({0, 1, 0})
+            .set<Transform>({});
+
         ecs->entity("Player")
             .set<Camera3d>({})
             .set<Camera3dParameters>({
@@ -81,6 +90,15 @@ int main() {
                         vp::DebugDraw::Aabb(AABB{ min, max }, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
                     }
                 }
+            });
+
+        // display testybox with the debugdraw
+        ecs->system<const TestyBox, const GlobalTransform>("TestyBoxDebug")
+            .kind(flecs::OnUpdate)
+            .each([](flecs::entity e, const TestyBox&, const GlobalTransform& transform) {
+                glm::vec3 min = transform.pos - glm::vec3(250.0f);
+                glm::vec3 max = transform.pos + glm::vec3(250.0f);
+                vp::DebugDraw::Aabb(AABB{ min, max }, glm::vec4(1.0f, 0.5f, 0.5f, 1.0f));
             });
 
         ecs->app()

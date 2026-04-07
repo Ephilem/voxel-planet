@@ -9,6 +9,14 @@ struct CellCoord : glm::i64vec3 {
 
     CellCoord(const glm::i64vec3& v) : glm::i64vec3(v) {}
     CellCoord(const glm::ivec3& v) : glm::i64vec3(v) {}
+
+    glm::dvec3 operator*(const double other) const {
+        return {
+            static_cast<double>(x) * other,
+            static_cast<double>(y) * other,
+            static_cast<double>(z) * other
+        };
+    }
 };
 
 struct Transform {

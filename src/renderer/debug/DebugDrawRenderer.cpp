@@ -99,13 +99,13 @@ void DebugDrawRenderer::init_gpu() {
             .setKeepInitialState(true);
     m_pointBuffer = m_backend->device->createBuffer(pointBufferDesc);
 
-    std::shared_ptr<ShaderResource> pointVertRes = m_resourceSystem->load<ShaderResource>("debug_draw_point.vert", ResourceType::SHADER);
-    auto pointVertexShader = m_backend->device->createShader(
-        nvrhi::ShaderDesc().setShaderType(nvrhi::ShaderType::Vertex),
-        pointVertRes->get_data(), pointVertRes->get_data_size());
+    // std::shared_ptr<ShaderResource> pointVertRes = m_resourceSystem->load<ShaderResource>("debug_draw.vert", ResourceType::SHADER);
+    // auto pointVertexShader = m_backend->device->createShader(
+        // nvrhi::ShaderDesc().setShaderType(nvrhi::ShaderType::Vertex),
+        // pointVertRes->get_data(), pointVertRes->get_data_size());
 
     auto pointPipelineDesc = nvrhi::GraphicsPipelineDesc()
-            .setVertexShader(pointVertexShader)
+            .setVertexShader(vertexShader)
             .setPixelShader(pixelShader)
             .setInputLayout(m_lineInputLayout)
             .setPrimType(nvrhi::PrimitiveType::PointList)
