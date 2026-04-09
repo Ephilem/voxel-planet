@@ -32,8 +32,8 @@ void Camera3dModule::register_systems(flecs::world &ecs) {
         .kind(flecs::OnUpdate)
         .each([](flecs::entity e, Camera3d &camera, const Transform &transform, const Camera3dParameters &parameters) {
             VOXEL_ZONE_N("Camera-UpdateView");
-            glm::vec3 playerPos = transform.pos;
-            glm::vec3 eyePos = transform.pos;
+            glm::vec3 playerPos = glm::vec3(0.f);
+            glm::vec3 eyePos = glm::vec3(0.f);
             auto type = parameters.viewType;
             if (type == CameraViewType::FirstPerson) {
                 if (auto* body = e.get<RigidBody>()) {

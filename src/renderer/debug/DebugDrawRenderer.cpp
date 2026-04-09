@@ -156,7 +156,7 @@ void DebugDrawRenderer::render_points(nvrhi::CommandListHandle cmd, Camera3d &ca
     cmd->writeBuffer(m_pointBuffer, points.data(), points.size() * sizeof(DebugVertex));
 
     auto extent = m_backend->get_swapchain_extent();
-    DebugDrawPushConstants pc{camera.projectionMatrix * camera.viewMatrix};
+    DebugDrawPushConstants pc{camera.projectionMatrix * camera.viewMatrix, camera.farClip};
 
     auto state = nvrhi::GraphicsState()
             .setPipeline(m_pointPipeline)

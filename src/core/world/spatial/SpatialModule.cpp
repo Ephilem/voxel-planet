@@ -5,6 +5,7 @@
 #include "SpatialModule.h"
 
 #include "spatial_components.h"
+#include "core/debug/DebugDraw.h"
 
 void vp::SpatialModule::register_components(flecs::world &ecs) {
     ecs.component<Transform>()
@@ -100,7 +101,7 @@ void vp::SpatialModule::register_systems(flecs::world &ecs) {
                 const Transform* pFoTransform = floatingOrigin.get<Transform>();
                 auto foTransform = pFoTransform == nullptr ? Transform{} : *pFoTransform;
 
-                // Step 1 - Compute foGrid Lfo
+                // Step 1 - Compute foGrid Lfo: Translation from the grid origin to the lfo
                 auto* g = foGridEntity.get_mut<Grid>();
                 g->localOrigin.cell        = foCell;
                 g->localOrigin.translation = foTransform.pos;

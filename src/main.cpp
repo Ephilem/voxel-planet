@@ -50,7 +50,7 @@ int main() {
             .child_of(worldGrid)
             .add<TestyBox>()
             .set<GlobalTransform>({})
-            .set<CellCoord>({0, 1, 0})
+            .set<CellCoord>({70, 1, 0})
             .set<Transform>({});
 
         ecs->entity("Player")
@@ -72,33 +72,21 @@ int main() {
 
             .child_of(worldGrid);
 
-
-        // debug: draw aabb of the current player cell
-        ecs->system<const Player, const CellCoord>("CellsDebug")
-            .with<Grid>().up(flecs::ChildOf)
-            .run([](flecs::iter& iter) {
-                while (iter.next()) {
-                    const auto& cells = iter.field<const CellCoord>(1);
-                    const Grid &grid = *iter.field<const Grid>(2);
-
-                    vp::DebugDraw::Point(glm::vec3(0.f), glm::vec4(0.5f, 1.0f, 0.5f, 1.f));
-
-                    for (auto i : iter) {
-                        auto cell = cells[i];
-                        glm::vec3 min = -glm::vec3(grid.cellSize/2.f);
-                        glm::vec3 max = glm::vec3(grid.cellSize/2.f);
-                        vp::DebugDraw::Aabb(AABB{ min, max }, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
-                    }
-                }
-            });
-
         // display testybox with the debugdraw
         ecs->system<const TestyBox, const GlobalTransform>("TestyBoxDebug")
             .kind(flecs::OnUpdate)
             .each([](flecs::entity e, const TestyBox&, const GlobalTransform& transform) {
-                glm::vec3 min = transform.pos - glm::vec3(250.0f);
-                glm::vec3 max = transform.pos + glm::vec3(250.0f);
+                // earth sized
+                glm::vec3 min = transform.pos - glm::vec3(637100.0f);
+                glm::vec3 max = transform.pos + glm::vec3(637100.0f);
                 vp::DebugDraw::Aabb(AABB{ min, max }, glm::vec4(1.0f, 0.5f, 0.5f, 1.0f));
+            });
+
+        // display fo
+        ecs->system<const FloatingOrigin>("POint floating origin")
+            .kind(flecs::OnUpdate)
+            .each([](flecs::entity e, const FloatingOrigin&) {
+                vp::DebugDraw::Point(glm::vec3(0.f), glm::vec4(1.0f, 0.5f, 0.5f, 1.f));
             });
 
         ecs->app()
