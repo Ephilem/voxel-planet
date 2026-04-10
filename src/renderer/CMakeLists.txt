@@ -24,8 +24,8 @@ add_library(VoxelPlanetRenderer STATIC
         debug/DebugDrawRenderer.h
         world/planet/PlanetOctree.cpp
         world/planet/PlanetOctree.h
-        world/planet/PlanetDebugRenderer.cpp
-        world/planet/PlanetDebugRenderer.h
+        world/planet/PlanetRenderModule.cpp
+        world/planet/PlanetRenderModule.h
         camera/Camera3dModule.cpp
         camera/Camera3dModule.h
         camera/camera3d_systems.h

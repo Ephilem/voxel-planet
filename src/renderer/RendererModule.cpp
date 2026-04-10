@@ -19,6 +19,7 @@
 #include "core/log/Logger.h"
 #include "core/world/world_components.h"
 #include "core/world/ChunkManager.h"
+#include "world/planet/PlanetRenderModule.h"
 
 
 #ifdef TRACY_ENABLE
@@ -168,6 +169,7 @@ void RendererModule::register_pipelines(flecs::world &ecs) {
 
 void RendererModule::register_submodules(flecs::world &ecs) {
     ecs.import<Camera3dModule>();
+    ecs.import<PlanetRenderModule>();
     ecs.import<DebugRenderModule>();
 }
 
