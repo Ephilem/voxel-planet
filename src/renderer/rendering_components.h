@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <array>
 #include "render_types.h"
 #include "world/planet/PlanetOctree.h"
 
@@ -28,16 +29,37 @@ struct Camera3d {
 
 struct PlanetRenderComp {
     PlanetOctree renderOctree = {};
+    std::array<float, 8> levelThresholds = {
+        2000.0f,
+        1000.0f,
+        500.0f,
+        250.0f,
+        125.0f,
+        60.0f,
+        30.0f,
+        15.0f
+    };
 };
 
 namespace voxel_chunk_mesh_state {
-    struct WaitingForNeighbors {};
-    struct Clean {};
-    struct Dirty {};
-    struct Meshing {};
-    struct ReadyForUpload {};
+    struct WaitingForNeighbors {
+    };
+
+    struct Clean {
+    };
+
+    struct Dirty {
+    };
+
+    struct Meshing {
+    };
+
+    struct ReadyForUpload {
+    };
 }
-struct VoxelChunkMeshState {};
+
+struct VoxelChunkMeshState {
+};
 
 struct VoxelChunkMesh {
     // GPU side info

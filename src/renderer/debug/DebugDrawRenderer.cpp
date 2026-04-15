@@ -36,7 +36,7 @@ void DebugDrawRenderer::init_gpu() {
     /////////////////////// LINES PIPELINE ///////////////////////
     // lines vertex buffer
     auto lineBufferDesc = nvrhi::BufferDesc()
-            .setByteSize(1024 * 1024 * 10)
+            .setByteSize(1024 * 1024 * 100)
             .setDebugName("DebugDrawLines")
             .setIsVertexBuffer(true)
             .setInitialState(nvrhi::ResourceStates::VertexBuffer)

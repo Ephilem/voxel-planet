@@ -29,7 +29,7 @@ void PlayerWorldInfo::render(flecs::world& ecs) {
             : glm::dvec3(transform.pos);
 
         ImGui::Text("Position: %.0lf, %.0lf, %.0lf", inGridPosition.x, inGridPosition.y, inGridPosition.z);
-        ImGui::Text("Transform: %f m, %f m, %f m", positionMeters.x, positionMeters.y, positionMeters.z);
+        ImGui::Text("Transform: %0.3f m, %0.3f m, %0.3f m", positionMeters.x, positionMeters.y, positionMeters.z);
         ImGui::Text("World Cell: %ld %ld %ld", gridCell.x, gridCell.y, gridCell.z);
         ImGui::Separator();
         ImGui::Text("Orientation:");
