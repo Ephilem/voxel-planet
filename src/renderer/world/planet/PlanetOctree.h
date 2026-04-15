@@ -5,11 +5,6 @@
 
 #include "core/math/aabb.h"
 
-enum class CubeFace : uint8_t {
-    PosX = 0, NegX = 1,
-    PosY = 2, NegY = 3,
-    PosZ = 4, NegZ = 5,
-};
 
 struct PlanetOctreeNode {
     glm::vec3 center;

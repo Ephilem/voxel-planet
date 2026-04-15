@@ -4,6 +4,7 @@
 #include <array>
 #include "render_types.h"
 #include "world/planet/PlanetOctree.h"
+#include "world/planet/PlanetQuadtree.h"
 
 #define MAX_FRAMES_IN_FLIGHT 2
 
@@ -28,17 +29,21 @@ struct Camera3d {
 };
 
 struct PlanetRenderComp {
-    PlanetOctree renderOctree = {};
-    std::array<float, 8> levelThresholds = {
-        2000.0f,
-        1000.0f,
-        500.0f,
-        250.0f,
-        125.0f,
-        60.0f,
-        30.0f,
-        15.0f
-    };
+    // PlanetOctree renderOctree = {};
+    // std::array<float, 8> levelThresholds = {
+    //     2000.0f,
+    //     1000.0f,
+    //     500.0f,
+    //     250.0f,
+    //     125.0f,
+    //     60.0f,
+    //     30.0f,
+    //     15.0f
+    // };
+
+    // One quadtree for each faces :
+    // X+, X-, Y+, Y-, Z+, Z-. Can use cubeface indices
+    std::array<vp::PlanetQuadtree, 6> quadtrees;
 };
 
 namespace voxel_chunk_mesh_state {

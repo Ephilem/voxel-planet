@@ -31,6 +31,8 @@ add_library(VoxelPlanetRenderer STATIC
         camera/camera3d_systems.h
         debug/DebugRenderModule.cpp
         debug/DebugRenderModule.h
+        world/planet/PlanetQuadtree.cpp
+        world/planet/PlanetQuadtree.h
 )
 
 add_library(VoxelPlanet::Renderer ALIAS VoxelPlanetRenderer)
