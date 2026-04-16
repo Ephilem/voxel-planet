@@ -34,9 +34,11 @@ void PlanetRenderModule::register_systems(flecs::world &ecs) {
                 // We know that the camera is always in 0 0 0, it is his space. Because we know the transform from  0 0 0 to the center of the planet, we can use that as the camera position in the planet's local space
                 glm::vec3 camPos = -position;
 
-                renderComp.quadtrees[0].build(planet.radius, camPos, CubeFace::PosX, 6, 1000.0f);
+                for (int i = 0; i < 6; i++) {
+                    renderComp.quadtrees[i].build(planet.radius, camPos, static_cast<CubeFace>(i), 6, 4.0f);
+                    renderComp.quadtrees[i].debug_viz(position);
+                }
 
-                renderComp.quadtrees[0].debug_viz(position);
 
                 // auto nodes = renderComp.renderOctree.get_nodes();
                 // for (const auto &node: nodes) {

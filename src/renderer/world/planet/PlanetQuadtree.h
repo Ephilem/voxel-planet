@@ -25,20 +25,22 @@ namespace vp {
 
     class PlanetQuadtree {
     public:
-        void build(float planetRadius, const glm::vec3& cameraPos, CubeFace face, int crustDepth, float splitThreshold);
+        void build(float planetRadius, const glm::vec3& cameraPos, CubeFace face, int crustDepth, float splitFactor);
 
         void debug_viz(glm::vec3 planetWorldPos) {
             if (m_nodes.empty()) return;
             debug_viz(m_nodes[0], planetWorldPos);
         }
 
-        glm::vec3 node_to_sphere(const PlanetQuadtreeNode& node, float planetRadius) const;
+        glm::vec3 node_to_sphere(const glm::vec2 &pos, float planetRadius) const;
 
     private:
         std::vector<PlanetQuadtreeNode> m_nodes;
-        uint8_t m_maxDepth = 2;
+        uint8_t m_maxDepth = 16;
         CubeFace m_face = CubeFace::PosY;
         float m_planetRadius = 0.0f;
+        glm::vec3 m_cameraPos = glm::vec3(0.0f, 0.0f, 0.0f);
+        float m_splitFactor = 0.0f;
 
         void debug_viz(PlanetQuadtreeNode &node, glm::vec3 planetWorldPos);
         void subdivide(int32_t nodeIndex);
