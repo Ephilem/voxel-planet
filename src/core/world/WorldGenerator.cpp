@@ -1,5 +1,6 @@
 #include "WorldGenerator.h"
 
+#include "planet/planet_utils.h"
 #include "core/TracyIntegration.h"
 #include "core/resource/asset_id.h"
 
@@ -152,6 +153,36 @@ bool WorldGenerator::generate_chunk(VoxelChunk &chunk, glm::ivec3 chunkPosition)
         }
     }
 
+
+    return hasContent;
+}
+
+bool WorldGenerator::generate_planet_chunk(VoxelChunk &chunk, PlanetChunkCoord coord, const PlanetComp &planet) {
+    bool hasContent = false;
+
+    chunk.textureIDs["voxelplanet:textures/grass"_asset] = 1;
+
+    for (int x = 0; x < CHUNK_SIZE; x++) {
+        for (int y = 0; y < CHUNK_SIZE; y++) {
+            for (int z = 0; z < CHUNK_SIZE; z++) {
+                PlanetChunkCoord voxelCoord = coord;
+                glm::dvec3 chunkOrigin = planet_chunk_to_world(coord, planet.radius);
+                glm::dvec3 worldPos = chunkOrigin + glm::dvec3(x, y, z);
+
+                float dist = (float) glm::length(worldPos);
+                float noise = 0.0f;
+                float density = planet.radius - dist + noise;
+
+                ChunkBlockInfo info{};
+                if (density > 0.0f) {
+                    info.localTextureID = 1;
+                    info.height = 15;
+                    hasContent = true;
+                }
+                chunk.set(x, y, z, info);
+            }
+        }
+    }
 
     return hasContent;
 }

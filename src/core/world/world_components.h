@@ -7,11 +7,7 @@
 
 #include "core/math/aabb.h"
 #include "core/resource/asset_id.h"
-
-struct PlanetComp {
-    // world unit (meter)
-    float radius = 6371.0f;
-};
+#include "renderer/world/planet/PlanetQuadtree.h"
 
 /////////////////////
 /// Chunks related components
