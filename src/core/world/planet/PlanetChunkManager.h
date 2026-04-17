@@ -1,16 +1,8 @@
-//
-// Created by raph on 16/04/2026.
-//
-
-#ifndef VOXELPLANET_PLANETCHUNKMANAGER_H
-#define VOXELPLANET_PLANETCHUNKMANAGER_H
+#pragma once
 
 namespace vp {
 
-class PlanetChunkManager {
+    class PlanetChunkManager {
 
-};
-
-} // vp
-
-#endif //VOXELPLANET_PLANETCHUNKMANAGER_H
+    };
+}
