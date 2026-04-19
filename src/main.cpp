@@ -12,6 +12,7 @@
 #include "core/debug/DebugDraw.h"
 #include "core/physics/physics_components.h"
 #include "core/world/world_components.h"
+#include "core/world/planet/planet_components.h"
 #include "core/world/spatial/spatial_components.h"
 #include "renderer/rendering_components.h"
 
@@ -43,14 +44,16 @@ int main() {
             });
 
         auto worldGrid = ecs->entity("WorldGrid")
-            .set<Grid>({ .cellSize = 10'000.0 });
+            .set<Grid>({ .cellSize = 100'000.0 });
 
-        ecs->entity("Earth")
+        auto earth = ecs->entity("Earth")
             .child_of(worldGrid)
-            .set<PlanetComp>({ .radius = 637100.0f })
+            .set<vp::PlanetComp>({ .radius = 637100.0f })
+            .set<vp::PlanetGenerationConfig>({ .radius = 637100.0f})
+            .set<Grid>({ .cellSize = 10'000.0 })
             .set<PlanetRenderComp>({})
             .set<GlobalTransform>({})
-            .set<CellCoord>({70, 1, 0})
+            .set<CellCoord>({35, 0, 0})
             .set<Transform>({});
 
         ecs->entity("Player")
@@ -70,7 +73,9 @@ int main() {
             .set<GlobalTransform>({})
             .set<Transform>({})
 
-            .child_of(worldGrid);
+            .set<ChunkLoader>({})
+
+            .child_of(earth);
 
         ecs->app()
           .target_fps(99999)

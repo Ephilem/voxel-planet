@@ -5,6 +5,7 @@
 #include "PlanetRenderModule.h"
 
 #include "core/debug/DebugDraw.h"
+#include "core/world/planet/planet_components.h"
 #include "core/world/spatial/spatial_components.h"
 
 using namespace vp;
@@ -35,7 +36,7 @@ void PlanetRenderModule::register_systems(flecs::world &ecs) {
                 glm::vec3 camPos = -position;
 
                 for (int i = 0; i < 6; i++) {
-                    renderComp.quadtrees[i].build(planet.radius, camPos, static_cast<CubeFace>(i), 6, 4.0f);
+                    renderComp.quadtrees[i].build(planet.radius, camPos, static_cast<CubeFace>(i), 6, 2.0f);
                     renderComp.quadtrees[i].debug_viz(position);
                 }
 

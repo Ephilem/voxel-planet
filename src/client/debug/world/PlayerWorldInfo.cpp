@@ -8,6 +8,7 @@
 #include "core/TracyIntegration.h"
 #include "core/physics/physics_components.h"
 #include "core/world/spatial/spatial_components.h"
+#include "core/world/spatial/spatial_utils.h"
 
 void PlayerWorldInfo::pre_render() {
     ImGuiIO& io = ImGui::GetIO();
@@ -23,7 +24,7 @@ void PlayerWorldInfo::render(flecs::world& ecs) {
         const glm::vec3 positionMeters = transform.pos * kMetersPerWorldUnit;
         const glm::vec3 orientationDeg = transform.rot;
 
-        const Grid* playerGrid = e.parent().get<Grid>();
+        const Grid* playerGrid = vp::get_first_ancestor_grid(e).get<Grid>();
         const glm::dvec3 inGridPosition = playerGrid
             ? glm::dvec3(transform.pos) + (gridCell * playerGrid->cellSize)
             : glm::dvec3(transform.pos);

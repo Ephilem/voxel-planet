@@ -8,6 +8,7 @@
 #include "debug/DebugDrawModule.h"
 #include "log/Logger.h"
 #include "world/ChunkManager.h"
+#include "world/planet/PlanetModule.h"
 #include "world/spatial/SpatialModule.h"
 
 using namespace vp;
@@ -35,6 +36,7 @@ void CoreModule::register_pipelines(flecs::world &ecs) {
 void CoreModule::register_submodules(flecs::world &ecs) {
     ecs.import<SpatialModule>();
     ecs.import<DebugDrawModule>();
+    // ecs.import<PlanetModule>();
 }
 
 void CoreModule::register_entities(flecs::world &ecs) {

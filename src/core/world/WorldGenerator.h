@@ -30,8 +30,6 @@ public:
      */
     bool generate_chunk(VoxelChunk &chunk, glm::ivec3 chunkPosition);
 
-    bool generate_planet_chunk(VoxelChunk &chunk, PlanetChunkCoord coord, const PlanetComp &planet);
-
     struct ColumnBounds {
         int yMax; // highest world Y that may contain terrain (exclusive)
     };
