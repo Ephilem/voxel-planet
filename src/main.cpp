@@ -30,60 +30,81 @@ int main() {
         tracy_integration::Register(*ecs);
 
         ecs->system("ShutdownSystem")
-            .kind(flecs::PostFrame)
-            .run([](flecs::iter& it) {
-                flecs::world world = it.world();
-                auto* gameState = world.get<GameState>();
-                if (gameState && !gameState->isRunning) {
-                    // shutdown_client(world);
-                    // vp::shutdown_renderer(world);
-                    // shutdown_platform(world);
-                    // vp::shutdown_core(world);
-                    world.quit();
-                }
-            });
+                .kind(flecs::PostFrame)
+                .run([](flecs::iter &it) {
+                    flecs::world world = it.world();
+                    auto* gameState = world.get<GameState>();
+                    if (gameState && !gameState->isRunning) {
+                        world.quit();
+                    }
+                });
 
         auto worldGrid = ecs->entity("WorldGrid")
-            .set<Grid>({ .cellSize = 100'000.0 });
+                .set<Grid>({.cellSize = 100'000.0});
 
         auto earth = ecs->entity("Earth")
-            .child_of(worldGrid)
-            .set<vp::PlanetComp>({ .radius = 637100.0f })
-            .set<vp::PlanetGenerationConfig>({ .radius = 637100.0f})
-            .set<Grid>({ .cellSize = 10'000.0 })
-            .set<PlanetRenderComp>({})
-            .set<GlobalTransform>({})
-            .set<CellCoord>({35, 0, 0})
-            .set<Transform>({});
+                .child_of(worldGrid)
+                .set<vp::PlanetComp>({.radius = 637100.0f})
+                .set<vp::PlanetGenerationConfig>({.radius = 637100.0f})
+                .set<Grid>({.cellSize = 10'000.0})
+                .set<PlanetRenderComp>({})
+
+                .set<GlobalTransform>({})
+                .set<CellCoord>({35, 0, 0})
+                .set<Transform>({});
 
         ecs->entity("Player")
-            .set<Camera3d>({})
-            .set<Camera3dParameters>({
-                .fov = 80.0f
-            })
+                .set<Camera3d>({})
+                .set<Camera3dParameters>({
+                    .fov = 80.0f
+                })
 
-            .set<PlayerController>({})
-            .add<Player>()
-            .add<FloatingOrigin>()
+                .set<PlayerController>({})
+                .add<Player>()
+                .add<FloatingOrigin>()
 
-            .set<RigidBody>({})
-            .set<Velocity>({})
+                .set<RigidBody>({})
+                .set<Velocity>({})
 
-            .set<CellCoord>({0, 0, 0})
-            .set<GlobalTransform>({})
-            .set<Transform>({})
+                .set<CellCoord>({0, 0, 0})
+                .set<GlobalTransform>({})
+                .set<Transform>({})
 
-            .set<ChunkLoader>({})
+                .set<ChunkLoader>({})
 
-            .child_of(earth);
+                .child_of(earth);
+
+        ecs->system<const Grid>("GridOrigin")
+                .kind(flecs::PreStore)
+                .each([](flecs::entity e, const Grid &grid) {
+                    glm::vec3 pos;
+
+                    if (const auto* gt = e.get<GlobalTransform>()) {
+                        pos = gt->pos;
+                    } else {
+                        const glm::dvec3 originRender =
+                                -(glm::dvec3(grid.localOrigin.cell) * grid.cellSize
+                                  + glm::dvec3(grid.localOrigin.translation));
+                        pos = glm::vec3(glm::normalize(originRender) * 100.0);
+                    }
+                    static constexpr glm::vec4 COLORS[] = {
+                        {1.0f, 0.0f, 0.0f, 1.0f},
+                        {0.0f, 1.0f, 0.0f, 1.0f},
+                        {0.0f, 0.0f, 1.0f, 1.0f},
+                        {1.0f, 1.0f, 0.0f, 1.0f},
+                        {1.0f, 0.0f, 1.0f, 1.0f},
+                        {0.0f, 1.0f, 1.0f, 1.0f}
+                    };
+
+                    vp::DebugDraw::Point(pos, COLORS[e.id() % 6]);
+                });
 
         ecs->app()
-          .target_fps(99999)
-          .enable_stats()
-          .enable_rest()
-          .run();
-
-    } catch (const std::exception& e) {
+                .target_fps(99999)
+                .enable_stats()
+                .enable_rest()
+                .run();
+    } catch (const std::exception &e) {
         std::cerr << "Fatal error: " << e.what() << std::endl;
         return -1;
     }

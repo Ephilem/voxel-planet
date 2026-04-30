@@ -24,6 +24,4 @@ namespace vp {
         LOG_FATAL("Spatial", "A entity with a CellCoord or other spatial specifics component MUST be child of a grid. No ancestor with Grid component found for entity {}", e.id());
         std::abort();
     }
-
-
 }

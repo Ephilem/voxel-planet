@@ -6,6 +6,7 @@
 
 #include "planet_components.h"
 #include "core/world/world_components.h"
+#include "core/world/spatial/spatial_components.h"
 
 namespace vp {
 
@@ -34,8 +35,10 @@ namespace vp {
          * @param e The entity chunk loader
          * @param planet the planet where he load chunk (generally his parent
          * @param loader the loader configuration
+         * @param cell
+         * @param trs
          */
-        void system_update_chunks(flecs::entity e, flecs::entity planet, const ChunkLoader &loader);
+        void system_update_chunks(flecs::entity e, flecs::entity planet, const ChunkLoader &loader, const CellCoord& cell, const Transform& trs);
 
         void system_poll_results(flecs::entity ePlanet);
 
