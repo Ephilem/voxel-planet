@@ -36,7 +36,7 @@ void CoreModule::register_pipelines(flecs::world &ecs) {
 void CoreModule::register_submodules(flecs::world &ecs) {
     ecs.import<SpatialModule>();
     ecs.import<DebugDrawModule>();
-    // ecs.import<PlanetModule>();
+    ecs.import<PlanetModule>();
 }
 
 void CoreModule::register_entities(flecs::world &ecs) {

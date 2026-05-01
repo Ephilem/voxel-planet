@@ -50,7 +50,7 @@ int main() {
                 .set<PlanetRenderComp>({})
 
                 .set<GlobalTransform>({})
-                .set<CellCoord>({35, 0, 0})
+                .set<CellCoord>({7, 0, 0})
                 .set<Transform>({});
 
         ecs->entity("Player")
@@ -66,7 +66,7 @@ int main() {
                 .set<RigidBody>({})
                 .set<Velocity>({})
 
-                .set<CellCoord>({0, 0, 0})
+                .set<CellCoord>({0, 64, 0})
                 .set<GlobalTransform>({})
                 .set<Transform>({})
 

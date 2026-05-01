@@ -89,7 +89,7 @@ float PlanetWorldGenerator::sample_terrain_height(const glm::dvec3 &dir, const P
 }
 
 void PlanetWorldGenerator::check_noise_generator(const PlanetGenerationConfig &config) {
-    if (config == m_cachedConfig) return;
+    if (m_terrainNoise != nullptr && config == m_cachedConfig) return;
     m_terrainNoise = create_noise_generator(config);
     m_cachedConfig = config;
 }

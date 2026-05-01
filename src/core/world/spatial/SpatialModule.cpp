@@ -42,7 +42,6 @@ void vp::SpatialModule::register_components(flecs::world &ecs) {
 }
 
 void vp::SpatialModule::register_systems(flecs::world &ecs) {
-    // -- Transform propagation --
     ecs.system("SpatialModule-GridNormalize")
             .with<CellCoord>() // [0]
             .with<Transform>() // [1]
@@ -131,7 +130,7 @@ void vp::SpatialModule::register_systems(flecs::world &ecs) {
                     Grid *parentGrid = parentGridEntity.get_mut<Grid>();
 
                     const glm::dvec3 posLfoInParent =
-                            glm::dvec3(*childCell) * childGrid->cellSize + glm::dvec3(childTransform->pos)
+                            glm::dvec3(*childCell) * parentGrid->cellSize + glm::dvec3(childTransform->pos)
                             + glm::dvec3(childLfo.cell) * childGrid->cellSize + glm::dvec3(childLfo.translation);
 
                     const int64_t cx = (int64_t) std::floor(posLfoInParent.x / parentGrid->cellSize);

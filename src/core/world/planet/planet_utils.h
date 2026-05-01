@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 
 #include "planet_components.h"
+#include "core/world/world_components.h"
 #include "renderer/world/planet/PlanetQuadtree.h"
 
 namespace vp {
@@ -36,7 +37,7 @@ namespace vp {
      * @param radius Planet radius in world units (meters)
      * @return Planet-relative world position of the chunk origin
      */
-    inline glm::dvec3 planet_chunk_to_world(const vp::PlanetChunkCoord &c, double radius) {
+    inline glm::dvec3 planet_chunk_to_world(const PlanetChunkCoord &c, double radius) {
         double u = c.x * CHUNK_SIZE / radius;
         double v = c.y * CHUNK_SIZE / radius;
         glm::dvec3 cubeDir = face_to_cube_dir(c.face, u, v);

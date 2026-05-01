@@ -26,6 +26,9 @@ namespace vp {
 
     class PlanetChunkGenerator {
     public:
+        PlanetChunkGenerator();
+        ~PlanetChunkGenerator();
+
         void enqueue(const ChunkGenInput& input);
         void enqueues(const ChunkGenInput* inputs, size_t count);
 

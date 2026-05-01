@@ -5,11 +5,30 @@
 #include "PlanetChunkGenerator.h"
 
 #include "PlanetWorldGenerator.h"
+#include "core/log/Logger.h"
 
 using namespace vp;
 
+PlanetChunkGenerator::PlanetChunkGenerator() {
+    size_t threadCount = std::thread::hardware_concurrency()/2;
+    m_generationWorkerResults.reserve(threadCount);
+    for (size_t i = 0; i < threadCount; i++) {
+        m_generationWorkerResults.push_back(std::make_unique<GenerationWorkerResult>());
+        m_generationThreads.emplace_back(&PlanetChunkGenerator::worker_loop, this, i);
+    }
+    LOG_TRACE("PlanetChunkGenerator", "Started {} generation worker threads", threadCount);
+}
+
+PlanetChunkGenerator::~PlanetChunkGenerator() {
+    m_stopGeneration = true;
+    for (auto& thread : m_generationThreads) {
+        thread.join();
+    }
+    LOG_TRACE("PlanetChunkGenerator", "All generation worker threads stopped");
+}
+
 void PlanetChunkGenerator::enqueue(const ChunkGenInput &input) {
-    throw std::runtime_error("Not implemented");
+    enqueues(&input, 1);
 }
 
 void PlanetChunkGenerator::enqueues(const ChunkGenInput *inputs, size_t count) {
