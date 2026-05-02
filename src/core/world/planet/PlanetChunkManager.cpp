@@ -72,7 +72,7 @@ void PlanetChunkManager::init(flecs::world &ecs) {
         .each([this](flecs::entity e, const ChunkLoader& loader, const CellCoord& cell, const Transform& trs) {
             auto planet = e.parent();
             if (planet.is_valid()) {
-                system_process_unload(planet, loader, cell, trs);
+                // system_process_unload(planet, loader, cell, trs);
             }
         });
 
@@ -117,23 +117,32 @@ void PlanetChunkManager::system_update_chunks(flecs::entity e, flecs::entity pla
     };
 
 
+    PlanetRuntime& runtime = m_planets.at(planet);
+
     ImGui::Text("Planet: %s", planet.name().c_str());
     ImGui::Text("Loader Pos: (%.2f, %.2f, %.2f)", loaderPos.x, loaderPos.y, loaderPos.z);
     ImGui::Separator();
     ImGui::Text("Current Face: %d", static_cast<int>(currentFace));
     ImGui::Text("Pos on Face: (%.9f, %.9f)", posOnFace.x, posOnFace.y);
     ImGui::Text("Chunk Coord: (face=%d, u=%d, v=%d, alt=%d)", chunkCoord.face, chunkCoord.x, chunkCoord.y, chunkCoord.altitude);
+    ImGui::Separator();
+    // runtime stats
+    ImGui::Text("Loaded Chunks: %d", static_cast<int>(runtime.loadedChunks.size()));
+    ImGui::Text("Loading Chunks: %d", static_cast<int>(runtime.loadingChunks.size()));
+    ImGui::Text("Empty Chunks: %d", static_cast<int>(runtime.emptyChunks.size()));
+    ImGui::Text("Candidate Chunks in Heap: %d", static_cast<int>(runtime.candidateHeapChunks.size()));
 
-    if (!ImGui::Button("Update")) {
-        ImGui::End();
-        return;
-    }
+    // if (!ImGui::Button("Update")) {
+        // ImGui::End();
+        // return;
+    // }
     ImGui::End();
 
     // test if the player changed of chunks
     if (loader.has_visited() && glm::ivec3(chunkCoord.x, chunkCoord.y, chunkCoord.altitude) == loader.lastVisitedChunk) {
         return;
     }
+    VOXEL_MESSAGE("Player moved to new chunk");
     loader.lastVisitedChunk = glm::ivec3(chunkCoord.x, chunkCoord.y, chunkCoord.altitude);
 
     if (!m_planets.contains(planet)) {
@@ -141,20 +150,18 @@ void PlanetChunkManager::system_update_chunks(flecs::entity e, flecs::entity pla
         return;
     }
 
-    PlanetRuntime& runtime = m_planets.at(planet);
-
     // 3. scan all chunks
     std::vector<ChunkCanditate> candidates = {};
     int loaderRadius = loader.loadRadius;
     for (int x = -loaderRadius; x <= loaderRadius; x++) {
         for (int y = -loaderRadius; y <= loaderRadius; y++) {
-            for (int alt = -0; alt <= 0; alt++) {
+            for (int alt = -loaderRadius; alt <= loaderRadius; alt++) {
                 PlanetChunkCoord c = chunkCoord;
                 c.x += x;
                 c.y += y;
                 c.altitude += alt;
 
-                if (runtime.is_chunk_loading(c) || runtime.is_chunk_processed(c)) return;
+                if (runtime.is_chunk_loading(c) || runtime.is_chunk_processed(c)) continue;
 
                 candidates.push_back({
                     .coord = c,
@@ -246,9 +253,6 @@ void PlanetChunkManager::system_poll_results() {
             .set<VoxelChunk>(std::move(result.chunk));
 
         runtime.loadedChunks[result.coord] = chunk;
-
-        LOG_TRACE("PlanetChunkManager", "Chunk created (face={} x={} y={} alt={})",
-                  static_cast<int>(result.coord.face), result.coord.x, result.coord.y, result.coord.altitude);
     }
 }
 

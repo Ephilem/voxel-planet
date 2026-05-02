@@ -91,38 +91,6 @@ void RendererModule::register_systems(flecs::world &ecs) {
             }
         });
 
-    /*ecs.system<const VoxelChunk, const ChunkCoordinate>("InitializeChunkMeshSystem")
-        .kind(flecs::OnUpdate)
-        .without<VoxelChunkMesh>()
-        .each([](flecs::entity e, const VoxelChunk& chunk, const ChunkCoordinate& coord) {
-            VOXEL_ZONE_N("Initialize Chunk in Renderer");
-            e.set<VoxelChunkMesh>({})
-             .add<VoxelChunkMeshState, voxel_chunk_mesh_state::WaitingForNeighbors>();
-
-            const auto* chunkManager = e.world().get<ChunkManager>();
-            if (!chunkManager) return;
-
-            static constexpr std::array<glm::ivec3, 6> neighborOffsets = {{
-                {1, 0, 0}, {-1, 0, 0},
-                {0, 1, 0}, {0, -1, 0},
-                {0, 0, 1}, {0, 0, -1}
-            }};
-
-            for (const auto& offset : neighborOffsets) {
-                glm::ivec3 neighborPos = glm::ivec3(coord) + offset;
-                flecs::entity neighbor = chunkManager->get_chunk_entity(neighborPos);
-                if (neighbor == flecs::entity::null() || !neighbor.has<VoxelChunkMesh>()) continue;
-
-                if (neighbor.has<VoxelChunkMeshState, voxel_chunk_mesh_state::WaitingForNeighbors>()) {
-                    if (chunkManager->can_mesh(neighborPos)) {
-                        neighbor.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
-                    }
-                } else {
-                    neighbor.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
-                }
-            }
-    });*/
-
     ecs.system<Renderer>("EndFrameSystem")
         .kind(flecs::PostFrame)
         .each([](flecs::entity e, Renderer& renderer) {

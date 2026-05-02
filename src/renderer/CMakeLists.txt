@@ -33,6 +33,10 @@ add_library(VoxelPlanetRenderer STATIC
         debug/DebugRenderModule.h
         world/planet/PlanetQuadtree.cpp
         world/planet/PlanetQuadtree.h
+        world/planet/PlanetSurfaceTerrainRenderer.cpp
+        world/planet/PlanetSurfaceTerrainRenderer.h
+        world/planet/PlanetChunkMesher.cpp
+        world/planet/PlanetChunkMesher.h
 )
 
 add_library(VoxelPlanet::Renderer ALIAS VoxelPlanetRenderer)

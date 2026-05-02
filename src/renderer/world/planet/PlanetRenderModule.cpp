@@ -4,6 +4,7 @@
 
 #include "PlanetRenderModule.h"
 
+#include "PlanetSurfaceTerrainRenderer.h"
 #include "core/debug/DebugDraw.h"
 #include "core/world/planet/planet_components.h"
 #include "core/world/spatial/spatial_components.h"
@@ -23,6 +24,9 @@ static constexpr glm::vec4 OCTREE_NODE_COLORS[] = {
 
 void PlanetRenderModule::register_components(flecs::world &ecs) {
     ecs.component<PlanetRenderComp>();
+    ecs.component<VoxelChunkMesh>();
+    ecs.component<VoxelChunkMeshState>()
+            .add(flecs::Exclusive);
 }
 
 void PlanetRenderModule::register_systems(flecs::world &ecs) {
@@ -63,4 +67,5 @@ void PlanetRenderModule::register_submodules(flecs::world &ecs) {
 }
 
 void PlanetRenderModule::register_entities(flecs::world &ecs) {
+    PlanetSurfaceTerrainRenderer::Register(ecs);
 }

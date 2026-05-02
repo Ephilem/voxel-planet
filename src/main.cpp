@@ -70,7 +70,10 @@ int main() {
                 .set<GlobalTransform>({})
                 .set<Transform>({})
 
-                .set<ChunkLoader>({})
+                .set<ChunkLoader>({
+                    .loadRadius = 3,
+                    .unloadRadius = 4
+                })
 
                 .child_of(earth);
 

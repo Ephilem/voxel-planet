@@ -53,6 +53,7 @@ void VoxelBuffer::init() {
             .setByteSize(sizeof(VoxelChunkCullData) * maxSlots)
             .setDebugName("VoxelBuffer Chunk Cull Data Buffer")
             .setStructStride(sizeof(VoxelChunkCullData))
+            .setIsDrawIndirectArgs(true) // TODO to remove when readding culling. this allow to be readed directly with a vkDrawIndirect.
             .setInitialState(nvrhi::ResourceStates::ShaderResource)
             .setKeepInitialState(true);
     m_chunkCullDataBuffer = m_backend->device->createBuffer(cullDataDesc);

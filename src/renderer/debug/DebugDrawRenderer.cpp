@@ -136,7 +136,7 @@ void DebugDrawRenderer::render_lines(nvrhi::CommandListHandle cmd, Camera3d &cam
             .setPipeline(m_linePipeline)
             .setFramebuffer(m_backend->get_current_framebuffer())
             .setViewport(nvrhi::ViewportState()
-                .addViewportAndScissorRect(nvrhi::Viewport(extent.width, extent.height)))
+                .addViewportAndScissorRect(nvrhi::Viewport(0.f, extent.width, 0.f,  extent.height, 0.f, 1.f)))
             .addVertexBuffer({m_lineBuffer, 0, 0});
     cmd->setGraphicsState(state);
 
@@ -162,7 +162,7 @@ void DebugDrawRenderer::render_points(nvrhi::CommandListHandle cmd, Camera3d &ca
             .setPipeline(m_pointPipeline)
             .setFramebuffer(m_backend->get_current_framebuffer())
             .setViewport(nvrhi::ViewportState()
-                .addViewportAndScissorRect(nvrhi::Viewport(extent.width, extent.height)))
+                .addViewportAndScissorRect(nvrhi::Viewport(0.f, extent.width, 0.f,  extent.height, 0.f, 1.f)))
             .addVertexBuffer({m_pointBuffer, 0, 0});
     cmd->setGraphicsState(state);
 

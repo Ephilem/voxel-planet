@@ -5,11 +5,22 @@ layout(location = 1) in vec2 fragUV;
 layout(location = 2) flat in uint fragTextureSlot;
 layout(location = 3) flat in vec3 fragNormal;
 layout(location = 4) flat in vec3 debugFragLocalPos;
+layout(location = 5) in float v_clip_w;
 
 layout(location = 0) out vec4 fragColor;
 
 layout(set = 3, binding = 0) uniform texture2DArray voxelTextures;
 layout(set = 3, binding = 1) uniform sampler voxelSampler;
+
+layout(set = 0, binding = 0) uniform PlanetSurfaceUBO {
+    mat4  view;
+    mat4  projection;
+    vec3  foPositionInPlanet; // floating origin position in planet-relative coords (float precision)
+    float planetRadius;
+    float farPlane;
+
+    float _padding[3];
+} ubo;
 
 void main() {
     vec3 texCoord = vec3(fragUV, float(fragTextureSlot));
@@ -32,6 +43,7 @@ void main() {
 //    }
 
     fragColor = vec4(finalColor, texColor.a);
+    gl_FragDepth = log2(max(1e-6, 1.0 + v_clip_w)) / log2(1.0 + ubo.farPlane);
 
     // fragcolor depend of the normal direction
 //    fragColor = vec4(normal * 0.5 + 0.5, 1.0);

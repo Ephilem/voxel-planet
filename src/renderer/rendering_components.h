@@ -78,7 +78,7 @@ struct VoxelChunkMesh {
     // CPU side info
     std::vector<TerrainFace3d> faces;
 
-    uint32_t faceCount = 0;
+    size_t faceCount = 0;
 
     // Incremented each time a new mesh task is dispatched.
     // Used to discard results from stale (superseded) tasks.
