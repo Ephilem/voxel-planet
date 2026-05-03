@@ -138,6 +138,8 @@ void PlanetChunkManager::system_update_chunks(flecs::entity e, flecs::entity pla
     // }
     ImGui::End();
 
+    if (chunkCoord.altitude < -10 || chunkCoord.altitude > 20) return;
+
     // test if the player changed of chunks
     if (loader.has_visited() && glm::ivec3(chunkCoord.x, chunkCoord.y, chunkCoord.altitude) == loader.lastVisitedChunk) {
         return;

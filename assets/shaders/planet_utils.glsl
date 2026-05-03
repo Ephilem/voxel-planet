@@ -33,8 +33,8 @@ vec3 planet__chunk_origin(int face, int cx, int cy, int altitude, float radius) 
 // The chunk's local Z axis (altitude axis) aligns with 'up'.
 void planet__chunk_rotation(vec3 up, out vec3 right, out vec3 forward) {
     vec3 ref = (abs(dot(up, vec3(0.0, 1.0, 0.0))) > 0.99) ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
-    right = normalize(cross(up, ref));
-    forward = normalize(cross(right, up));
+    right   = normalize(cross(ref, up));
+    forward = normalize(cross(up, right));
 }
 
 // local voxel position -> world position relative to planet center.

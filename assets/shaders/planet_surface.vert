@@ -6,7 +6,7 @@ layout(location = 0) out vec3 fragWorldPos;
 layout(location = 1) out vec2 fragUV;
 layout(location = 2) flat out uint fragTextureSlot;
 layout(location = 3) flat out vec3 fragNormal;
-layout(location = 4) out vec3 debugFragLocalPos;
+layout(location = 4) flat out vec3 debugFragLocalPos;
 layout(location = 5) out float v_clip_w;
 
 // Set 0: per-frame data
@@ -39,12 +39,18 @@ layout(set = 2, binding = 0, std430) readonly buffer FaceBuffer {
 
 // Same quad tables as simple.vert
 const vec3 QUAD_CORNERS[6][4] = {
-    {vec3(0,1,0), vec3(0,1,1), vec3(0,0,1), vec3(0,0,0)},
-    {vec3(1,0,1), vec3(1,1,1), vec3(1,1,0), vec3(1,0,0)},
-    {vec3(0,0,1), vec3(1,0,1), vec3(1,0,0), vec3(0,0,0)},
-    {vec3(1,1,0), vec3(1,1,1), vec3(0,1,1), vec3(0,1,0)},
-    {vec3(1,0,0), vec3(1,1,0), vec3(0,1,0), vec3(0,0,0)},
-    {vec3(0,1,1), vec3(1,1,1), vec3(1,0,1), vec3(0,0,1)}
+    // Face 0: -X
+    {vec3(0, 1, 0), vec3(0, 1, 1), vec3(0, 0, 1), vec3(0, 0, 0)},
+    // Face 1: +X
+    {vec3(1, 0, 1), vec3(1, 1, 1), vec3(1, 1, 0), vec3(1, 0, 0)},
+    // Face 2: -Y
+    {vec3(0, 0, 1), vec3(1, 0, 1), vec3(1, 0, 0), vec3(0, 0, 0)},
+    // Face 3: +Y
+    {vec3(1, 1, 0), vec3(1, 1, 1), vec3(0, 1, 1), vec3(0, 1, 0)},
+    // Face 4: -Z
+    {vec3(1, 0, 0), vec3(1, 1, 0), vec3(0, 1, 0), vec3(0, 0, 0)},
+    // Face 5: +Z
+    {vec3(0, 1, 1), vec3(1, 1, 1), vec3(1, 0, 1), vec3(0, 0, 1)}
 };
 const vec2 QUAD_UVS[4] = {vec2(0,0), vec2(1,0), vec2(1,1), vec2(0,1)};
 const uint QUAD_INDICES[6] = uint[6](0, 1, 2, 0, 2, 3);
@@ -58,9 +64,10 @@ void main() {
 
     TerrainFace3d face = faceBuffer.faces[faceIndex];
 
+    // packed1: x:5 | y:5 | z:9 | faceIndex:3 | padding:10
     uint voxelX  = (face.packed1 >> 0u)  & 0x1Fu;
-    uint voxelY  = (face.packed1 >> 5u)  & 0x1FFu;
-    uint voxelZ  = (face.packed1 >> 14u) & 0x1Fu;
+    uint voxelY  = (face.packed1 >> 5u)  & 0x1Fu;
+    uint voxelZ  = (face.packed1 >> 10u) & 0x1FFu;
     uint faceDir = (face.packed1 >> 19u) & 0x7u;
     uint packedWidth  = (face.packed2 >> 0u)  & 0x1FFu;
     uint packedHeight = (face.packed2 >> 9u)  & 0x1FFu;
@@ -69,13 +76,15 @@ void main() {
     float faceWidth  = float(packedWidth  + 1u) / 16.0;
     float faceHeight = float(packedHeight + 1u) / 16.0;
 
-    vec3 voxelPos    = vec3(float(voxelX), float(voxelY) / 16.0, float(voxelZ));
+    // localPos: X=right, Y=forward, Z=altitude (up). Z is in sub-voxel units.
+    vec3 voxelPos    = vec3(float(voxelX), float(voxelY), float(voxelZ) / 16.0);
     vec3 cornerOffset = QUAD_CORNERS[faceDir][cornerIndex];
 
     ivec2 scaleAxes = FACE_SCALE_AXES[faceDir];
     cornerOffset[scaleAxes.x] *= faceWidth;
     cornerOffset[scaleAxes.y] *= faceHeight;
-    if (faceDir == 3u) cornerOffset.y /= 16.0;
+    // +Z face (faceDir==5): the z corner offset is in sub-voxel space already via voxelZ encoding
+    if (faceDir == 5u) cornerOffset.z /= 16.0;
 
     vec3 localPos = voxelPos + cornerOffset;
     debugFragLocalPos = localPos;

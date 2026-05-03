@@ -68,7 +68,9 @@ int main() {
 
                 .set<CellCoord>({0, 64, 0})
                 .set<GlobalTransform>({})
-                .set<Transform>({})
+                .set<Transform>({
+                    .pos = { 0.f, -2750.f, 0.f }
+                })
 
                 .set<ChunkLoader>({
                     .loadRadius = 3,

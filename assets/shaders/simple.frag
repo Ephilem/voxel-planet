@@ -45,6 +45,7 @@ void main() {
     fragColor = vec4(finalColor, texColor.a);
     gl_FragDepth = log2(max(1e-6, 1.0 + v_clip_w)) / log2(1.0 + ubo.farPlane);
 
+
     // fragcolor depend of the normal direction
 //    fragColor = vec4(normal * 0.5 + 0.5, 1.0);
 }
