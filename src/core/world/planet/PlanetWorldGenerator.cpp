@@ -24,13 +24,15 @@ bool PlanetWorldGenerator::generate_planet_chunk(VoxelChunk &chunk, PlanetChunkC
 
     for (int lx = 0; lx < CHUNK_SIZE; ++lx) {
         for (int lz = 0; lz < CHUNK_SIZE; ++lz) {
-            double u = static_cast<double>(coord.x * CHUNK_SIZE + lx) / planetRadius;
-            double v = static_cast<double>(coord.y * CHUNK_SIZE + lz) / planetRadius;
+            double u = (coord.x * CHUNK_SIZE + lx) / planetRadius;
+            double v = (coord.y * CHUNK_SIZE + lz) / planetRadius;
             glm::dvec3 dir = glm::normalize(face_to_cube_dir(coord.face, u, v));
+
+            double stretch = glm::length(glm::dvec3(u, v, 1.0)); // sqrt(u² + v² + 1)
             int idx = lx + lz * CHUNK_SIZE;
-            noiseInputX[idx] = static_cast<float>(dir.x) * config.frequency;
-            noiseInputY[idx] = static_cast<float>(dir.y) * config.frequency;
-            noiseInputZ[idx] = static_cast<float>(dir.z) * config.frequency;
+            noiseInputX[idx] = static_cast<float>(dir.x * config.frequency * stretch);
+            noiseInputY[idx] = static_cast<float>(dir.y * config.frequency * stretch);
+            noiseInputZ[idx] = static_cast<float>(dir.z * config.frequency * stretch);
         }
     }
 
