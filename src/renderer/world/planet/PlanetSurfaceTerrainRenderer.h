@@ -23,7 +23,6 @@ namespace vp {
         glm::vec3 foPositionInPlanet;
         float planetRadius;
         float farPlane;
-        float _padding[3];
     };
 
     class PlanetSurfaceTerrainRenderer : public IRenderPass {

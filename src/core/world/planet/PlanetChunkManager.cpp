@@ -184,8 +184,8 @@ void PlanetChunkManager::system_update_chunks(flecs::entity e, flecs::entity pla
                            return a.priority > b.priority; // min-heap
                        });
     }
-    LOG_TRACE("PlanetChunkManager", "Added {} candidates to heap (total: {}) for planet {}", candidates.size(),
-              runtime.candidateHeapChunks.size(), planet.name().c_str());
+    // LOG_TRACE("PlanetChunkManager", "Added {} candidates to heap (total: {}) for planet {}", candidates.size(),
+              // runtime.candidateHeapChunks.size(), planet.name().c_str());
 }
 
 void PlanetChunkManager::system_drain_candidates(const flecs::entity planet) {
@@ -211,7 +211,7 @@ void PlanetChunkManager::system_drain_candidates(const flecs::entity planet) {
 
     if (!toEnqueue.empty()) {
         m_generator->enqueues(toEnqueue.data(), toEnqueue.size());
-        LOG_TRACE("PlanetChunkManager", "Enqueued {} chunk generation tasks for planet {}", toEnqueue.size(), planet.name().c_str());
+        // LOG_TRACE("PlanetChunkManager", "Enqueued {} chunk generation tasks for planet {}", toEnqueue.size(), planet.name().c_str());
     }
 }
 

@@ -8,7 +8,8 @@ using namespace vp;
 PlanetWorldGenerator::PlanetWorldGenerator() {
 }
 
-bool PlanetWorldGenerator::generate_planet_chunk(VoxelChunk &chunk, PlanetChunkCoord coord, const PlanetGenerationConfig &config) {
+bool PlanetWorldGenerator::generate_planet_chunk(VoxelChunk &chunk, PlanetChunkCoord coord,
+                                                 const PlanetGenerationConfig &config) {
     VOXEL_ZONE_N("Generate Planet Chunk");
     check_noise_generator(config);
     float planetRadius = config.radius;
@@ -18,98 +19,71 @@ bool PlanetWorldGenerator::generate_planet_chunk(VoxelChunk &chunk, PlanetChunkC
         {"voxelplanet:textures/cobblestone"_asset, 2}
     };
 
+    // 3D noise inputs — uses all 3 direction components to avoid stretching on any face
+    std::array<float, CHUNK_SIZE * CHUNK_SIZE> noiseInputX, noiseInputY, noiseInputZ;
+
+    for (int lx = 0; lx < CHUNK_SIZE; ++lx) {
+        for (int lz = 0; lz < CHUNK_SIZE; ++lz) {
+            double u = static_cast<double>(coord.x * CHUNK_SIZE + lx) / planetRadius;
+            double v = static_cast<double>(coord.y * CHUNK_SIZE + lz) / planetRadius;
+            glm::dvec3 dir = glm::normalize(face_to_cube_dir(coord.face, u, v));
+            int idx = lx + lz * CHUNK_SIZE;
+            noiseInputX[idx] = static_cast<float>(dir.x) * config.frequency;
+            noiseInputY[idx] = static_cast<float>(dir.y) * config.frequency;
+            noiseInputZ[idx] = static_cast<float>(dir.z) * config.frequency;
+        }
+    }
+
+    std::array<float, CHUNK_SIZE * CHUNK_SIZE> noiseOut;
+    m_terrainNoise->GenPositionArray3D(
+        noiseOut.data(),
+        CHUNK_SIZE * CHUNK_SIZE,
+        noiseInputX.data(),
+        noiseInputY.data(),
+        noiseInputZ.data(),
+        0.0f, 0.0f, 0.0f,
+        static_cast<int>(config.seed));
+
+    std::array<float, CHUNK_SIZE * CHUNK_SIZE> surfaceHeights;
+    for (int i = 0; i < CHUNK_SIZE * CHUNK_SIZE; ++i) {
+        surfaceHeights[i] = config.baseHeight + noiseOut[i] * config.heightAmplitude;
+    }
+
     bool anyVoxel = false;
+    int baseAltitudeVoxel = coord.altitude * CHUNK_SIZE;
 
-    // simpler generator. If altitude = 0, so generate a grass platform with a cobble base.
-    if (coord.altitude == 0) {
-        anyVoxel = true;
-        for (int x = 0; x < CHUNK_SIZE; ++x) {
-            for (int y = 0; y < CHUNK_SIZE; ++y) {
-                for (int z = 0; z < CHUNK_SIZE; ++z) {
-                    // skip border to test
-                    if (x == 0 || x == CHUNK_SIZE - 1 || z == 0 || z == CHUNK_SIZE - 1) continue;
+    for (int lx = 0; lx < CHUNK_SIZE; ++lx) {
+        for (int lz = 0; lz < CHUNK_SIZE; ++lz) {
+            float surfaceHeight = surfaceHeights[lx + lz * CHUNK_SIZE];
+            int surfaceHeightSub = static_cast<int>(surfaceHeight * 16.0f);
+            int surfaceBlockY = surfaceHeightSub / 16;
+            int surfaceSubHeight = surfaceHeightSub % 16;
 
-                    ChunkBlockInfo block;
-                    if (y == 0) {
-                        block.localTextureID = 2;
-                        block.height = 15;
-                    } else if (y == 1) {
-                        block.localTextureID = 1;
-                        block.height = 15;
-                    } else if (y == 2) {
-                        block.localTextureID = 1;
-                        block.height = 8;
-                    } else {
-                        continue;
-                    }
-                    chunk.set(x, y, z, block);
+            for (int ly = 0; ly < CHUNK_SIZE; ++ly) {
+                int worldY = baseAltitudeVoxel + ly;
+                ChunkBlockInfo block{};
+
+                if (worldY < surfaceBlockY - 1) {
+                    block.localTextureID = 2; // cobble
+                    block.height = 15;
+                } else if (worldY == surfaceBlockY - 1) {
+                    block.localTextureID = 1;
+                    // grass plein
+                    block.height = 15;
+                } else if (worldY == surfaceBlockY) {
+                    if (surfaceSubHeight == 0) continue;
+                    block.localTextureID = 1; // grass sub-voxel
+                    block.height = surfaceSubHeight - 1;
+                } else {
+                    continue;
                 }
+
+                chunk.set(lx, ly, lz, block);
+                anyVoxel = true;
             }
         }
     }
 
-    // std::array<glm::vec3, CHUNK_SIZE * CHUNK_SIZE> surfaceDirs;
-    // std::array<float, CHUNK_SIZE * CHUNK_SIZE> noiseInputX, noiseInputY, noiseInputZ;
-    //
-    // for (int ly = 0; ly < CHUNK_SIZE; ++ly) {
-    //     for (int lx = 0; lx < CHUNK_SIZE; ++lx) {
-    //         double u0 = static_cast<double>(coord.x * CHUNK_SIZE + lx) / planetRadius;
-    //         double v0 = static_cast<double>(coord.y * CHUNK_SIZE + ly) / planetRadius;
-    //         glm::dvec3 dir = glm::normalize(face_to_cube_dir(coord.face, u0, v0));
-    //         int idx = lx + ly * CHUNK_SIZE;
-    //         surfaceDirs[idx] = glm::vec3(dir);
-    //         noiseInputX[idx] = static_cast<float>(dir.x) * config.frequency;
-    //         noiseInputY[idx] = static_cast<float>(dir.y) * config.frequency;
-    //         noiseInputZ[idx] = static_cast<float>(dir.z) * config.frequency;
-    //     }
-    // }
-    //
-    // std::array<float, CHUNK_SIZE * CHUNK_SIZE> noiseOut;
-    // m_terrainNoise->GenPositionArray3D(
-    //     noiseOut.data(),
-    //     CHUNK_SIZE * CHUNK_SIZE,
-    //     noiseInputX.data(),
-    //     noiseInputY.data(),
-    //     noiseInputZ.data(),
-    //     0.0f, 0.0f, 0.0f,
-    //     static_cast<int>(config.seed));
-    //
-    // std::array<double, CHUNK_SIZE * CHUNK_SIZE> surfaceRadii;
-    // for (int i = 0; i < CHUNK_SIZE * CHUNK_SIZE; ++i) {
-    //     float t = (noiseOut[i] + 1.0f) * 0.5f;
-    //     float terrainHeight = config.baseHeight + t * static_cast<float>(config.heightAmplitude);
-    //     surfaceRadii[i] = static_cast<double>(planetRadius) + terrainHeight;
-    // }
-    //
-    // bool anyVoxel = false;
-    // double baseRadius = static_cast<double>(planetRadius)
-    //                     + static_cast<double>(coord.altitude) * CHUNK_SIZE;
-    //
-    // for (int lz = 0; lz < CHUNK_SIZE; ++lz) {
-    //     double voxelRadius = baseRadius + static_cast<double>(lz);
-    //
-    //     for (int ly = 0; ly < CHUNK_SIZE; ++ly) {
-    //         for (int lx = 0; lx < CHUNK_SIZE; ++lx) {
-    //             double surfaceRadius = surfaceRadii[lx + ly * CHUNK_SIZE];
-    //
-    //             if (voxelRadius > surfaceRadius) continue;
-    //
-    //             bool isTop = (voxelRadius + 1.0 > surfaceRadius);
-    //             ChunkBlockInfo block;
-    //             block.localTextureID = isTop ? 1 : 2;
-    //
-    //             if (isTop) {
-    //                 double overflow = surfaceRadius - voxelRadius;
-    //                 block.height = static_cast<uint8_t>(glm::clamp(static_cast<int>(overflow * 16.0), 1, 15));
-    //             } else {
-    //                 block.height = 15;
-    //             }
-    //
-    //             chunk.set(lx, ly, lz, block);
-    //             anyVoxel = true;
-    //         }
-    //     }
-    // }
 
     return anyVoxel;
 }

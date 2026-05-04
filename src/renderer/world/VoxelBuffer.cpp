@@ -6,6 +6,7 @@
 #include "../rendering_components.h"
 #include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
+#include "planet/PlanetSurfaceTerrainRenderer.h"
 #include "renderer/TracyVulkanIntegration.h"
 
 VoxelBuffer::VoxelBuffer(VulkanBackend* backend) {
@@ -43,12 +44,12 @@ void VoxelBuffer::init() {
             .setDebugName("VoxelBuffer OUB Buffer")
             .setInitialState(nvrhi::ResourceStates::ShaderResource)
             .setIsConstantBuffer(false)
-            .setStructStride(sizeof(TerrainOUB))
+            .setStructStride(sizeof(vp::PlanetChunkOUB))
             .setKeepInitialState(true);
     m_oubBuffer = m_backend->device->createBuffer(oubDesc);
 
     // Chunk cull data buffer
-    uint32_t maxSlots = 8 * 1024 * 1024 / sizeof(TerrainOUB);
+    uint32_t maxSlots = 8 * 1024 * 1024 / sizeof(vp::PlanetChunkOUB);
     auto cullDataDesc = nvrhi::BufferDesc()
             .setByteSize(sizeof(VoxelChunkCullData) * maxSlots)
             .setDebugName("VoxelBuffer Chunk Cull Data Buffer")

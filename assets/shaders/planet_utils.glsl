@@ -30,11 +30,23 @@ vec3 planet__chunk_origin(int face, int cx, int cy, int altitude, float radius) 
 // up      = radial direction (outward from planet center)
 // right   = tangent along cube-face u axis
 // forward = tangent along cube-face v axis
-// The chunk's local Z axis (altitude axis) aligns with 'up'.
-void planet__chunk_rotation(vec3 up, out vec3 right, out vec3 forward) {
-    vec3 ref = (abs(dot(up, vec3(0.0, 1.0, 0.0))) > 0.99) ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
-    right   = normalize(cross(ref, up));
-    forward = normalize(cross(up, right));
+// The chunk's local Y axis (altitude axis) aligns with 'up'.
+void planet__chunk_rotation(int face, vec3 up, out vec3 right, out vec3 forward) {
+    // tangents directs dérivés de face_to_cube_dir, projetés sur le plan tangent
+    const vec3 U_TAN[6] = {
+        vec3(0, 0, 1), vec3(0, 0,-1), // PosX, NegX
+        vec3(1, 0, 0), vec3(1, 0, 0), // PosY, NegY
+        vec3(1, 0, 0), vec3(-1,0, 0), // PosZ, NegZ
+    };
+    const vec3 V_TAN[6] = {
+        vec3(0, 1, 0), vec3(0, 1, 0), // PosX, NegX
+        vec3(0, 0,-1), vec3(0, 0, 1), // PosY, NegY
+        vec3(0, 1, 0), vec3(0, 1, 0), // PosZ, NegZ
+    };
+    vec3 u = U_TAN[face];
+    vec3 v = V_TAN[face];
+    right   = normalize(u - dot(u, up) * up);
+    forward = normalize(v - dot(v, up) * up);
 }
 
 // local voxel position -> world position relative to planet center.
@@ -42,10 +54,10 @@ vec3 planet__local_to_world(int face, int cx, int cy, int altitude, float radius
     vec3 chunkOrigin = planet__chunk_origin(face, cx, cy, altitude, radius);
     vec3 up = normalize(chunkOrigin);
     vec3 right, forward;
-    planet__chunk_rotation(up, right, forward);
+    planet__chunk_rotation(face, up, right, forward);
 
-    // localPos axes: X=right, Y=forward, Z=up (altitude)
-    return chunkOrigin + mat3(right, forward, up) * localPos;
+    // localPos axes: X=right, Y=up (altitude), Z=forward
+    return chunkOrigin + mat3(right, up, forward) * localPos;
 }
 
 #endif

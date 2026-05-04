@@ -27,6 +27,7 @@ void PlanetSurfaceTerrainRenderer::init(flecs::world &ecs) {
     m_backend = renderer->backend.get();
     m_resourceSystem = gameState->resourceSystem.get();
     m_textureManager = ecs.get_mut<VoxelTextureManager>();
+    m_chunkBuffers.reserve(16);
 
     init_gpu();
 
@@ -75,44 +76,44 @@ void PlanetSurfaceTerrainRenderer::init(flecs::world &ecs) {
                 m_chunkBuffers[idx].free(mesh);
             });
 
-    ecs.system<const PlanetChunkCoord>("PlanetSurface-DebugNormals")
-      .kind(flecs::OnStore)
-      .with<VoxelChunkMesh>()
-      .each([](flecs::entity e, const PlanetChunkCoord& coord) {
-          const auto* renderer = e.world().get<Renderer>();
-          const auto* planet   = e.parent().get<PlanetComp>();
-          if (!renderer || !planet) return;
-
-          // Recalcule l'origine du chunk en planet-relative
-          double u = coord.x * CHUNK_SIZE / (double)planet->radius;
-          double v = coord.y * CHUNK_SIZE / (double)planet->radius;
-          glm::dvec3 dir = glm::normalize(face_to_cube_dir(coord.face, u, v));
-          double r = planet->radius + (double)coord.altitude * CHUNK_SIZE;
-          glm::vec3 origin = glm::vec3(dir * r);
-
-          glm::vec3 up      = glm::normalize(origin);
-          glm::vec3 ref     = (glm::abs(glm::dot(up, glm::vec3(0,1,0))) > 0.99f)
-                              ? glm::vec3(1,0,0) : glm::vec3(0,1,0);
-          glm::vec3 right   = glm::normalize(glm::cross(ref, up));
-          glm::vec3 forward = glm::normalize(glm::cross(up, right));
-
-          const auto* grid = e.parent().get<Grid>();
-          glm::vec3 fo = grid ? glm::vec3(
-              glm::dvec3(grid->localOrigin.cell) * grid->cellSize
-              + glm::dvec3(grid->localOrigin.translation)) : glm::vec3(0);
-          glm::vec3 drawOrigin = (origin - fo);
-          glm::vec3 centerDrawOrigin = drawOrigin + (up + right + forward) * (0.5f * CHUNK_SIZE);
-
-          DebugDraw::Arrow(centerDrawOrigin, up,      8.0f, {0,1,0,1}); // up    = vert
-          DebugDraw::Arrow(centerDrawOrigin, right,   8.0f, {1,0,0,1}); // right = rouge
-          DebugDraw::Arrow(centerDrawOrigin, forward, 8.0f, {0,0,1,1}); // fwd   = bleu
-
-          // draw cube that represent the chunk
-          DebugDraw::Aabb(
-              drawOrigin,
-              drawOrigin + (up + right + forward) * glm::vec3(CHUNK_SIZE)
-          , {1,1,0,1});
-      });
+    // ecs.system<const PlanetChunkCoord>("PlanetSurface-DebugNormals")
+    //   .kind(flecs::OnStore)
+    //   .with<VoxelChunkMesh>()
+    //   .each([](flecs::entity e, const PlanetChunkCoord& coord) {
+    //       const auto* renderer = e.world().get<Renderer>();
+    //       const auto* planet   = e.parent().get<PlanetComp>();
+    //       if (!renderer || !planet) return;
+    //
+    //       // Recalcule l'origine du chunk en planet-relative
+    //       double u = coord.x * CHUNK_SIZE / (double)planet->radius;
+    //       double v = coord.y * CHUNK_SIZE / (double)planet->radius;
+    //       glm::dvec3 dir = glm::normalize(face_to_cube_dir(coord.face, u, v));
+    //       double r = planet->radius + (double)coord.altitude * CHUNK_SIZE;
+    //       glm::vec3 origin = glm::vec3(dir * r);
+    //
+    //       glm::vec3 up      = glm::normalize(origin);
+    //       glm::vec3 ref     = (glm::abs(glm::dot(up, glm::vec3(0,1,0))) > 0.99f)
+    //                           ? glm::vec3(1,0,0) : glm::vec3(0,1,0);
+    //       glm::vec3 right   = glm::normalize(glm::cross(ref, up));
+    //       glm::vec3 forward = glm::normalize(glm::cross(up, right));
+    //
+    //       const auto* grid = e.parent().get<Grid>();
+    //       glm::vec3 fo = grid ? glm::vec3(
+    //           glm::dvec3(grid->localOrigin.cell) * grid->cellSize
+    //           + glm::dvec3(grid->localOrigin.translation)) : glm::vec3(0);
+    //       glm::vec3 drawOrigin = (origin - fo);
+    //       glm::vec3 centerDrawOrigin = drawOrigin + (up + right + forward) * (0.5f * CHUNK_SIZE);
+    //
+    //       DebugDraw::Arrow(centerDrawOrigin, up,      8.0f, {0,1,0,1}); // up    = vert
+    //       DebugDraw::Arrow(centerDrawOrigin, right,   8.0f, {1,0,0,1}); // right = rouge
+    //       DebugDraw::Arrow(centerDrawOrigin, forward, 8.0f, {0,0,1,1}); // fwd   = bleu
+    //
+    //       // draw cube that represent the chunk
+    //       DebugDraw::Aabb(
+    //           drawOrigin,
+    //           drawOrigin + (up + right + forward) * glm::vec3(CHUNK_SIZE)
+    //       , {1,1,0,1});
+    //   });
 }
 
 void PlanetSurfaceTerrainRenderer::init_gpu() {

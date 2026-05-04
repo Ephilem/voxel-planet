@@ -37,7 +37,7 @@ namespace vp {
 
         // Simple heightmap
         int64_t seed = 0;
-        float frequency = 0.01f;
+        float frequency = 32.f;
         int maxOctave = 6; // max because lod will reduce octaves number. This value is used for the highest resolution
         float lacunarity = 2.0f;
         float gain = 0.5f;

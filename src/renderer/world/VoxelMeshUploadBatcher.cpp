@@ -7,6 +7,7 @@
 #include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
 #include "core/world/world_components.h"
+#include "planet/PlanetSurfaceTerrainRenderer.h"
 #include "renderer/TracyVulkanIntegration.h"
 
 void VoxelMeshUploadBatcher::init(VulkanBackend* backend) {
@@ -56,6 +57,8 @@ bool VoxelMeshUploadBatcher::enqueue(const VoxelChunkMesh &meshData, const Terra
         .targetBuffer = targetBuffer
     });
     m_currentTotalSize += totalSizeNeeded;
+
+    // LOG_TRACE("VoxelMeshUploadBatcher", "Prepare to write in drawSlotIndex = {}", meshData.drawSlotIndex);
 
     return true;
 }
@@ -128,13 +131,13 @@ void VoxelMeshUploadBatcher::flush(VkCommandBuffer cmd) {
         }
 
         // --- OUB ---
-        memcpy(mapped + stagingOffset, &task.oub, sizeof(TerrainOUB));
+        memcpy(mapped + stagingOffset, &task.oub, sizeof(vp::PlanetChunkOUB));
         get_regions(oubCopies, vkOub).push_back({
             .srcOffset = stagingOffset,
-            .dstOffset = task.drawSlotIndex * sizeof(TerrainOUB),
-            .size = sizeof(TerrainOUB),
+            .dstOffset = task.drawSlotIndex * sizeof(vp::PlanetChunkOUB),
+            .size = sizeof(vp::PlanetChunkOUB),
         });
-        stagingOffset += sizeof(TerrainOUB);
+        stagingOffset += sizeof(vp::PlanetChunkOUB);
 
         // --- Chunk cull data and indirectCmd ---
         // Cull information
