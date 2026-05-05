@@ -71,6 +71,9 @@ void main() {
 
     TerrainFace3d face = faceBuffer.faces[faceIndex];
 
+    /////////////////////////////////////////////////////
+    /// Unpack the face data and compute local vertex position and UVs
+
     // packed1: x:5 | z:5 | y:9 | faceIndex:3 | padding:10
     uint voxelX  = (face.packed1 >> 0u)  & 0x1Fu;
     uint voxelZ  = (face.packed1 >> 5u)  & 0x1Fu;
@@ -100,6 +103,9 @@ void main() {
     fragUV = vec2(uv.x * faceWidth, uv.y * faceHeight);
     fragTextureSlot = textureSlot;
 
+    /////////////////////////////////////////////////////
+    ///// Chunk and world position calculations
+
     // Chunk coord from OUB
     PlanetChunkOUB chunk = oub.chunks[gl_InstanceIndex];
     int cubeFace = chunk.coord.x;
@@ -124,7 +130,7 @@ void main() {
         vec3(0,-1,0), vec3(0,1,0),
         vec3(0,0,-1), vec3(0,0,1)
     };
-    fragNormal   = rot * LOCAL_FACE_NORMALS[faceDir];
+    fragNormal   = LOCAL_FACE_NORMALS[faceDir];
     fragWorldPos = cameraRelPos;
 
     gl_Position = ubo.projection * ubo.view * vec4(cameraRelPos, 1.0);

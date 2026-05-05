@@ -4,6 +4,8 @@
 
 #include "PlanetRenderModule.h"
 
+#include <imgui.h>
+
 #include "PlanetSurfaceTerrainRenderer.h"
 #include "core/debug/DebugDraw.h"
 #include "core/world/planet/planet_components.h"

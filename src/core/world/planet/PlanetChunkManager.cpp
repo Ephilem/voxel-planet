@@ -72,7 +72,7 @@ void PlanetChunkManager::init(flecs::world &ecs) {
         .each([this](flecs::entity e, const ChunkLoader& loader, const CellCoord& cell, const Transform& trs) {
             auto planet = e.parent();
             if (planet.is_valid()) {
-                // system_process_unload(planet, loader, cell, trs);
+                system_process_unload(planet, loader, cell, trs);
             }
         });
 
@@ -157,11 +157,11 @@ void PlanetChunkManager::system_update_chunks(flecs::entity e, flecs::entity pla
     int loaderRadius = loader.loadRadius;
     for (int x = -loaderRadius; x <= loaderRadius; x++) {
         for (int y = -loaderRadius; y <= loaderRadius; y++) {
-            for (int alt = -loaderRadius; alt <= loaderRadius; alt++) {
+            for (int alt = glm::max(-loaderRadius, -2); alt <= glm::max(loaderRadius, 4); alt++) {
                 PlanetChunkCoord c = chunkCoord;
                 c.x += x;
                 c.y += y;
-                c.altitude += alt;
+                c.altitude = alt;
 
                 if (runtime.is_chunk_loading(c) || runtime.is_chunk_processed(c)) continue;
 

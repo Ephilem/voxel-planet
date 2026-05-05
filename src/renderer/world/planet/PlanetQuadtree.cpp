@@ -4,6 +4,8 @@
 
 #include "PlanetQuadtree.h"
 
+#include <cmath>
+#include <imgui.h>
 #include "core/debug/DebugDraw.h"
 
 
@@ -30,15 +32,23 @@ void PlanetQuadtree::build(float planetRadius, const glm::vec3 &cameraPos, CubeF
     subdivide(0);
 }
 
+static float equiangular(float s) {
+    return std::tan(s * (static_cast<float>(M_PI) / 4.0f));
+}
+
 glm::vec3 PlanetQuadtree::node_to_sphere(const glm::vec2 &pos, float planetRadius) const {
+    float px = pos.x, py = pos.y;
+    px = equiangular(pos.x / planetRadius) * planetRadius;
+    py = equiangular(pos.y / planetRadius) * planetRadius;
+
     glm::vec3 cubePos;
     switch (m_face) {
-        case CubeFace::PosX: cubePos = { planetRadius,    pos.y, pos.x }; break;
-        case CubeFace::NegX: cubePos = {-planetRadius,    pos.y, pos.x }; break;
-        case CubeFace::PosY: cubePos = { pos.x,   planetRadius,  pos.y }; break;
-        case CubeFace::NegY: cubePos = { pos.x,  -planetRadius,  pos.y }; break;
-        case CubeFace::PosZ: cubePos = { pos.x,   pos.y, planetRadius  }; break;
-        case CubeFace::NegZ: cubePos = { pos.x,   pos.y,-planetRadius  }; break;
+        case CubeFace::PosX: cubePos = { planetRadius, py, px }; break;
+        case CubeFace::NegX: cubePos = {-planetRadius, py, px }; break;
+        case CubeFace::PosY: cubePos = { px,  planetRadius, py }; break;
+        case CubeFace::NegY: cubePos = { px, -planetRadius, py }; break;
+        case CubeFace::PosZ: cubePos = { px,  py,  planetRadius }; break;
+        case CubeFace::NegZ: cubePos = { px,  py, -planetRadius }; break;
     }
     return glm::normalize(cubePos) * planetRadius;
 }
@@ -72,7 +82,7 @@ void PlanetQuadtree::subdivide(int32_t nodeIndex) {
     glm::vec3 sphereCenter = node_to_sphere(m_nodes[nodeIndex].center, m_planetRadius);
     float dist = glm::distance(m_cameraPos, sphereCenter);
 
-    if (dist > m_nodes[nodeIndex].size * m_splitFactor) return;
+    if (level > 2 && dist > m_nodes[nodeIndex].size * m_splitFactor) return;
 
     m_nodes[nodeIndex].isLeaf = false;
 

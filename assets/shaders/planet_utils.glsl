@@ -4,7 +4,7 @@
 #define CHUNK_SIZE_F 32.0
 
 // Mirrors CubeFace enum order: PosX=0, NegX=1, PosY=2, NegY=3, PosZ=4, NegZ=5
-vec3 face_to_cube_dir(int face, float u, float v) {
+vec3 planet__face_to_cube_dir(int face, float u, float v) {
     switch (face) {
         case 0: return vec3(1.0, v, u);  // PosX
         case 1: return vec3(-1.0, v, -u);  // NegX
@@ -21,7 +21,7 @@ vec3 face_to_cube_dir(int face, float u, float v) {
 vec3 planet__chunk_origin(int face, int cx, int cy, int altitude, float radius) {
     float u = float(cx) * CHUNK_SIZE_F / radius;
     float v = float(cy) * CHUNK_SIZE_F / radius;
-    vec3 dir = normalize(face_to_cube_dir(face, u, v));
+    vec3 dir = normalize(planet__face_to_cube_dir(face, u, v));
     float r = radius + float(altitude) * CHUNK_SIZE_F;
     return dir * r;
 }
