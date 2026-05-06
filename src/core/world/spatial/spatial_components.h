@@ -58,6 +58,16 @@ struct FloatingOrigin {};
 struct Grid {
     double cellSize = 10'000.0; // in meter
     LocalFloatingOrigin localOrigin{};
+
+    /**
+     * Get the local grid position based on the cell coordinate and the local position within the cell.
+     * @param cell CellCoords
+     * @param localPos Local position within the cell, usually found in Transform component, as position
+     * @return double precision coordinate relative to the grid origin
+     */
+    glm::dvec3 get_hp_grid_pos(const CellCoord& cell, const glm::vec3& localPos) const {
+        return glm::dvec3(cell * cellSize) + glm::dvec3(localPos);
+    }
 };
 
 struct SpatialRoot {

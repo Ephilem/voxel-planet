@@ -73,8 +73,8 @@ int main() {
                 })
 
                 .set<ChunkLoader>({
-                    .loadRadius = 12,
-                    .unloadRadius = 14
+                    .loadRadius = 3,
+                    .unloadRadius = 5
                 })
 
                 .child_of(earth);

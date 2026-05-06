@@ -7,6 +7,10 @@
 #include "renderer/world/planet/PlanetQuadtree.h"
 
 namespace vp {
+    inline static float equiangular(float s) {
+        return std::tan(s * (static_cast<float>(M_PI) / 4.0f));
+    }
+
     /**
      * Convert a cube face + 2D UV coordinates to a 3D direction vector (not normalized).
      * UV coordinates are in cube-space where 1.0 = planetRadius world units.
@@ -30,20 +34,20 @@ namespace vp {
     }
 
     /**
-     * Convert a planet chunk coordinate to a planet-relative world position.
-     * The returned position is the center of the chunk's base voxel (lx=0, ly=0, lz=0)
-     * projected onto the sphere surface at the chunk's altitude.
-     * @param c    Chunk coordinate (face, x, y, altitude)
-     * @param radius Planet radius in world units (meters)
-     * @return Planet-relative world position of the chunk origin
+     * Convert a 2D position on a cube face to a point
+     * on the sphere, using equiangular mapping.
+     * @param face The cube face
+     * @param pos Position in face-plane space, in meters (range: [-radius, radius])
+     * @param radius Planet radius
      */
-    inline glm::dvec3 planet_chunk_to_world(const PlanetChunkCoord &c, double radius) {
-        double u = c.x * CHUNK_SIZE / radius;
-        double v = c.y * CHUNK_SIZE / radius;
-        glm::dvec3 cubeDir = face_to_cube_dir(c.face, u, v);
-        glm::dvec3 dir = glm::normalize(cubeDir);
-        double r = radius + static_cast<double>(c.altitude) * CHUNK_SIZE;
-        return dir * r;
+    inline glm::vec3 face_pos_to_sphere(CubeFace face, glm::vec2 pos, float radius) {
+        float u = equiangular(pos.x / radius);
+        float v = equiangular(pos.y / radius);
+        return glm::normalize(glm::vec3(face_to_cube_dir(face, u, v))) * radius;
+    }
+
+    inline glm::vec3 planet_chunk_to_sphere_pos(const PlanetChunkCoord &c, float radius) {
+        return face_pos_to_sphere(c.face, glm::vec2(c.x * CHUNK_SIZE, c.y * CHUNK_SIZE), radius);
     }
 
     /**
@@ -87,5 +91,21 @@ namespace vp {
                 return {dir.x / dir.z, dir.y / dir.z};
         }
         return {};
+    }
+
+    /**
+     * Convert a planet-relative world position to a chunk coordinate.
+     * @param planetRelPos Position relative to the planet center (in meters)
+     * @param radius Planet radius (in meters)
+     */
+    inline PlanetChunkCoord world_pos_to_chunk_coord(const glm::dvec3& planetRelPos, double radius) {
+        CubeFace face = dominant_face(planetRelPos);
+        glm::dvec2 uv = dir_to_face_uv(face, planetRelPos);
+        return {
+            .face     = face,
+            .x        = static_cast<int>(std::floor(uv.x * radius / CHUNK_SIZE)),
+            .y        = static_cast<int>(std::floor(uv.y * radius / CHUNK_SIZE)),
+            .altitude = static_cast<int>(std::floor((glm::length(planetRelPos) - radius) / CHUNK_SIZE)),
+        };
     }
 }

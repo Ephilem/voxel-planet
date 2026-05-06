@@ -3,6 +3,14 @@
 
 #define CHUNK_SIZE_F 32.0
 
+#define PI_4 0.7853981633
+
+float planet__equiangular(float s) {
+    return tan(s * PI_4);
+}
+
+
+
 // Mirrors CubeFace enum order: PosX=0, NegX=1, PosY=2, NegY=3, PosZ=4, NegZ=5
 vec3 planet__face_to_cube_dir(int face, float u, float v) {
     switch (face) {
@@ -19,11 +27,10 @@ vec3 planet__face_to_cube_dir(int face, float u, float v) {
 // Returns the world-space position of the (0,0,0) corner of a planet chunk,
 // relative to the planet center. Equivalent to planet_chunk_to_world() on CPU
 vec3 planet__chunk_origin(int face, int cx, int cy, int altitude, float radius) {
-    float u = float(cx) * CHUNK_SIZE_F / radius;
-    float v = float(cy) * CHUNK_SIZE_F / radius;
+    float u = planet__equiangular(float(cx) * CHUNK_SIZE_F / radius);
+    float v = planet__equiangular(float(cy) * CHUNK_SIZE_F / radius);
     vec3 dir = normalize(planet__face_to_cube_dir(face, u, v));
-    float r = radius + float(altitude) * CHUNK_SIZE_F;
-    return dir * r;
+    return dir * (radius + float(altitude) * CHUNK_SIZE_F);
 }
 
 // Builds the local rotation frame for a chunk from its sphere-surface normal.
@@ -49,15 +56,17 @@ void planet__chunk_rotation(int face, vec3 up, out vec3 right, out vec3 forward)
     forward = normalize(v - dot(v, up) * up);
 }
 
-// local voxel position -> world position relative to planet center.
+// Transform a position of a single block within a chunk (localPos) to planet space. Useful to compute the final position of the vertex
 vec3 planet__local_to_world(int face, int cx, int cy, int altitude, float radius, vec3 localPos) {
-    vec3 chunkOrigin = planet__chunk_origin(face, cx, cy, altitude, radius);
-    vec3 up = normalize(chunkOrigin);
-    vec3 right, forward;
-    planet__chunk_rotation(face, up, right, forward);
+    float face_x = float(cx) * CHUNK_SIZE_F + localPos.x;  // right
+    float face_z = float(cy) * CHUNK_SIZE_F + localPos.z;  // forward
+    float r      = radius + float(altitude) * CHUNK_SIZE_F + localPos.y;  // radial
 
-    // localPos axes: X=right, Y=up (altitude), Z=forward
-    return chunkOrigin + mat3(right, up, forward) * localPos;
+    float u = planet__equiangular(face_x / radius);
+    float v = planet__equiangular(face_z / radius);
+
+    return normalize(planet__face_to_cube_dir(face, u, v)) * r;
 }
+
 
 #endif

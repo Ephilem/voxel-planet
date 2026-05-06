@@ -7,6 +7,7 @@
 #include <cmath>
 #include <imgui.h>
 #include "core/debug/DebugDraw.h"
+#include "core/world/planet/planet_utils.h"
 
 
 using namespace vp;
@@ -37,20 +38,23 @@ static float equiangular(float s) {
 }
 
 glm::vec3 PlanetQuadtree::node_to_sphere(const glm::vec2 &pos, float planetRadius) const {
-    float px = pos.x, py = pos.y;
-    px = equiangular(pos.x / planetRadius) * planetRadius;
-    py = equiangular(pos.y / planetRadius) * planetRadius;
+     float px = pos.x, py = pos.y;
+     px = equiangular(pos.x / planetRadius) * planetRadius;
+     py = equiangular(pos.y / planetRadius) * planetRadius;
 
-    glm::vec3 cubePos;
-    switch (m_face) {
-        case CubeFace::PosX: cubePos = { planetRadius, py, px }; break;
-        case CubeFace::NegX: cubePos = {-planetRadius, py, px }; break;
-        case CubeFace::PosY: cubePos = { px,  planetRadius, py }; break;
-        case CubeFace::NegY: cubePos = { px, -planetRadius, py }; break;
-        case CubeFace::PosZ: cubePos = { px,  py,  planetRadius }; break;
-        case CubeFace::NegZ: cubePos = { px,  py, -planetRadius }; break;
-    }
-    return glm::normalize(cubePos) * planetRadius;
+     glm::vec3 cubePos;
+     switch (m_face) {
+         case CubeFace::PosX: cubePos = { planetRadius, py, px }; break;
+         case CubeFace::NegX: cubePos = {-planetRadius, py, px }; break;
+         case CubeFace::PosY: cubePos = { px,  planetRadius, py }; break;
+         case CubeFace::NegY: cubePos = { px, -planetRadius, py }; break;
+         case CubeFace::PosZ: cubePos = { px,  py,  planetRadius }; break;
+         case CubeFace::NegZ: cubePos = { px,  py, -planetRadius }; break;
+     }
+     return glm::normalize(cubePos) * planetRadius;
+
+    // test: just create a plane, no sphere mapping
+    // return face_to_cube_dir(m_face, pos.x / planetRadius, pos.y / planetRadius) * static_cast<double>(planetRadius);
 }
 
 void PlanetQuadtree::debug_viz(PlanetQuadtreeNode &node, glm::vec3 planetWorldPos) {

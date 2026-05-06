@@ -103,18 +103,11 @@ void PlanetChunkManager::system_update_chunks(flecs::entity e, flecs::entity pla
     //    relative to the planet origin
     // TODO update the code for the case where the loader isn't in the direct grid of the planet, but in a child grid (like a ship grid). In that case we need to do the grid transformation thing to get the loader position in the planet grid
     const Grid* planetGrid = planet.get<Grid>();
-    glm::dvec3 loaderPos = cell * planetGrid->cellSize + glm::dvec3(trs.pos);
+    glm::dvec3 loaderPos = planetGrid->get_hp_grid_pos(cell, trs.pos);
 
     // 2. Get planet position
-    CubeFace currentFace = dominant_face(loaderPos);
     const PlanetComp* planetInfo = planet.get<PlanetComp>();
-    glm::vec2 posOnFace = dir_to_face_uv(currentFace, loaderPos);
-    PlanetChunkCoord chunkCoord = {
-        .face     = currentFace,
-        .x        = static_cast<int>(std::floor(posOnFace.x * planetInfo->radius / CHUNK_SIZE)),
-        .y        = static_cast<int>(std::floor(posOnFace.y * planetInfo->radius / CHUNK_SIZE)),
-        .altitude = static_cast<int>(std::floor((glm::length(loaderPos) - planetInfo->radius) / CHUNK_SIZE)),
-    };
+    PlanetChunkCoord chunkCoord = world_pos_to_chunk_coord(loaderPos, planetInfo->radius);
 
 
     PlanetRuntime& runtime = m_planets.at(planet);
@@ -122,8 +115,6 @@ void PlanetChunkManager::system_update_chunks(flecs::entity e, flecs::entity pla
     ImGui::Text("Planet: %s", planet.name().c_str());
     ImGui::Text("Loader Pos: (%.2f, %.2f, %.2f)", loaderPos.x, loaderPos.y, loaderPos.z);
     ImGui::Separator();
-    ImGui::Text("Current Face: %d", static_cast<int>(currentFace));
-    ImGui::Text("Pos on Face: (%.9f, %.9f)", posOnFace.x, posOnFace.y);
     ImGui::Text("Chunk Coord: (face=%d, u=%d, v=%d, alt=%d)", chunkCoord.face, chunkCoord.x, chunkCoord.y, chunkCoord.altitude);
     ImGui::Separator();
     // runtime stats
@@ -236,7 +227,7 @@ void PlanetChunkManager::system_poll_results() {
         const Grid* planetGrid = planet.get<Grid>();
         if (!planetInfo || !planetGrid) continue;
 
-        glm::dvec3 worldPos = planet_chunk_to_world(result.coord, planetInfo->radius);
+        glm::dvec3 worldPos = planet_chunk_to_sphere_pos(result.coord, planetInfo->radius);
 
         double cellSize = planetGrid->cellSize;
         glm::i64vec3 cell = {
@@ -266,12 +257,12 @@ void PlanetChunkManager::system_process_unload(flecs::entity planet, const Chunk
     const Grid* planetGrid = planet.get<Grid>();
     if (!planetInfo || !planetGrid) return;
 
-    glm::dvec3 loaderPos = cell * planetGrid->cellSize + glm::dvec3(trs.pos);
+    glm::dvec3 loaderPos = planetGrid->get_hp_grid_pos(cell, trs.pos);
     double unloadDist = static_cast<double>(loader.unloadRadius) * CHUNK_SIZE;
 
     std::vector<PlanetChunkCoord> toUnload;
     for (auto& [coord, entity] : runtime.loadedChunks) {
-        glm::dvec3 chunkPos = planet_chunk_to_world(coord, planetInfo->radius);
+        glm::dvec3 chunkPos = planet_chunk_to_sphere_pos(coord, planetInfo->radius);
         if (glm::length(chunkPos - loaderPos) > unloadDist)
             toUnload.push_back(coord);
     }
@@ -286,7 +277,7 @@ void PlanetChunkManager::system_process_unload(flecs::entity planet, const Chunk
 
     std::vector<PlanetChunkCoord> emptyToRemove;
     for (const auto& coord : runtime.emptyChunks) {
-        glm::dvec3 chunkPos = planet_chunk_to_world(coord, planetInfo->radius);
+        glm::dvec3 chunkPos = planet_chunk_to_sphere_pos(coord, planetInfo->radius);
         if (glm::length(chunkPos - loaderPos) > unloadDist)
             emptyToRemove.push_back(coord);
     }
