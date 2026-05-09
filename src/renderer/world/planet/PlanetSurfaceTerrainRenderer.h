@@ -15,14 +15,17 @@
 namespace vp {
     struct alignas(16) PlanetChunkOUB {
         glm::ivec4 coord; // x=face, y=chunkX, z=chunkY, w=altitude
+        glm::ivec4 cornerMM; // xyz = chunk corner (0,0,0) sphere position in mm, abs to planet center
+        glm::vec4  cornerOffsets[8]; // xyz = offsets in metres from cornerMM, indexed by (dx | dy<<1 | dz<<2)
     };
 
     struct alignas(16) PlanetSurfaceUBO {
         glm::mat4 view;
         glm::mat4 projection;
-        glm::vec3 foPositionInPlanet;
+        glm::ivec4 foPosMM; // xyz = FO position in mm, absolute to planet center; w unused
         float planetRadius;
         float farPlane;
+        float _pad[2];
     };
 
     class PlanetSurfaceTerrainRenderer : public IRenderPass {
@@ -34,8 +37,12 @@ namespace vp {
 
         static void Register(flecs::world &ecs);
 
-        void set_fo_position(glm::vec3 foPos, float radius) {
-            m_ubo.foPositionInPlanet = foPos;
+        void set_fo_position(glm::dvec3 foPos, float radius) {
+            // FO position in millimetres, absolute to planet center. ivec3 keeps full precision
+            // up to ~2100 km
+            glm::dvec3 mm = glm::round(foPos * 1000.0);
+            m_ubo.foPosMM = glm::ivec4(static_cast<int>(mm.x), static_cast<int>(mm.y),
+                                       static_cast<int>(mm.z), 0);
             m_ubo.planetRadius = radius;
         }
 

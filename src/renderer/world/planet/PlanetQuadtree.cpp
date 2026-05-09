@@ -24,7 +24,7 @@ void PlanetQuadtree::build(float planetRadius, const glm::vec3 &cameraPos, CubeF
     // create root
     PlanetQuadtreeNode root {
         .center = glm::vec2(0.0f, 0.0f),
-        .size = planetRadius * 2.0f,
+        .size = planetRadius * static_cast<float>(M_PI) / 2.0f,
         .level = 0,
         .isLeaf = true
     };
@@ -33,14 +33,9 @@ void PlanetQuadtree::build(float planetRadius, const glm::vec3 &cameraPos, CubeF
     subdivide(0);
 }
 
-static float equiangular(float s) {
-    return std::tan(s * (static_cast<float>(M_PI) / 4.0f));
-}
-
 glm::vec3 PlanetQuadtree::node_to_sphere(const glm::vec2 &pos, float planetRadius) const {
-     float px = pos.x, py = pos.y;
-     px = equiangular(pos.x / planetRadius) * planetRadius;
-     py = equiangular(pos.y / planetRadius) * planetRadius;
+     float px = equiangular(pos.x / planetRadius) * planetRadius;
+     float py = equiangular(pos.y / planetRadius) * planetRadius;
 
      glm::vec3 cubePos;
      switch (m_face) {

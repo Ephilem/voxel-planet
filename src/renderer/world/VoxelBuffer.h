@@ -8,6 +8,9 @@
 
 struct alignas(16) TerrainOUB {
     glm::mat4 model;
+    // Reserve extra space for renderer-specific OUB layouts (e.g. PlanetChunkOUB stores
+    // 8 corner offsets for sphere chunk deformation).
+    glm::vec4 _reserved[6]; // 96 bytes → total = 160 bytes
 };
 
 static constexpr uint64_t TOTAL_BUFFER_SIZE = 128 * 1024 * 1024;

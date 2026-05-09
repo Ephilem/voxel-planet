@@ -8,7 +8,7 @@
 
 namespace vp {
     inline static float equiangular(float s) {
-        return std::tan(s * (static_cast<float>(M_PI) / 4.0f));
+        return std::tan(s /** (static_cast<float>(M_PI) / 4.0f)*/);
     }
 
     /**
@@ -103,8 +103,8 @@ namespace vp {
         glm::dvec2 uv = dir_to_face_uv(face, planetRelPos);
         return {
             .face     = face,
-            .x        = static_cast<int>(std::floor(uv.x * radius / CHUNK_SIZE)),
-            .y        = static_cast<int>(std::floor(uv.y * radius / CHUNK_SIZE)),
+            .x        = static_cast<int>(std::floor(std::atan(uv.x) * radius / CHUNK_SIZE)),
+            .y        = static_cast<int>(std::floor(std::atan(uv.y) * radius / CHUNK_SIZE)),
             .altitude = static_cast<int>(std::floor((glm::length(planetRelPos) - radius) / CHUNK_SIZE)),
         };
     }

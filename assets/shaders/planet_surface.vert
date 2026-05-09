@@ -12,13 +12,17 @@ layout (location = 5) out float v_clip_w;
 layout (set = 0, binding = 0) uniform PlanetSurfaceUBO {
     mat4 view;
     mat4 projection;
-    vec3 foPositionInPlanet;
+    ivec4 foPosMM;       // xyz = FO position in mm, absolute to planet center
     float planetRadius;
     float farPlane;
+    float _pad0;
+    float _pad1;
 } ubo;
 
 struct PlanetChunkOUB {
-    ivec4 coord; // x=face, y=chunkX, z=chunkY, w=altitude
+    ivec4 coord;            // x=face, y=chunkX, z=chunkY, w=altitude
+    ivec4 cornerMM;         // xyz = chunk corner (0,0,0) sphere position in mm, absolute
+    vec4  cornerOffsets[8]; // xyz = offset from cornerMM (in metres), indexed by dx | dy<<1 | dz<<2
 };
 layout (set = 1, binding = 0, std430) readonly buffer ChunkCoordBuffer {
     PlanetChunkOUB chunks[];
@@ -63,6 +67,9 @@ void main() {
     uint faceIndex = gl_VertexIndex / 6u;
     uint cornerIndex = QUAD_INDICES[gl_VertexIndex % 6u];
 
+    /////////////////////////////////////////////////
+    /// Decode face data packed on CPU
+
     TerrainFace3d face = faceBuffer.faces[faceIndex];
 
     uint voxelX = (face.packed1 >> 0u) & 0x1Fu;
@@ -76,7 +83,8 @@ void main() {
     float faceWidth  = float(packedWidth + 1u) / 16.0;
     float faceHeight = float(packedHeight + 1u) / 16.0;
 
-    vec3 voxelPos = vec3(float(voxelX), float(voxelY) / 16.0, float(voxelZ));
+    // Calculate the local position of the vertex
+    vec3 localVoxelPos = vec3(float(voxelX), float(voxelY) / 16.0, float(voxelZ));
     vec3 cornerOffset = QUAD_CORNERS[faceDir][cornerIndex];
 
     ivec2 scaleAxes = FACE_SCALE_AXES[faceDir];
@@ -84,28 +92,40 @@ void main() {
     cornerOffset[scaleAxes.y] *= faceHeight;
     if (faceDir == 3u) cornerOffset.y /= 16.0;
 
-    vec3 localPos = voxelPos + cornerOffset;
+    vec3 localPos = localVoxelPos + cornerOffset;
     debugFragLocalPos = localPos;
 
+    // Calculate UVs and texture slot for the fragment shader
     fragUV = vec2(FACE_QUAD_UVS[faceDir][cornerIndex].x * faceWidth,
-    FACE_QUAD_UVS[faceDir][cornerIndex].y * faceHeight);
+                  FACE_QUAD_UVS[faceDir][cornerIndex].y * faceHeight);
     fragTextureSlot = textureSlot;
 
-    /////////////////////////////////////////////////////
+    /////////////////////////////////////////////////
+    /// Calculate the position of the chunk on the planet and relative to the camera
 
     PlanetChunkOUB chunk = oub.chunks[gl_InstanceIndex];
     int cubeFace = chunk.coord.x;
-    int cx = chunk.coord.y;
-    int cy = chunk.coord.z;
-    int alt = chunk.coord.w;
 
-    // Per-vertex exact sphere position
-    vec3 worldPosPlanet = planet__local_to_world(cubeFace, cx, cy, alt, ubo.planetRadius, localPos);
-    vec3 cameraRelPos = worldPosPlanet - ubo.foPositionInPlanet;
+    // Chunk base position relative to FO, exact integer subtraction in mm → small float, no precision loss.
+    ivec3 chunkRelFO_mm = chunk.cornerMM.xyz - ubo.foPosMM.xyz;
+    vec3 chunkBase = vec3(chunkRelFO_mm) * 0.001;
 
-    // Normal: frame computed at this vertex's exact position on the sphere
-    // fragNormal is flat so taken from the provoking vertex — fine for blocky voxels
-    vec3 up = normalize(worldPosPlanet);
+    // Trilinear interpolation between the 8 precomputed sphere corners (offsets from cornerMM).
+    // localPos is in [0, CHUNK_SIZE]^3 — y can exceed CHUNK_SIZE for sub-voxel tops but stays small.
+    vec3 t = localPos / CHUNK_SIZE_F;
+    vec3 c00 = mix(chunk.cornerOffsets[0].xyz, chunk.cornerOffsets[1].xyz, t.x);
+    vec3 c10 = mix(chunk.cornerOffsets[2].xyz, chunk.cornerOffsets[3].xyz, t.x);
+    vec3 c01 = mix(chunk.cornerOffsets[4].xyz, chunk.cornerOffsets[5].xyz, t.x);
+    vec3 c11 = mix(chunk.cornerOffsets[6].xyz, chunk.cornerOffsets[7].xyz, t.x);
+    vec3 c0  = mix(c00, c10, t.y);
+    vec3 c1  = mix(c01, c11, t.y);
+    vec3 chunkOffset = mix(c0, c1, t.z);
+
+    vec3 cameraRelPos = chunkBase + chunkOffset;
+
+    // Normal frame from the radial direction at this vertex. cornerMM gives the planet-centre
+    // direction, valid as a chunk-wide approximation for blocky voxels.
+    vec3 up = normalize(vec3(chunk.cornerMM.xyz));
     vec3 right, forward;
     planet__chunk_rotation(cubeFace, up, right, forward);
     fragNormal = mat3(right, up, forward) * LOCAL_FACE_NORMALS[faceDir];

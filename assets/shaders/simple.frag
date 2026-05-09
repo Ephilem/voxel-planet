@@ -15,11 +15,11 @@ layout(set = 3, binding = 1) uniform sampler voxelSampler;
 layout(set = 0, binding = 0) uniform PlanetSurfaceUBO {
     mat4  view;
     mat4  projection;
-    vec3  foPositionInPlanet; // floating origin position in planet-relative coords (float precision)
+    ivec4 foPosMM;
     float planetRadius;
     float farPlane;
-
-    float _padding[3];
+    float _pad0;
+    float _pad1;
 } ubo;
 
 void main() {

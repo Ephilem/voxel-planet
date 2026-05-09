@@ -6,7 +6,14 @@
 #define PI_4 0.7853981633
 
 float planet__equiangular(float s) {
-    return tan(s * PI_4);
+    return tan(s);
+}
+
+// tan(a + b) where tanA = tan(a) is precomputed and b is a small angle.
+// Avoids catastrophic cancellation when adding a small b to a large a before tan().
+float planet__tan_add(float tanA, float b) {
+    float tanB = tan(b);
+    return (tanA + tanB) / (1.0 - tanA * tanB);
 }
 
 
