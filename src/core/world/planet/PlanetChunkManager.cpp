@@ -46,7 +46,7 @@ void PlanetChunkManager::init(flecs::world &ecs) {
         .each([this](flecs::entity e, ChunkLoader& loader, const CellCoord& cell, const Transform& trs) {
             auto planet = e.parent();
             if (planet.is_valid()) {
-                system_update_chunks(e, planet, loader, cell, trs);
+                // system_update_chunks(e, planet, loader, cell, trs);
             }
         });
 
@@ -192,12 +192,12 @@ void PlanetChunkManager::system_drain_candidates(const flecs::entity planet) {
         }
 
         runtime.loadingChunks.insert(candidate.coord);
-        toEnqueue.push_back({
+        /*toEnqueue.push_back({
             .planet = planet,
             .coord = candidate.coord,
             .config = PlanetGenerationConfig{}, // TODO get config from planet or global settings
             .priority = 0.0f
-        });
+        });*/
     }
 
     if (!toEnqueue.empty()) {
@@ -208,8 +208,9 @@ void PlanetChunkManager::system_drain_candidates(const flecs::entity planet) {
 
 void PlanetChunkManager::system_poll_results() {
     auto results = m_generator->poll_results(999);
+    LOG_WARN("PlanetChunkManager", "Polling is hard disable");
 
-    for (auto& result : results) {
+    /*for (auto& result : results) {
         flecs::entity planet = result.planet;
         if (!planet.is_valid() || !m_planets.contains(planet)) continue;
 
@@ -246,7 +247,7 @@ void PlanetChunkManager::system_poll_results() {
             .set<VoxelChunk>(std::move(result.chunk));
 
         runtime.loadedChunks[result.coord] = chunk;
-    }
+    }*/
 }
 
 void PlanetChunkManager::system_process_unload(flecs::entity planet, const ChunkLoader& loader, const CellCoord& cell, const Transform& trs) {

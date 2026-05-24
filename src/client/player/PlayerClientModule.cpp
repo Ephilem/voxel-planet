@@ -7,6 +7,7 @@
 using namespace vp;
 
 void PlayerClientModule::register_components(flecs::world &ecs) {
+    ecs.component<PlayerClient>();
     ecs.component<PlayerController>();
 }
 

@@ -6,9 +6,9 @@
 
 #include "physics_components.h"
 #include "core/main_components.h"
-#include "core/world/ChunkManager.h"
 #include "core/world/world_components.h"
 #include "core/debug/DebugDraw.h"
+#include "core/world/spatial/spatial_components.h"
 
 using namespace vp;
 
@@ -66,7 +66,8 @@ void PhysicsSystem::init(flecs::world &ecs) {
                 }
 
                 float dt = e.world().delta_time();
-                auto cm = e.world().get<ChunkManager>();
+                // auto cm = e.world().get<ChunkManager>();
+                int* cm = nullptr;
                 if (!cm) return;
 
                 glm::vec3 halfExt = body.haftExtent;
@@ -88,9 +89,9 @@ void PhysicsSystem::init(flecs::world &ecs) {
                     for (int bx = bMin.x; bx <= bMax.x; bx++)
                         for (int by = bMin.y; by <= bMax.y; by++)
                             for (int bz = bMin.z; bz <= bMax.z; bz++) {
-                                AABB blockAabb = cm->get_block_info({bx, by, bz}).get_block_aabb()
-                                                 + glm::vec3(bx, by, bz);
-                                if (blockAabb.intersects(aabb)) return false;
+                                // AABB blockAabb = cm->get_block_info({bx, by, bz}).get_block_aabb()
+                                //                  + glm::vec3(bx, by, bz);
+                                // if (blockAabb.intersects(aabb)) return false;
                             }
                     return true;
                 };
@@ -122,8 +123,9 @@ void PhysicsSystem::init(flecs::world &ecs) {
                     for (int bx = blockMin.x; bx <= blockMax.x; bx++)
                         for (int by = blockMin.y; by <= blockMax.y; by++)
                             for (int bz = blockMin.z; bz <= blockMax.z; bz++) {
-                                AABB localBlockAabb = cm->get_block_info({bx, by, bz}).get_block_aabb();
-                                AABB blockAabb = localBlockAabb + glm::vec3(bx, by, bz);
+                                // AABB localBlockAabb = cm->get_block_info({bx, by, bz}).get_block_aabb();
+                                // AABB blockAabb = localBlockAabb + glm::vec3(bx, by, bz);
+                                AABB blockAabb = {glm::vec3(0), glm::vec3(0)};
                                 DebugDraw::Aabb(blockAabb, glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
                                 if (!blockAabb.intersects(aabb)) continue;
 
@@ -203,7 +205,8 @@ void PhysicsSystem::init(flecs::world &ecs) {
                     for (int bx = bMin.x; bx <= bMax.x && !body.onGround; bx++)
                         for (int by = bMin.y; by <= bMax.y && !body.onGround; by++)
                             for (int bz = bMin.z; bz <= bMax.z && !body.onGround; bz++) {
-                                AABB localBlockAabb = cm->get_block_info({bx, by, bz}).get_block_aabb();
+                                // AABB localBlockAabb = cm->get_block_info({bx, by, bz}).get_block_aabb();
+                                AABB localBlockAabb = AABB{};
                                 AABB blockAabb = localBlockAabb + glm::vec3(bx, by, bz);
                                 // DebugDrawManager::Aabb(blockAabb, glm::vec4(1.0f, 0.0f, 0.0f, 0.5f));
                                 if (blockAabb.intersects(aabb)) {

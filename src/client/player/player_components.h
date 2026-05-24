@@ -6,6 +6,8 @@ enum class ControllerMode : glm::uint8_t {
     FreeCam,
 };
 
+struct PlayerClient {};
+
 struct PlayerController {
     ControllerMode mode = ControllerMode::FreeCam;
 

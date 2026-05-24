@@ -20,6 +20,6 @@ void PlanetModule::register_submodules(flecs::world &ecs) {
 }
 
 void PlanetModule::register_entities(flecs::world &ecs) {
-    PlanetChunkManager::Register(ecs);
+    // PlanetChunkManager::Register(ecs);
 }
 

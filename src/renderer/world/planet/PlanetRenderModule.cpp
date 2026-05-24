@@ -58,7 +58,7 @@ void PlanetRenderModule::register_systems(flecs::world &ecs) {
                 //     // DebugDraw::Aabb(aabb, OCTREE_NODE_COLORS[node.level]);
                 // }
 
-                DebugDraw::Sphere(position, planet.radius, {0.5f, 0.5f, 0.5f, 1.0f}, 32);
+                DebugDraw::Sphere(position, planet.radius, {0.5f, 0.5f, 1.0f, 1.0f}, 32);
             });
 }
 

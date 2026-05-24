@@ -36,7 +36,7 @@ namespace vp {
 
     private:
         std::vector<PlanetQuadtreeNode> m_nodes;
-        uint8_t m_maxDepth = 16;
+        uint8_t m_maxDepth = 5;
         CubeFace m_face = CubeFace::PosY;
         float m_planetRadius = 0.0f;
         glm::vec3 m_cameraPos = glm::vec3(0.0f, 0.0f, 0.0f);

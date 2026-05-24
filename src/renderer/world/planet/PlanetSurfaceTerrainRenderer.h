@@ -13,19 +13,29 @@
 #include "core/world/planet/planet_components.h"
 
 namespace vp {
-    struct alignas(16) PlanetChunkOUB {
-        glm::ivec4 coord; // x=face, y=chunkX, z=chunkY, w=altitude
-        glm::ivec4 cornerMM; // xyz = chunk corner (0,0,0) sphere position in mm, abs to planet center
-        glm::vec4  cornerOffsets[8]; // xyz = offsets in metres from cornerMM, indexed by (dx | dy<<1 | dz<<2)
+    struct alignas(16) SurfaceChunkOUB {
+        glm::ivec4 coord; // Representation of SurfaceChunkCoord. x = u, y = v, z = alt
     };
 
-    struct alignas(16) PlanetSurfaceUBO {
+    struct alignas(16) SurfaceSurfaceUBO {
         glm::mat4 view;
         glm::mat4 projection;
-        glm::ivec4 foPosMM; // xyz = FO position in mm, absolute to planet center; w unused
         float planetRadius;
         float farPlane;
-        float _pad[2];
+        float _pad0;
+        float _pad1;
+
+        // Anchor frame in world (planet) space
+        glm::vec4 anchorX;             // tangent right
+        glm::vec4 anchorY;             // up (radial). always at alt = 0
+        glm::vec4 anchorZ;             // tangent forward
+        glm::vec4 anchorCameraPos;     // anchor position relative to camera (FO), computed CPU-side in double
+
+        // .x = anchorFaceU
+        // .y = anchorFaceV
+        // .z = face index
+        // .w = planet altitude
+        glm::vec4 anchorFacePos;
     };
 
     class PlanetSurfaceTerrainRenderer : public IRenderPass {
@@ -37,13 +47,10 @@ namespace vp {
 
         static void Register(flecs::world &ecs);
 
-        void set_fo_position(glm::dvec3 foPos, float radius) {
-            // FO position in millimetres, absolute to planet center. ivec3 keeps full precision
-            // up to ~2100 km
-            glm::dvec3 mm = glm::round(foPos * 1000.0);
-            m_ubo.foPosMM = glm::ivec4(static_cast<int>(mm.x), static_cast<int>(mm.y),
-                                       static_cast<int>(mm.z), 0);
-            m_ubo.planetRadius = radius;
+        void set_anchor_information(const SurfaceAnchorComp& anchor) {
+            m_ubo.anchorX = glm::vec4(anchor.anchorRight, 0);
+            m_ubo.anchorY = glm::vec4(anchor.anchorUp, 0);
+            m_ubo.anchorZ = glm::vec4(anchor.anchorForward, 0);
         }
 
     private:
@@ -51,7 +58,7 @@ namespace vp {
         ResourceSystem *m_resourceSystem = nullptr;
         VoxelTextureManager *m_textureManager = nullptr;
 
-        PlanetSurfaceUBO m_ubo{};
+        SurfaceSurfaceUBO m_ubo{};
         nvrhi::BufferHandle m_uboBuffer;
 
         // Set 0: per-frame (UBO)
@@ -79,7 +86,7 @@ namespace vp {
 
         VoxelBuffer &create_buffer();
 
-        void system_upload_chunk_mesh(const Renderer *renderer, VoxelChunkMesh &mesh, const PlanetChunkCoord &coord);
+        void system_upload_chunk_mesh(const Renderer *renderer, VoxelChunkMesh &mesh, const SurfaceChunkCoord &coord);
         void system_initialize_chunk_mesh(flecs::entity e, const VoxelChunk &mesh, const PlanetChunkCoord &coord);
     };
 }

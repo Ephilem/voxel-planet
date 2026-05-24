@@ -1,15 +1,14 @@
 #include "CoreModule.h"
 
 #include <GLFW/glfw3.h>
-#include <iostream>
 
 #include "GameState.h"
 #include "main_components.h"
 #include "debug/DebugDrawModule.h"
 #include "log/Logger.h"
-#include "world/ChunkManager.h"
 #include "world/planet/PlanetModule.h"
 #include "world/spatial/SpatialModule.h"
+#include "world/spatial/spatial_components.h"
 
 using namespace vp;
 

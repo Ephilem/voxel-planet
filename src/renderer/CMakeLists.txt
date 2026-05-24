@@ -7,16 +7,12 @@ add_library(VoxelPlanetRenderer STATIC
         vulkan/vulkan_type.inl
         debug/ImGuiManager.h
         debug/ImGuiManager.cpp
-        world/VoxelTerrainRenderer.cpp
-        world/VoxelTerrainRenderer.h
         world/VoxelBuffer.cpp
         world/VoxelBuffer.h
         render_types.h
         IRenderPass.h
         world/VoxelTextureManager.cpp
         world/VoxelTextureManager.h
-        world/VoxelChunkMesher.cpp
-        world/VoxelChunkMesher.h
         TracyVulkanIntegration.h
         world/VoxelMeshUploadBatcher.cpp
         world/VoxelMeshUploadBatcher.h

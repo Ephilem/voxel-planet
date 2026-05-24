@@ -39,7 +39,7 @@ void PlanetChunkMesher::Register(flecs::world &ecs) {
 void PlanetChunkMesher::init(flecs::world &ecs) {
     ecs.system<const VoxelChunk, VoxelChunkMesh>("PlanetChunkMesher-Enqueue")
             .kind(flecs::PostUpdate)
-            .with<const PlanetChunkCoord>()
+            // .with<const PlanetChunkCoord>()
             .with<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>()
             .run([this](flecs::iter &it) {
                 system_enqueue(it);

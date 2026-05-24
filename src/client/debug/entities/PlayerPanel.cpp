@@ -14,7 +14,7 @@ void PlayerPanel::render(flecs::world &ecs) {
     ImGui::InputFloat3("Position", m_teleportPos);
 
     if (ImGui::Button("Teleport")) {
-        ecs.each([this](const Camera3d&, Transform& transform, const Player&) {
+        ecs.each([this](const Camera3d&, vp::Transform& transform, const Player&) {
             auto& pos = transform.pos;
             pos.x = m_teleportPos[0];
             pos.y = m_teleportPos[1];

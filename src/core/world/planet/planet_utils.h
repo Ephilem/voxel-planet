@@ -98,14 +98,82 @@ namespace vp {
      * @param planetRelPos Position relative to the planet center (in meters)
      * @param radius Planet radius (in meters)
      */
-    inline PlanetChunkCoord world_pos_to_chunk_coord(const glm::dvec3& planetRelPos, double radius) {
+    inline PlanetChunkCoord world_pos_to_chunk_coord(const glm::dvec3 &planetRelPos, double radius) {
         CubeFace face = dominant_face(planetRelPos);
         glm::dvec2 uv = dir_to_face_uv(face, planetRelPos);
         return {
-            .face     = face,
-            .x        = static_cast<int>(std::floor(std::atan(uv.x) * radius / CHUNK_SIZE)),
-            .y        = static_cast<int>(std::floor(std::atan(uv.y) * radius / CHUNK_SIZE)),
+            .face = face,
+            .x = static_cast<int>(std::floor(std::atan(uv.x) * radius / CHUNK_SIZE)),
+            .y = static_cast<int>(std::floor(std::atan(uv.y) * radius / CHUNK_SIZE)),
             .altitude = static_cast<int>(std::floor((glm::length(planetRelPos) - radius) / CHUNK_SIZE)),
         };
     }
+
+    /**
+     * Calculate right, up and forward vector with a face vector to create a uniform grid tangeant of the point (planetRelPos) on the sphere
+     * @param planetRelPos
+     * @param outRight
+     * @param outUp
+     * @param outForward
+     * @param outFace
+     */
+    inline void build_anchor_frame(const glm::dvec3 &planetRelPos, glm::vec3 &outRight, glm::vec3 &outUp, glm::vec3 &outForward, CubeFace &outFace) {
+        outUp = glm::normalize(planetRelPos);
+        outFace = dominant_face(planetRelPos);
+        glm::vec3 uTan, vTan;
+        switch (outFace) {
+            case CubeFace::PosX: uTan = {0, 0, 1};  vTan = {0, 1, 0};  break;
+            case CubeFace::NegX: uTan = {0, 0, -1}; vTan = {0, 1, 0};  break;
+            case CubeFace::PosY: uTan = {1, 0, 0};  vTan = {0, 0, -1}; break;
+            case CubeFace::NegY: uTan = {1, 0, 0};  vTan = {0, 0, 1};  break;
+            case CubeFace::PosZ: uTan = {1, 0, 0};  vTan = {0, 1, 0};  break;
+            case CubeFace::NegZ: uTan = {-1, 0, 0}; vTan = {0, 1, 0};  break;
+        }
+
+        // Gram-Schmidt
+        outRight = glm::normalize(uTan - glm::dot(uTan, outUp) * outUp);
+        outForward = glm::normalize(vTan - glm::dot(vTan, outUp) * outUp);
+    }
+
+
+    /**
+     * Convert the position on the surface window to world position, relative to the planet (planet grid)
+     * @param planetGrid
+     * @param anchorCoords
+     * @param localU
+     * @param localV
+     * @param altitude
+     * @return position in world planet space of the local tangent cell
+     */
+    // inline glm::dvec3 tangent_cell_to_world(const Grid &planetGrid, const SpatialCoordinate &anchorCoords, int localU, int localV, int altitude) {
+    //     double tx = double(localU) * CHUNK_SIZE;
+    //     double tz = double(localV) * CHUNK_SIZE;
+    //     double ty = double(altitude) * CHUNK_SIZE;
+    //
+    //     glm::dvec3 tangentPos = anchorCoords.anchorWorldPos
+    //                           + tx * glm::dvec3(anchorCoords.anchorRight)
+    //                           + tz * glm::dvec3(anchorCoords.anchorForward)
+    //                           + ty * glm::dvec3(anchorCoords.anchorUp);
+    //
+    //     return tangentPos;
+    // }
+
+    /**
+     * Convert the position on the surface to a normalized direction vector to the point of the surface. Useful for terrain generation and height sampling
+     * @param anchorPlanetPos
+     * @param a
+     * @param localU
+     * @param localV
+     * @return normalized direction vector from the planet center to the tangent cell position
+     */
+    inline glm::dvec3 tangent_cell_to_sphere_dir(const glm::dvec3 anchorPlanetPos, const SurfaceAnchorComp& a, int localU, int localV) {
+        double tx = double(localU) * CHUNK_SIZE;
+        double tz = double(localV) * CHUNK_SIZE;
+        glm::dvec3 tangentPos = anchorPlanetPos
+                              + tx * glm::dvec3(a.anchorRight)
+                              + tz * glm::dvec3(a.anchorForward);
+        return glm::normalize(tangentPos);
+    }
+
+
 }

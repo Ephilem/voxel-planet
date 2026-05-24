@@ -8,18 +8,17 @@
 
 namespace vp {
     struct ChunkGenInput {
-        flecs::entity planet;
-        PlanetChunkCoord coord;
+        flecs::entity chunkEntity;
+        SurfaceChunkCoord coord;
+        glm::dvec3 sphereDir;
         PlanetGenerationConfig config;
         float priority = 0.0f;
     };
 
     struct ChunkGenOutput {
-        flecs::entity planet;
-        PlanetChunkCoord coord;
+        flecs::entity chunkEntity;
+        SurfaceChunkCoord coord;
         VoxelChunk chunk;
-        // std::shared_ptr<std::array<uint16_t, CHUNK_VOLUME>> voxels;
-        // std::unordered_map<AssetID, uint8_t> textureIDs;
         bool success = false;
         bool empty = true;
     };

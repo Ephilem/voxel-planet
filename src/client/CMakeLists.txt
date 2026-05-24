@@ -12,19 +12,18 @@ add_library(VoxelPlanetClient STATIC
         debug/world/PlayerWorldInfo.cpp
         debug/performance/FpsCounter.h
         debug/performance/FpsCounter.cpp
-        debug/renderer/VoxelBufferVisualizer.h
-        debug/renderer/VoxelBufferVisualizer.cpp
         debug/entities/PlayerPanel.cpp
         debug/entities/PlayerPanel.h
-        debug/world/ChunkManagerPanel.cpp
-        debug/world/ChunkManagerPanel.h
-        debug/world/WorldGenPanel.cpp
-        debug/world/WorldGenPanel.h
         debug/DebugUIModule.cpp
         debug/DebugUIModule.h
         player/PlayerClientModule.cpp
         player/PlayerClientModule.h
         player/player_components.h
+        world/planet/SurfaceWindowManager.cpp
+        world/planet/SurfaceWindowManager.h
+        world/planet/planet_client_components.h
+        world/planet/PlanetClientModule.cpp
+        world/planet/PlanetClientModule.h
 )
 
 add_library(VoxelPlanet::Client ALIAS VoxelPlanetClient)

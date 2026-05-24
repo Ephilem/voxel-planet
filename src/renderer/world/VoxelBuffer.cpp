@@ -44,12 +44,12 @@ void VoxelBuffer::init() {
             .setDebugName("VoxelBuffer OUB Buffer")
             .setInitialState(nvrhi::ResourceStates::ShaderResource)
             .setIsConstantBuffer(false)
-            .setStructStride(sizeof(vp::PlanetChunkOUB))
+            .setStructStride(sizeof(vp::SurfaceChunkOUB))
             .setKeepInitialState(true);
     m_oubBuffer = m_backend->device->createBuffer(oubDesc);
 
     // Chunk cull data buffer
-    uint32_t maxSlots = 8 * 1024 * 1024 / sizeof(vp::PlanetChunkOUB);
+    uint32_t maxSlots = 8 * 1024 * 1024 / sizeof(vp::SurfaceChunkOUB);
     auto cullDataDesc = nvrhi::BufferDesc()
             .setByteSize(sizeof(VoxelChunkCullData) * maxSlots)
             .setDebugName("VoxelBuffer Chunk Cull Data Buffer")

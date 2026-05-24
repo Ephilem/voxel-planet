@@ -8,6 +8,7 @@
 #include <iostream>
 
 #include "client/player/player_components.h"
+#include "client/world/planet/planet_client_components.h"
 #include "core/main_components.h"
 #include "core/debug/DebugDraw.h"
 #include "core/physics/physics_components.h"
@@ -40,18 +41,18 @@ int main() {
                 });
 
         auto worldGrid = ecs->entity("WorldGrid")
-                .set<Grid>({.cellSize = 100'000.0});
+                .set<vp::Grid>({.cellSize = 100'000.0});
 
         auto earth = ecs->entity("Earth")
                 .child_of(worldGrid)
                 .set<vp::PlanetComp>({.radius = 637100.0f})
                 .set<vp::PlanetGenerationConfig>({.radius = 637100.0f})
-                .set<Grid>({.cellSize = 10'000.0})
+                .set<vp::Grid>({.cellSize = 10'000.0})
                 .set<PlanetRenderComp>({})
 
-                .set<GlobalTransform>({})
-                .set<CellCoord>({7, 0, 0})
-                .set<Transform>({});
+                .set<vp::GlobalTransform>({})
+                .set<vp::CellCoord>({7, 0, 0})
+                .set<vp::Transform>({});
 
         ecs->entity("Player")
                 .set<Camera3d>({})
@@ -61,14 +62,15 @@ int main() {
 
                 .set<PlayerController>({})
                 .add<Player>()
-                .add<FloatingOrigin>()
+                .add<PlayerClient>()
+                .add<vp::FloatingOrigin>()
 
                 .set<RigidBody>({})
                 .set<Velocity>({})
 
-                .set<CellCoord>({0, 64, 0})
-                .set<GlobalTransform>({})
-                .set<Transform>({
+                .set<vp::CellCoord>({0, 64, 0})
+                .set<vp::GlobalTransform>({})
+                .set<vp::Transform>({
                     .pos = { 0.f, -2750.f, 0.f }
                 })
 
@@ -76,15 +78,16 @@ int main() {
                     .loadRadius = 3,
                     .unloadRadius = 5
                 })
+                .set<vp::PlanetUpVector>({})
 
                 .child_of(earth);
 
-        ecs->system<const Grid>("GridOrigin")
+        ecs->system<const vp::Grid>("GridOrigin")
                 .kind(flecs::PreStore)
-                .each([](flecs::entity e, const Grid &grid) {
+                .each([](flecs::entity e, const vp::Grid &grid) {
                     glm::vec3 pos;
 
-                    if (const auto* gt = e.get<GlobalTransform>()) {
+                    if (const auto* gt = e.get<vp::GlobalTransform>()) {
                         pos = gt->pos;
                     } else {
                         const glm::dvec3 originRender =

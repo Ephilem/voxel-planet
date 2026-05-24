@@ -12,17 +12,23 @@ layout (location = 5) out float v_clip_w;
 layout (set = 0, binding = 0) uniform PlanetSurfaceUBO {
     mat4 view;
     mat4 projection;
-    ivec4 foPosMM;       // xyz = FO position in mm, absolute to planet center
     float planetRadius;
     float farPlane;
     float _pad0;
     float _pad1;
+
+    // Anchor frame (planet/world space)
+    vec4 anchorX;             // tangent right
+    vec4 anchorY;             // up (radial)
+    vec4 anchorZ;             // tangent forward
+    vec4 anchorCameraPos;     // anchor position relative to camera (FO)
+
+    // Anchor in cube-face space : (faceU, faceV, faceIndex, planetRadius)
+    vec4 anchorFacePos;
 } ubo;
 
 struct PlanetChunkOUB {
-    ivec4 coord;            // x=face, y=chunkX, z=chunkY, w=altitude
-    ivec4 cornerMM;         // xyz = chunk corner (0,0,0) sphere position in mm, absolute
-    vec4  cornerOffsets[8]; // xyz = offset from cornerMM (in metres), indexed by dx | dy<<1 | dz<<2
+    ivec4 coord; // chunk coord in local surface window space : x = localU, y = localV, z = altitude
 };
 layout (set = 1, binding = 0, std430) readonly buffer ChunkCoordBuffer {
     PlanetChunkOUB chunks[];
@@ -101,36 +107,42 @@ void main() {
     fragTextureSlot = textureSlot;
 
     /////////////////////////////////////////////////
-    /// Calculate the position of the chunk on the planet and relative to the camera
+    /// Calculate position of the vertex
 
     PlanetChunkOUB chunk = oub.chunks[gl_InstanceIndex];
-    int cubeFace = chunk.coord.x;
+    float tx = float(chunk.coord.x) * CHUNK_SIZE_F + localPos.x;
+    float ty = float(chunk.coord.z) * CHUNK_SIZE_F + localPos.y;
+    float tz = float(chunk.coord.y) * CHUNK_SIZE_F + localPos.z;
 
-    // Chunk base position relative to FO, exact integer subtraction in mm → small float, no precision loss.
-    ivec3 chunkRelFO_mm = chunk.cornerMM.xyz - ubo.foPosMM.xyz;
-    vec3 chunkBase = vec3(chunkRelFO_mm) * 0.001;
+    float R = ubo.anchorFacePos.w;
 
-    // Trilinear interpolation between the 8 precomputed sphere corners (offsets from cornerMM).
-    // localPos is in [0, CHUNK_SIZE]^3 — y can exceed CHUNK_SIZE for sub-voxel tops but stays small.
-    vec3 t = localPos / CHUNK_SIZE_F;
-    vec3 c00 = mix(chunk.cornerOffsets[0].xyz, chunk.cornerOffsets[1].xyz, t.x);
-    vec3 c10 = mix(chunk.cornerOffsets[2].xyz, chunk.cornerOffsets[3].xyz, t.x);
-    vec3 c01 = mix(chunk.cornerOffsets[4].xyz, chunk.cornerOffsets[5].xyz, t.x);
-    vec3 c11 = mix(chunk.cornerOffsets[6].xyz, chunk.cornerOffsets[7].xyz, t.x);
-    vec3 c0  = mix(c00, c10, t.y);
-    vec3 c1  = mix(c01, c11, t.y);
-    vec3 chunkOffset = mix(c0, c1, t.z);
+    float Rty = R + ty;
+    float horiz2 = tx * tx + tz * tz;
 
-    vec3 cameraRelPos = chunkBase + chunkOffset;
+    float ratio = horiz2 / (Rty * Rty);
+    float sqrtTerm = sqrt(1.0 + ratio);
+    float d = Rty * sqrtTerm;
 
-    // Normal frame from the radial direction at this vertex. cornerMM gives the planet-centre
-    // direction, valid as a chunk-wide approximation for blocky voxels.
-    vec3 up = normalize(vec3(chunk.cornerMM.xyz));
-    vec3 right, forward;
-    planet__chunk_rotation(cubeFace, up, right, forward);
-    fragNormal = mat3(right, up, forward) * LOCAL_FACE_NORMALS[faceDir];
+    float sag = -horiz2 / (Rty + d);
+    float scale = sag / d;
 
-    fragWorldPos = cameraRelPos;
-    gl_Position = ubo.projection * ubo.view * vec4(cameraRelPos, 1.0);
-    v_clip_w = gl_Position.w;
+    vec3 curvatureLocal = vec3(tx * scale, Rty * scale, tz * scale);
+
+    vec3 relPos_tangent = tx * ubo.anchorX.xyz
+                        + tz * ubo.anchorZ.xyz
+                        + ty * ubo.anchorY.xyz;
+    vec3 curvatureWorld = curvatureLocal.x * ubo.anchorX.xyz
+                        + curvatureLocal.y * ubo.anchorY.xyz
+                        + curvatureLocal.z * ubo.anchorZ.xyz;
+
+    vec3 spherePos = ubo.anchorCameraPos.xyz + relPos_tangent + curvatureWorld;
+
+    vec3 localNormal = LOCAL_FACE_NORMALS[faceDir];
+    fragNormal = localNormal.x * ubo.anchorX.xyz
+                + localNormal.y * ubo.anchorY.xyz
+                + localNormal.z * ubo.anchorZ.xyz;
+
+    fragWorldPos = spherePos;
+    gl_Position  = ubo.projection * ubo.view * vec4(spherePos, 1.0);
+    v_clip_w     = gl_Position.w;
 }

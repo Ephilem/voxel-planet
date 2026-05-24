@@ -1,8 +1,10 @@
 #include "Camera3dModule.h"
 
 #include <GLFW/glfw3.h>
+#include <glm/ext/matrix_transform.hpp>
 
 #include "camera3d_systems.h"
+#include "client/world/planet/planet_client_components.h"
 #include "core/TracyIntegration.h"
 #include "core/physics/physics_components.h"
 #include "core/world/spatial/spatial_components.h"
@@ -35,18 +37,31 @@ void Camera3dModule::register_systems(flecs::world &ecs) {
             glm::vec3 playerPos = glm::vec3(0.f);
             glm::vec3 eyePos = glm::vec3(0.f);
             auto type = parameters.viewType;
+
+            glm::vec3 worldUp = glm::vec3(0.f, 1.f, 0.f);
+            if (const auto* planetUp = e.get<vp::PlanetUpVector>())
+                worldUp = planetUp->up;
+
             if (type == CameraViewType::FirstPerson) {
                 if (auto* body = e.get<RigidBody>()) {
                     eyePos.y += body->haftExtent.y * 0.75f;
                 }
-                systems::update_camera_view_system(camera, eyePos, transform.rot);
+                systems::update_camera_view_system(camera, eyePos, transform.rot, worldUp);
             } else if (type == CameraViewType::ThirdPerson) {
-                float distance = 10.0f;
-                float yawRad = glm::radians(transform.rot.y);
-                float pitchRad = glm::radians(transform.rot.x);
-                eyePos.x -= distance * cos(pitchRad) * sin(yawRad);
-                eyePos.y -= distance * sin(pitchRad);
-                eyePos.z -= distance * cos(pitchRad) * cos(yawRad);
+                float distance  = 10.0f;
+                float yawRad    = glm::radians(transform.rot.y);
+                float pitchRad  = glm::radians(transform.rot.x);
+
+                glm::vec3 absUp = glm::abs(worldUp);
+                glm::vec3 helper    = (absUp.x < 0.9f) ? glm::vec3(1, 0, 0) : glm::vec3(0, 1, 0);
+                glm::vec3 refForward = glm::normalize(glm::cross(helper, worldUp));
+                glm::vec3 forward = glm::normalize(
+                    glm::rotate(glm::mat4(1.f), yawRad, worldUp) * glm::vec4(refForward, 0.f));
+                glm::vec3 right = glm::normalize(glm::cross(worldUp, forward));
+                forward = glm::normalize(
+                    glm::rotate(glm::mat4(1.f), pitchRad, right) * glm::vec4(forward, 0.f));
+
+                eyePos = playerPos - forward * distance;
                 systems::update_camera_third_person_system(camera, eyePos, playerPos);
             }
         });

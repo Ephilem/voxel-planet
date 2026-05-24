@@ -8,8 +8,6 @@
 #include "debug/DebugRenderModule.h"
 
 #include "Renderer.h"
-#include "rendering_components.h"
-#include "world/VoxelTerrainRenderer.h"
 #include "vulkan/VulkanBackend.h"
 
 #include "platform/PlatformState.h"
@@ -18,7 +16,6 @@
 #include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
 #include "core/world/world_components.h"
-#include "core/world/ChunkManager.h"
 #include "world/planet/PlanetRenderModule.h"
 
 
@@ -27,29 +24,6 @@
 #endif
 
 using namespace vp;
-
-// RendererModule::RendererModule(flecs::world& ecs) {
-//     auto* platform = ecs.get<PlatformState>();
-//     if (!platform || !platform->window) {
-//         throw std::runtime_error("RendererModule: PlatformModule must be initialized before RendererModule");
-//     }
-//
-//     ecs.component<Renderer>();
-//
-//     ecs.set<Renderer>({
-//         .backend = std::make_unique<VulkanBackend>(platform->window->window, RenderParameters{platform->window->width, platform->window->height}),
-//         .imguiManager = std::make_unique<ImGuiManager>(),
-//     });
-//
-//
-//     // PlanetDebugRenderer::Register(ecs);
-//     // SkyRenderer::Register(ecs);
-//     // VoxelTerrainRenderer::Register(ecs);
-//     DebugDrawRenderer::Register(ecs);
-//     ImGuiManager::Register(ecs);
-//
-//     Camera3dSystems::Register(ecs);
-// }
 
 void RendererModule::register_components(flecs::world &ecs) {
     auto* platform = ecs.get<PlatformState>();

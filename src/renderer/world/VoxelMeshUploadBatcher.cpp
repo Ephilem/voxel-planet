@@ -131,13 +131,13 @@ void VoxelMeshUploadBatcher::flush(VkCommandBuffer cmd) {
         }
 
         // --- OUB ---
-        memcpy(mapped + stagingOffset, &task.oub, sizeof(vp::PlanetChunkOUB));
+        memcpy(mapped + stagingOffset, &task.oub, sizeof(vp::SurfaceChunkOUB));
         get_regions(oubCopies, vkOub).push_back({
             .srcOffset = stagingOffset,
-            .dstOffset = task.drawSlotIndex * sizeof(vp::PlanetChunkOUB),
-            .size = sizeof(vp::PlanetChunkOUB),
+            .dstOffset = task.drawSlotIndex * sizeof(vp::SurfaceChunkOUB),
+            .size = sizeof(vp::SurfaceChunkOUB),
         });
-        stagingOffset += sizeof(vp::PlanetChunkOUB);
+        stagingOffset += sizeof(vp::SurfaceChunkOUB);
 
         // --- Chunk cull data and indirectCmd ---
         // Cull information

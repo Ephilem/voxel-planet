@@ -1,6 +1,8 @@
 #include "PlanetSurfaceTerrainRenderer.h"
 
 #include "PlanetChunkMesher.h"
+#include "client/player/player_components.h"
+#include "client/world/planet/planet_client_components.h"
 #include "core/GameState.h"
 #include "core/main_components.h"
 #include "core/TracyIntegration.h"
@@ -10,6 +12,7 @@
 #include "core/world/planet/planet_components.h"
 #include "core/world/planet/planet_utils.h"
 #include "core/world/spatial/spatial_components.h"
+#include "core/world/spatial/spatial_utils.h"
 #include "renderer/Renderer.h"
 #include "renderer/TracyVulkanIntegration.h"
 #include "renderer/world/VoxelTextureManager.h"
@@ -33,18 +36,35 @@ void PlanetSurfaceTerrainRenderer::init(flecs::world &ecs) {
     init_gpu();
 
     // Systems
-    ecs.system<const PlanetComp, const Grid>("PlanetSurface-UpdateFO")
+    ecs.system<const SurfaceAnchorComp, const GlobalTransform>("PlanetSurface-UpdateUBO")
             .kind(flecs::PreUpdate)
-            .each([this](flecs::entity planet, const PlanetComp &p, const Grid &grid) {
-                const LocalFloatingOrigin &lfo = grid.localOrigin;
-                glm::dvec3 foPos = glm::dvec3(lfo.cell) * grid.cellSize + glm::dvec3(lfo.translation);
-                set_fo_position(foPos, p.radius);
+            .with<const PlanetComp>().parent().and_().with<const Grid>().parent()
+            .each([this](flecs::entity anchor, const SurfaceAnchorComp a, const GlobalTransform gTrs) {
+                flecs::entity planet = anchor.parent();
+                const PlanetComp* planetComp = planet.get<PlanetComp>();
+                const Grid* grid = planet.get<Grid>();
+                glm::dvec3 anchorWorldPos = get_hp_position(anchor);
+
+                const LocalFloatingOrigin &lfo = grid->localOrigin;
+                glm::dvec3 foPos = glm::dvec3(lfo.cell) * grid->cellSize + glm::dvec3(lfo.translation);
+
+                m_ubo.planetRadius = planetComp->radius;
+                m_ubo.anchorCameraPos = glm::vec4(gTrs.pos, 0);
+
+                m_ubo.anchorFacePos = glm::vec4(
+                    float(a.gridCenter.x),
+                    float(a.gridCenter.y),
+                    float(static_cast<int>(a.face)),
+                    float(planetComp->radius));
+
+                set_anchor_information(a);
             });
 
-    ecs.system<VoxelChunkMesh, const PlanetChunkCoord>("PlanetSurface-UploadMesh")
+    ecs.system<VoxelChunkMesh, const SurfaceChunkCoord>("PlanetSurface-UploadMesh")
             .kind(flecs::PreStore)
+            .with<const SurfaceAnchorComp>().parent()
             .with<VoxelChunkMeshState, voxel_chunk_mesh_state::ReadyForUpload>()
-            .each([this](flecs::entity e, VoxelChunkMesh &mesh, const PlanetChunkCoord &coord) {
+            .each([this](flecs::entity e, VoxelChunkMesh &mesh, const SurfaceChunkCoord &coord) {
                 const auto *renderer = e.world().get<Renderer>();
                 if (!renderer) return;
                 system_upload_chunk_mesh(renderer, mesh, coord);
@@ -60,16 +80,15 @@ void PlanetSurfaceTerrainRenderer::init(flecs::world &ecs) {
                 });
             });
 
-    ecs.system<const VoxelChunk, const PlanetChunkCoord>("PlanetSurface-InitializeChunkMesh")
-            .kind(flecs::OnStore)
-            .without<VoxelChunkMesh>()
-            .each([this](flecs::entity e, const VoxelChunk &chunk, const PlanetChunkCoord &coord) {
-                system_initialize_chunk_mesh(e, chunk, coord);
-            });
+    // ecs.system<const VoxelChunk, const PlanetChunkCoord>("PlanetSurface-InitializeChunkMesh")
+    //         .kind(flecs::OnStore)
+    //         .without<VoxelChunkMesh>()
+    //         .each([this](flecs::entity e, const VoxelChunk &chunk, const PlanetChunkCoord &coord) {
+    //             system_initialize_chunk_mesh(e, chunk, coord);
+    //         });
 
     ecs.observer<VoxelChunkMesh>("PlanetSurface-Cleanup")
             .event(flecs::OnRemove)
-            .with<PlanetChunkCoord>()
             .each([this](flecs::entity, VoxelChunkMesh &mesh) {
                 if (!mesh.is_allocated() || m_chunkBuffers.empty()) return;
                 int idx = mesh.bufferIndex;
@@ -77,76 +96,49 @@ void PlanetSurfaceTerrainRenderer::init(flecs::world &ecs) {
                 m_chunkBuffers[idx].free(mesh);
             });
 
-    ecs.system<const PlanetChunkCoord>("PlanetSurface-DebugNormals")
-            .kind(flecs::OnStore)
-            .with<VoxelChunkMesh>()
-            .each([](flecs::entity e, const PlanetChunkCoord &coord) {
-                const auto *renderer = e.world().get<Renderer>();
-                const auto *planet = e.parent().get<PlanetComp>();
-                if (!renderer || !planet) return;
-
-                const auto *grid = e.parent().get<Grid>();
-                glm::vec3 fo = grid
-                                   ? glm::vec3(
-                                       glm::dvec3(grid->localOrigin.cell) * grid->cellSize
-                                       + glm::dvec3(grid->localOrigin.translation))
-                                   : glm::vec3(0);
-
-                // Convertit une position locale du chunk (face-space, mètres) en world-draw pos
-                // local.x/z ∈ [0, CHUNK_SIZE], local.y = altitude offset
-                auto chunk_to_draw = [&](float lx, float ly, float lz) -> glm::vec3 {
-                    float face_x = coord.x * CHUNK_SIZE + lx;
-                    float face_z = coord.y * CHUNK_SIZE + lz;
-                    float r = planet->radius + coord.altitude * CHUNK_SIZE + ly;
-
-                    float u = equiangular(face_x / planet->radius);
-                    float v = equiangular(face_z / planet->radius);
-
-                    glm::vec3 world = glm::normalize(glm::vec3(face_to_cube_dir(coord.face, u, v))) * r;
-                    return world - fo;
-                };
-
-                // Dessine une arête subdivisée entre deux coins (p0, p1 en coords locales xyz)
-                constexpr int SUBDIV = 4;
-                auto edge = [&](glm::vec3 p0, glm::vec3 p1) {
-                    for (int i = 0; i < SUBDIV; i++) {
-                        float t0 = float(i) / float(SUBDIV);
-                        float t1 = float(i + 1) / float(SUBDIV);
-                        glm::vec3 a = glm::mix(p0, p1, t0);
-                        glm::vec3 b = glm::mix(p0, p1, t1);
-                        DebugDraw::Line(
-                            chunk_to_draw(a.x, a.y, a.z),
-                            chunk_to_draw(b.x, b.y, b.z),
-                            {1, 1, 0, 1}
-                        );
-                    }
-                };
-
-                const float S = CHUNK_SIZE;
-                glm::vec3 c[8] = {
-                    {0, 0, 0}, {S, 0, 0}, {S, 0, S}, {0, 0, S},
-                    {0, S, 0}, {S, S, 0}, {S, S, S}, {0, S, S},
-                };
-                int edges[12][2] = {
-                    {0, 1}, {1, 2}, {2, 3}, {3, 0},
-                    {4, 5}, {5, 6}, {6, 7}, {7, 4},
-                    {0, 4}, {1, 5}, {2, 6}, {3, 7}
-                };
-                for (auto &ed: edges)
-                    edge(c[ed[0]], c[ed[1]]);
-            });
-
-
     // draw a cube of 1x1 a the player feet
-    ecs.system<const Player>("PlanetSurface-CubeTemoin")
+    ecs.system<const PlanetUpVector>("PlanetSurface-CubeTemoin")
             .kind(flecs::OnStore)
+            .with<PlayerClient>()
             .with<Camera3d>()
-            .each([](flecs::entity e, const Player &) {
-                glm::vec3 drawOrigin = glm::vec3({0.f, -2.f, 0.f});
-                DebugDraw::Aabb(
-                    drawOrigin,
-                    drawOrigin + glm::vec3(1.0f)
-                    , {1, 0, 1, 1});
+            .each([](flecs::entity e, const PlanetUpVector& upVector) {
+                // Build orientation from anchor if available, else use PlanetUpVector
+                glm::vec3 up = glm::normalize(upVector.up);
+                glm::vec3 absUp = glm::abs(up);
+                glm::vec3 helper = (absUp.x < 0.9f) ? glm::vec3(1, 0, 0) : glm::vec3(0, 1, 0);
+                glm::vec3 fwd   = glm::normalize(glm::cross(helper, up));
+                glm::vec3 right = glm::normalize(glm::cross(up, fwd));
+
+                // Center: 2 units below player (in planet-up direction), 3 units in front
+                glm::vec3 center = -up * 2.f + fwd * 3.f;
+
+                // Half-extents along each axis
+                glm::vec3 hu = up    * 0.5f;
+                glm::vec3 hf = fwd   * 0.5f;
+                glm::vec3 hr = right * 0.5f;
+
+                // 8 corners
+                glm::vec3 c[8] = {
+                    center - hr - hf - hu,
+                    center + hr - hf - hu,
+                    center + hr + hf - hu,
+                    center - hr + hf - hu,
+                    center - hr - hf + hu,
+                    center + hr - hf + hu,
+                    center + hr + hf + hu,
+                    center - hr + hf + hu,
+                };
+
+                glm::vec4 col = {1, 0, 1, 1};
+                // Bottom face
+                DebugDraw::Line(c[0], c[1], col); DebugDraw::Line(c[1], c[2], col);
+                DebugDraw::Line(c[2], c[3], col); DebugDraw::Line(c[3], c[0], col);
+                // Top face
+                DebugDraw::Line(c[4], c[5], col); DebugDraw::Line(c[5], c[6], col);
+                DebugDraw::Line(c[6], c[7], col); DebugDraw::Line(c[7], c[4], col);
+                // Verticals
+                DebugDraw::Line(c[0], c[4], col); DebugDraw::Line(c[1], c[5], col);
+                DebugDraw::Line(c[2], c[6], col); DebugDraw::Line(c[3], c[7], col);
             });
 }
 
@@ -171,7 +163,7 @@ void PlanetSurfaceTerrainRenderer::init_gpu() {
     // UBO buffer
     m_uboBuffer = m_backend->device->createBuffer(
         nvrhi::BufferDesc()
-        .setByteSize(sizeof(PlanetSurfaceUBO))
+        .setByteSize(sizeof(SurfaceSurfaceUBO))
         .setDebugName("PlanetSurfaceUBO")
         .setInitialState(nvrhi::ResourceStates::ConstantBuffer)
         .setKeepInitialState(true)
@@ -256,44 +248,16 @@ VoxelBuffer &PlanetSurfaceTerrainRenderer::create_buffer() {
 }
 
 void PlanetSurfaceTerrainRenderer::system_upload_chunk_mesh(const Renderer *renderer, VoxelChunkMesh &mesh,
-                                                            const PlanetChunkCoord &coord) {
+                                                            const SurfaceChunkCoord &coord) {
     VOXEL_VK_NVRHI_ZONE(renderer->backend->tracyVkCtx, renderer->frameContext.commandList, "GPU Upload Planet Chunk");
 
     TerrainOUB oub{};
-    const double radius = static_cast<double>(m_ubo.planetRadius);
-    const double chunkSize = static_cast<double>(CHUNK_SIZE);
-    const auto faceEnum = static_cast<CubeFace>(coord.face);
 
-    // Compute the 8 corners of the chunk, each projected on the sphere in double precision.
-    // Indexed by i = dx | (dy<<1) | (dz<<2), with (dx,dy,dz) ∈ {0,1}^3 mapping to local axes.
-    glm::dvec3 cornerSphere[8];
-    for (int i = 0; i < 8; i++) {
-        int dx = (i >> 0) & 1;
-        int dy = (i >> 1) & 1;
-        int dz = (i >> 2) & 1;
-        double face_x = (coord.x + dx) * chunkSize;
-        double face_z = (coord.y + dz) * chunkSize;
-        double r      = radius + (coord.altitude + dy) * chunkSize;
-        double u      = std::tan(face_x / radius);
-        double v      = std::tan(face_z / radius);
-        cornerSphere[i] = glm::normalize(face_to_cube_dir(faceEnum, u, v)) * r;
-    }
+    SurfaceChunkOUB chunkOUB{};
+    chunkOUB.coord = {coord.localU, coord.localV, coord.alt, 0};
 
-    // Reference corner (i=0) stored in mm as ivec3
-    glm::dvec3 c0 = cornerSphere[0];
-    glm::dvec3 c0mm = glm::round(c0 * 1000.0);
-
-    PlanetChunkOUB chunkOUB{};
-    chunkOUB.coord    = glm::ivec4(static_cast<int>(coord.face), coord.x, coord.y, coord.altitude);
-    chunkOUB.cornerMM = glm::ivec4(static_cast<int>(c0mm.x), static_cast<int>(c0mm.y),
-                                   static_cast<int>(c0mm.z), 0);
-    for (int i = 0; i < 8; i++) {
-        glm::dvec3 offset = cornerSphere[i] - c0;
-        chunkOUB.cornerOffsets[i] = glm::vec4(glm::vec3(offset), 0.0f);
-    }
-
-    static_assert(sizeof(PlanetChunkOUB) <= sizeof(TerrainOUB));
-    std::memcpy(&oub, &chunkOUB, sizeof(PlanetChunkOUB));
+    static_assert(sizeof(SurfaceChunkOUB) <= sizeof(TerrainOUB));
+    std::memcpy(&oub, &chunkOUB, sizeof(SurfaceChunkOUB));
 
     if (m_chunkBuffers.empty())
         create_buffer();
@@ -381,11 +345,12 @@ void PlanetSurfaceTerrainRenderer::render(nvrhi::CommandListHandle commandList,
         commandList->getNativeObject(nvrhi::ObjectTypes::VK_CommandBuffer));
     m_meshUploader.flush(vkCmd);
 
-    commandList->writeBuffer(m_uboBuffer, &m_ubo, sizeof(PlanetSurfaceUBO));
+    commandList->writeBuffer(m_uboBuffer, &m_ubo, sizeof(SurfaceSurfaceUBO));
 
     auto extent = m_backend->get_swapchain_extent();
 
     for (size_t i = 0; i < m_chunkBuffers.size(); i++) {
+        VOXEL_VK_NVRHI_ZONE(backend.tracyVkCtx, commandList, "Render Planet Buffer");
         auto &buf = m_chunkBuffers[i];
         uint32_t drawCount = buf.get_unculled_draw_count();
         if (drawCount == 0) continue;

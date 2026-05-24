@@ -12,6 +12,7 @@
 #include "player/PlayerClientModule.h"
 #include "player/player_components.h"
 #include "renderer/rendering_components.h"
+#include "world/planet/PlanetClientModule.h"
 
 void vp::ClientModule::register_components(flecs::world &ecs) {
 }
@@ -25,6 +26,7 @@ void vp::ClientModule::register_pipelines(flecs::world &ecs) {
 void vp::ClientModule::register_submodules(flecs::world &ecs) {
     ecs.import<DebugUIModule>();
     ecs.import<PlayerClientModule>();
+    ecs.import<PlanetClientModule>();
 }
 
 void vp::ClientModule::register_entities(flecs::world &ecs) {

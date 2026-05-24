@@ -19,12 +19,12 @@ void PlayerWorldInfo::pre_render() {
 void PlayerWorldInfo::render(flecs::world& ecs) {
     VOXEL_ZONE_N("WorldF3Info-Display");
 
-    ecs.each([](flecs::entity e, const Camera3d& camera, const Transform& transform, const RigidBody& body, const PlayerController& ctrl, const CellCoord& gridCell) {
+    ecs.each([](flecs::entity e, const Camera3d& camera, const vp::Transform& transform, const RigidBody& body, const PlayerController& ctrl, const vp::CellCoord& gridCell) {
         constexpr float kMetersPerWorldUnit = 1.0f;
         const glm::vec3 positionMeters = transform.pos * kMetersPerWorldUnit;
         const glm::vec3 orientationDeg = transform.rot;
 
-        const Grid* playerGrid = vp::get_first_ancestor_grid(e).get<Grid>();
+        const vp::Grid* playerGrid = vp::get_first_ancestor_grid(e).get<vp::Grid>();
         const glm::dvec3 inGridPosition = playerGrid
             ? glm::dvec3(transform.pos) + (gridCell * playerGrid->cellSize)
             : glm::dvec3(transform.pos);

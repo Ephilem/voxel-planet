@@ -10,7 +10,7 @@
 using namespace vp;
 
 PlanetChunkGenerator::PlanetChunkGenerator() {
-    size_t threadCount = std::thread::hardware_concurrency()/2;
+    size_t threadCount = std::thread::hardware_concurrency() / 2;
     m_generationWorkerResults.reserve(threadCount);
     for (size_t i = 0; i < threadCount; i++) {
         m_generationWorkerResults.push_back(std::make_unique<GenerationWorkerResult>());
@@ -21,7 +21,8 @@ PlanetChunkGenerator::PlanetChunkGenerator() {
 
 PlanetChunkGenerator::~PlanetChunkGenerator() {
     m_stopGeneration = true;
-    for (auto& thread : m_generationThreads) {
+    m_generationSemaphore.release(static_cast<int>(m_generationThreads.size()));
+    for (auto &thread: m_generationThreads) {
         thread.join();
     }
     LOG_TRACE("PlanetChunkGenerator", "All generation worker threads stopped");
@@ -81,10 +82,13 @@ void PlanetChunkGenerator::worker_loop(size_t workerId) {
         m_generationSemaphore.acquire();
 
         if (m_stopGeneration && [&] {
-            std::lock_guard lock(m_enqueueGenerationMutex);
-            return m_generationQueue.empty();
-        }())
-            return; {
+                std::lock_guard lock(m_enqueueGenerationMutex);
+                return m_generationQueue.empty();
+            }()) {
+            return;
+        }
+
+        {
             VOXEL_ZONE_N("PollJobs");
             std::lock_guard lock(m_enqueueGenerationMutex);
             while (batch.size() < GENERATION_BATCH_SIZE && !m_generationQueue.empty()) {
@@ -107,7 +111,7 @@ void PlanetChunkGenerator::worker_loop(size_t workerId) {
                 bool hasContent = generator.generate_planet_chunk(chunk, input.coord, input.config);
 
                 ChunkGenOutput output;
-                output.planet = input.planet;
+                output.chunkEntity = input.chunkEntity;
                 output.coord = input.coord;
                 output.chunk = std::move(chunk);
                 output.success = true; // or false if generation failed

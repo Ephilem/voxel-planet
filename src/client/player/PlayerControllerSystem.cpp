@@ -6,8 +6,10 @@
 
 #include <cmath>
 #include <glm/glm.hpp>
+#include <glm/ext/matrix_transform.hpp>
 
 #include "player_components.h"
+#include "client/world/planet/planet_client_components.h"
 #include "core/main_components.h"
 #include "core/TracyIntegration.h"
 #include "core/physics/physics_components.h"
@@ -48,27 +50,28 @@ void PlayerControllerSystem::Register(flecs::world& ecs) {
         });
 
     // --- Walking input + physics ---
-    ecs.system<const Transform, PlayerController, Velocity>("PlayerController-Walking")
+    ecs.system<const vp::Transform, PlayerController, Velocity>("PlayerController-Walking")
         .kind(flecs::OnUpdate)
         .with<Player>()
-        .each([](flecs::entity e, const Transform& transform, PlayerController& ctrl, Velocity& vel) {
+        .each([](flecs::entity e, const vp::Transform& transform, PlayerController& ctrl, Velocity& vel) {
             if (ctrl.mode != ControllerMode::Walking) return;
 
             const auto* actions = e.world().get<InputActionState>();
             const auto* body    = e.get<RigidBody>();
             float dt = e.world().delta_time();
 
-            // Horizontal direction from input (yaw only, no pitch)
-            glm::vec3 forward = glm::vec3(
-                sin(glm::radians(transform.rot.y)),
-                0.0f,
-                cos(glm::radians(transform.rot.y))
-            );
-            glm::vec3 right = glm::vec3(
-                cos(glm::radians(transform.rot.y)),
-                0.0f,
-                -sin(glm::radians(transform.rot.y))
-            );
+            glm::vec3 worldUp = glm::vec3(0.f, 1.f, 0.f);
+            if (const auto* planetUp = e.get<vp::PlanetUpVector>())
+                worldUp = planetUp->up;
+
+            // Build forward/right in the tangent plane of worldUp, yaw-only (no pitch)
+            glm::vec3 absUp = glm::abs(worldUp);
+            glm::vec3 helper = (absUp.x < 0.9f) ? glm::vec3(1, 0, 0) : glm::vec3(0, 1, 0);
+            glm::vec3 refForward = glm::normalize(glm::cross(helper, worldUp));
+            float yawRad = glm::radians(transform.rot.y);
+            glm::vec3 forward = glm::normalize(
+                glm::rotate(glm::mat4(1.f), yawRad, worldUp) * glm::vec4(refForward, 0.f));
+            glm::vec3 right = glm::normalize(glm::cross(worldUp, forward));
 
             glm::vec3 wishDir = glm::vec3(0.0f);
             if (actions->is_action_active(ActionInputType::Forward))  wishDir += forward;
@@ -79,20 +82,20 @@ void PlayerControllerSystem::Register(flecs::world& ecs) {
             float targetSpeed = actions->is_action_active(ActionInputType::Sprint)
                 ? ctrl.sprintSpeed : ctrl.walkSpeed;
 
-            glm::vec2 wishVelXZ = (glm::length(wishDir) > 0.01f)
-                ? glm::normalize(glm::vec2(wishDir.x, wishDir.z)) * targetSpeed
-                : glm::vec2(0.0f);
+            glm::vec3 wishVel3 = (glm::length(wishDir) > 0.01f)
+                ? glm::normalize(wishDir) * targetSpeed
+                : glm::vec3(0.0f);
 
             bool onGround = body && body->onGround;
             float accel = onGround ? ctrl.groundAccel : ctrl.airAccel;
 
-            // Friction when on ground and no input
-            if (onGround && glm::length(wishVelXZ) < 0.01f) {
-                accel = ctrl.groundFriction;
-            }
-
-            glm::vec2 curXZ = { vel.x, vel.z };
-            glm::vec2 newXZ = move_towards(curXZ, wishVelXZ, accel * dt);
+            // Project current velocity onto tangent plane for friction/accel
+            glm::vec3 curTangent = vel - glm::dot(glm::vec3(vel), worldUp) * worldUp;
+            float friction = (onGround && glm::length(wishVel3) < 0.01f) ? ctrl.groundFriction : accel;
+            glm::vec2 newXZ = move_towards(
+                glm::vec2(curTangent.x, curTangent.z),
+                glm::vec2(wishVel3.x, wishVel3.z),
+                friction * dt);
             vel.x = newXZ.x;
             vel.z = newXZ.y;
 
@@ -103,10 +106,10 @@ void PlayerControllerSystem::Register(flecs::world& ecs) {
         });
 
     // --- FreeCam movement ---
-    ecs.system<Transform, PlayerController, Velocity>("PlayerController-FreeCam")
+    ecs.system<vp::Transform, PlayerController, Velocity>("PlayerController-FreeCam")
         .kind(flecs::OnUpdate)
         .with<Player>()
-        .each([](flecs::entity e, Transform& transform, PlayerController& ctrl, Velocity& vel) {
+        .each([](flecs::entity e, vp::Transform& transform, PlayerController& ctrl, Velocity& vel) {
             if (ctrl.mode != ControllerMode::FreeCam) return;
 
             const auto* actions    = e.world().get<InputActionState>();
@@ -126,17 +129,22 @@ void PlayerControllerSystem::Register(flecs::world& ecs) {
             if (actions->is_action_active(ActionInputType::Slowdown))
                 speed *= 0.25f;
 
-            glm::vec3 forward = glm::vec3(
-                cos(glm::radians(transform.rot.x)) * sin(glm::radians(transform.rot.y)),
-                0,
-                cos(glm::radians(transform.rot.x)) * cos(glm::radians(transform.rot.y))
-            );
-            glm::vec3 right = glm::vec3(
-                cos(glm::radians(transform.rot.y)),
-                0.0f,
-                -sin(glm::radians(transform.rot.y))
-            );
-            glm::vec3 up = glm::vec3(0, 1, 0);
+            glm::vec3 worldUp = glm::vec3(0.f, 1.f, 0.f);
+            if (const auto* planetUp = e.get<vp::PlanetUpVector>())
+                worldUp = planetUp->up;
+
+            glm::vec3 absUp = glm::abs(worldUp);
+            glm::vec3 helper = (absUp.x < 0.9f) ? glm::vec3(1, 0, 0) : glm::vec3(0, 1, 0);
+            glm::vec3 refForward = glm::normalize(glm::cross(helper, worldUp));
+            float yawRad   = glm::radians(transform.rot.y);
+            float pitchRad = glm::radians(transform.rot.x);
+            glm::vec3 forward = glm::normalize(
+                glm::rotate(glm::mat4(1.f), yawRad, worldUp) * glm::vec4(refForward, 0.f));
+            glm::vec3 right = glm::normalize(glm::cross(worldUp, forward));
+            forward = glm::normalize(
+                glm::rotate(glm::mat4(1.f), pitchRad, right) * glm::vec4(forward, 0.f));
+            right = glm::normalize(glm::cross(worldUp, forward));
+            glm::vec3 up = worldUp;
 
             glm::vec3 dir = glm::vec3(0.0f);
             if (actions->is_action_active(ActionInputType::Forward))  dir += forward;
@@ -156,10 +164,10 @@ void PlayerControllerSystem::Register(flecs::world& ecs) {
         });
 
 
-    ecs.system<Transform>("MouseLookSystem")
+    ecs.system<vp::Transform>("MouseLookSystem")
         .kind(flecs::OnUpdate)
         .with<Camera3d>()
-        .each([](flecs::entity e, Transform& transform) {
+        .each([](flecs::entity e, vp::Transform& transform) {
             VOXEL_ZONE_N("ClientModule-MouseLook");
             auto* inputState = e.world().get_mut<InputState>();
             if (!inputState->mouseCaptured) return;
@@ -167,7 +175,7 @@ void PlayerControllerSystem::Register(flecs::world& ecs) {
             float sensitivity = -0.1f;
             transform.rot.y += inputState->mouseDeltaX * sensitivity;
             transform.rot.y = fmod(transform.rot.y, 360.0f);
-            transform.rot.x += inputState->mouseDeltaY * sensitivity;
+            transform.rot.x -= inputState->mouseDeltaY * sensitivity;
             transform.rot.x = fmod(transform.rot.x, 360.0f);
 
             if (transform.rot.x > 89.0f) transform.rot.x = 89.0f;

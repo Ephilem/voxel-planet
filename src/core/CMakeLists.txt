@@ -17,14 +17,10 @@ add_library(VoxelPlanetCore STATIC
     resource/loaders/ShaderLoader.cpp
     resource/loaders/ShaderLoader.h
     world/world_components.h
-    world/WorldGenerator.cpp
         debug/DebugDrawModule.cpp
         debug/DebugDrawModule.h
-    world/WorldGenerator.h
-    main_components.h
-    world/ChunkManager.cpp
-    world/ChunkManager.h
-    math/frustrum.h
+        main_components.h
+        math/frustrum.h
     math/aabb.h
     physics/physics_components.h
     physics/PhysicsSystem.cpp
