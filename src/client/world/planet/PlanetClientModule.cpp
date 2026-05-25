@@ -50,5 +50,5 @@ void PlanetClientModule::register_submodules(flecs::world &ecs) {
 }
 
 void PlanetClientModule::register_entities(flecs::world &ecs) {
-    SurfaceWindowManager::Register(ecs);
+    // SurfaceWindowManager::Register(ecs);
 }

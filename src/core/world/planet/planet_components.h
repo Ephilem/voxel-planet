@@ -2,7 +2,6 @@
 #include "renderer/world/planet/PlanetQuadtree.h"
 
 namespace vp {
-
     struct SurfaceChunkCoord {
         // pos in the center of the grid.
         int localU, localV;
