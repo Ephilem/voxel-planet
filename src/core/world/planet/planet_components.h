@@ -57,12 +57,12 @@ namespace vp {
 
     struct PlanetComp {
         // world unit (meter)s
-        float radius = 637100.0f;
+        float radius = 667544.0f;
 
     };
 
     struct PlanetGenerationConfig {
-        float radius = 637100.0f;
+        float radius = 667544.0f;
 
         // Simple heightmap
         int64_t seed = 0;

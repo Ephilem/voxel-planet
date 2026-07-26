@@ -55,17 +55,12 @@ void vp::SpatialModule::register_systems(flecs::world &ecs) {
 
                     const float half = static_cast<float>(grid.cellSize * 0.5);
 
-                    for (auto i: it) {
-                        glm::vec3 &p = transforms[i].pos;
-                        for (int axis = 0; axis < 3; ++axis) {
-                            while (p[axis] > half) {
-                                p[axis] -= grid.cellSize;
-                                cells[i][axis]++;
-                            }
-                            while (p[axis] < -half) {
-                                p[axis] += grid.cellSize;
-                                cells[i][axis]--;
-                            }
+                    for (auto i : it) {
+                        glm::vec3& p = transforms[i].pos;
+                        const glm::dvec3 shift = glm::round(glm::dvec3(p) / grid.cellSize);
+                        if (shift != glm::dvec3(0.0)) {
+                            cells[i] += glm::i64vec3(shift);
+                            p = glm::vec3(glm::dvec3(p) - shift * grid.cellSize);
                         }
                     }
                 }
@@ -114,7 +109,7 @@ void vp::SpatialModule::register_systems(flecs::world &ecs) {
                     glm::dvec4(g->localOrigin.translation, 1.0)
                 };
 
-                // TODO do the propagation thing to other grids, for now we just assume there's only one grid and it's the fo grid
+
                 flecs::entity currentGrid = foGridEntity;
 
                 while (true) {
@@ -129,9 +124,17 @@ void vp::SpatialModule::register_systems(flecs::world &ecs) {
                     const LocalFloatingOrigin &childLfo = childGrid->localOrigin;
                     Grid *parentGrid = parentGridEntity.get_mut<Grid>();
 
-                    const glm::dvec3 posLfoInParent =
-                            glm::dvec3(*childCell) * parentGrid->cellSize + glm::dvec3(childTransform->pos)
-                            + glm::dvec3(childLfo.cell) * childGrid->cellSize + glm::dvec3(childLfo.translation);
+                    const glm::dvec3 pInChild = glm::dvec3(childLfo.cell) * childGrid->cellSize
+                                              + glm::dvec3(childLfo.translation);
+
+                    glm::dmat3 J(1.0);
+                    const glm::dvec3 pProjected = project(childGrid->transition, pInChild, &J);
+
+
+                    const glm::dvec3 childOriginInParent = glm::dvec3(*childCell) * parentGrid->cellSize
+                                                         + glm::dvec3(childTransform->pos);
+
+                    const glm::dvec3 posLfoInParent = childOriginInParent + pProjected;
 
                     const int64_t cx = (int64_t) std::floor(posLfoInParent.x / parentGrid->cellSize);
                     const int64_t cy = (int64_t) std::floor(posLfoInParent.y / parentGrid->cellSize);
@@ -140,7 +143,7 @@ void vp::SpatialModule::register_systems(flecs::world &ecs) {
                     parentGrid->localOrigin.cell = {cx, cy, cz};
                     parentGrid->localOrigin.translation = glm::vec3(
                         posLfoInParent - glm::dvec3(cx, cy, cz) * parentGrid->cellSize);
-                    parentGrid->localOrigin.rotation = glm::dquat(1.0, 0.0, 0.0, 0.0);
+                    parentGrid->localOrigin.rotation = childLfo.rotation * jacobian_to_quat(J);
                     parentGrid->localOrigin.transform = glm::dmat4{
                         glm::dvec4(parentGrid->localOrigin.rotation * glm::dvec3(1.0, 0.0, 0.0), 0.0),
                         glm::dvec4(parentGrid->localOrigin.rotation * glm::dvec3(0.0, 1.0, 0.0), 0.0),
@@ -175,10 +178,9 @@ void vp::SpatialModule::register_systems(flecs::world &ecs) {
                         const glm::dvec3 pGrid = glm::dvec3(dCell) * (double) grid.cellSize
                                                  + glm::dvec3(localTrs[i].pos);
 
-                        const glm::dvec3 pFo = pGrid - glm::dvec3(lfo.translation);
-
-                        globalTrs[i].pos = glm::vec3(pFo);
-                        globalTrs[i].rot = localTrs[i].rot;
+                        const glm::dvec3 pFo = glm::conjugate(lfo.rotation) * (pGrid - glm::dvec3(lfo.translation));
+                        globalTrs[i].pos   = glm::vec3(pFo);
+                        globalTrs[i].rot   = glm::quat(glm::conjugate(lfo.rotation) * glm::dquat(localTrs[i].rot));
                         globalTrs[i].scale = localTrs[i].scale;
                     }
                 }

@@ -22,7 +22,8 @@ void PlayerWorldInfo::render(flecs::world& ecs) {
     ecs.each([](flecs::entity e, const Camera3d& camera, const vp::Transform& transform, const RigidBody& body, const PlayerController& ctrl, const vp::CellCoord& gridCell) {
         constexpr float kMetersPerWorldUnit = 1.0f;
         const glm::vec3 positionMeters = transform.pos * kMetersPerWorldUnit;
-        const glm::vec3 orientationDeg = transform.rot;
+        const glm::quat orientation = glm::normalize(transform.rot);
+        const glm::vec3 orientationDeg = glm::degrees(glm::eulerAngles(orientation));
 
         const vp::Grid* playerGrid = vp::get_first_ancestor_grid(e).get<vp::Grid>();
         const glm::dvec3 inGridPosition = playerGrid
@@ -38,12 +39,6 @@ void PlayerWorldInfo::render(flecs::world& ecs) {
         ImGui::Text("  Yaw: %.2f°", orientationDeg.y);
         ImGui::Text("  Roll: %.2f°", orientationDeg.z);
 
-        // ImGui::Separator();
-        // ImGui::Text("Camera:");
-        // ImGui::Text("  Near: %.2f", camera.nearClip);
-        // ImGui::Text("  Far: %.2f", camera.farClip);
-        // ImGui::Text("  Aspect: %.2f", camera.aspect_ratio);
-
         ImGui::Separator();
         ImGui::Text("Player:");
         ImGui::Text("  Mode: %s", ctrl.mode == ControllerMode::Walking ? "Walking" : "FreeCam");
@@ -52,11 +47,7 @@ void PlayerWorldInfo::render(flecs::world& ecs) {
         }
         ImGui::Text("  On Ground: %s", body.onGround ? "Yes" : "No");
 
-        glm::vec3 forward = glm::normalize(glm::vec3(
-            camera.viewMatrix[0][2],
-            camera.viewMatrix[1][2],
-            camera.viewMatrix[2][2]
-        )) * -1.0f;
+        const glm::vec3 forward = orientation * glm::vec3(0.0f, 0.0f, -1.0f);
 
         ImGui::Separator();
         ImGui::Text("Looking: %.2f, %.2f, %.2f", forward.x, forward.y, forward.z);

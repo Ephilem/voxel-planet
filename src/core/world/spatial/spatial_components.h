@@ -24,21 +24,10 @@ namespace vp {
 
     struct Transform {
         glm::vec3 pos{0.0f};
-        glm::vec3 rot{0.0f};   // x=pitch, y=yaw, z=roll (degrees)
+        glm::quat rot{1.0f, 0.f, 0.f, 0.f};
         glm::vec3 scale{1.0f};
 
-        glm::vec3 forward() const {
-            const float cosPitch = cos(glm::radians(rot.x));
-            const float sinPitch = sin(glm::radians(rot.x));
-            const float cosYaw   = cos(glm::radians(rot.y));
-            const float sinYaw   = sin(glm::radians(rot.y));
-
-            return {
-                cosPitch * sinYaw,
-                -sinPitch,
-                cosPitch * cosYaw
-            };
-        }
+        glm::vec3 forward() const { return rot * glm::vec3(0.0f, 0.0f, -1.0f); }
     };
 
     struct SpatialCoordinate {
@@ -62,10 +51,18 @@ namespace vp {
     // Tags
     struct FloatingOrigin {};
 
+    enum class TransitionKind: u_int8_t { Linear, CubeToSphere };
+    struct GridTransition {
+        TransitionKind kind = TransitionKind::Linear;
+        double radius = 0.0;
+        glm::dmat3 faceBasis{1.0}; // columns : right, face normal, forward
+    };
+
     // Spatial grid
     struct Grid {
         double cellSize = 10'000.0; // in meter
         LocalFloatingOrigin localOrigin{};
+        GridTransition transition{};
 
         /**
          * Get the local grid position based on the cell coordinate and the local position within the cell.
@@ -80,13 +77,8 @@ namespace vp {
             return get_hp_grid_pos(coord.cell, coord.transform.pos);
         }
         inline SpatialCoordinate get_grid_spatial_coord(const glm::dvec3& pos) const {
-            CellCoord cell = {
-                static_cast<int64_t>(std::floor(pos.x / cellSize)),
-                static_cast<int64_t>(std::floor(pos.y / cellSize)),
-                static_cast<int64_t>(std::floor(pos.z / cellSize))
-            };
-            glm::vec3 localPos = glm::vec3(pos - glm::dvec3(cell * cellSize));
-            return {cell, {localPos, glm::vec3(0.0f), glm::vec3(1.0f)}};
+            const glm::dvec3 c = glm::round(pos / cellSize);
+            return { CellCoord(glm::i64vec3(c)), { glm::vec3(pos - c * cellSize), {}, glm::vec3(1.0f) } };
         }
     };
 

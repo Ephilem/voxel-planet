@@ -42,7 +42,7 @@ void PlanetRenderModule::register_systems(flecs::world &ecs) {
                 glm::vec3 camPos = -position;
 
                 for (int i = 0; i < 6; i++) {
-                    renderComp.quadtrees[i].build(planet.radius, camPos, static_cast<CubeFace>(i), 6, 2.0f);
+                    renderComp.quadtrees[i].build(planet.radius, camPos, static_cast<CubeFace>(i), 15, 2.0f);
                     renderComp.quadtrees[i].debug_viz(position);
                 }
 

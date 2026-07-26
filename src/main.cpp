@@ -45,8 +45,8 @@ int main() {
 
         auto earth = ecs->entity("Earth")
                 .child_of(worldGrid)
-                .set<vp::PlanetComp>({.radius = 637100.0f})
-                .set<vp::PlanetGenerationConfig>({.radius = 637100.0f})
+                .set<vp::PlanetComp>({.radius = 667544.0f})
+                .set<vp::PlanetGenerationConfig>({.radius = 667544.0f})
                 .set<vp::Grid>({.cellSize = 10'000.0})
                 .set<PlanetRenderComp>({})
 

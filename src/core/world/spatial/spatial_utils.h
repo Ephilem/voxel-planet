@@ -40,6 +40,55 @@ namespace vp {
         if (!grid) return glm::dvec3(0.0);
 
         return grid->get_hp_grid_pos(*c, t->pos);
+    }
 
+
+    /**
+     * Project a position from the child grid to the parent grid using the transition defined on the child grid.
+     * Optionnally, compute the Jacobian of the transformation at that point
+     * @param transition transition describing how the child grid maps into its parent
+     * @param pos absolute position in the local child space
+     * @param outJ If non-null, filled with the jacobian d(pos)/d(x,y,z) of the projection at pos
+     * @return the absolute projected position in the parent space
+     */
+    inline glm::dvec3 project(const GridTransition& transition, const glm::dvec3& pos, glm::dmat3* outJ = nullptr) {
+        if (transition.kind == TransitionKind::Linear) {
+            if (outJ)
+                *outJ = glm::dmat3(1.0);
+
+            return pos;
+        }
+
+        const double R = transition.radius;
+        const glm::dvec3 ex = transition.faceBasis[0];
+        const glm::dvec3 en = transition.faceBasis[1];
+        const glm::dvec3 ez = transition.faceBasis[2];
+
+        const glm::dvec3 u = ex * pos.x + en * R + ez * pos.z;
+        const double r2 = glm::dot(u, u);
+        const double r  = std::sqrt(r2);
+        const glm::dvec3 n = u / r;
+        const double h = R + pos.y;
+
+        if (outJ) {
+            const double k = h / r;
+            (*outJ)[0] = k * (ex - (pos.x / r2) * u);
+            (*outJ)[1] = n;
+            (*outJ)[2] = k * (ez - (pos.z / r2) * u);
+        }
+
+        return n * h;
+    }
+
+    /**
+     * Get the quaternion representing a rotation from the jacobian matrice get in the project method
+     * @param J The jacobian matrice
+     * @return
+     */
+    inline glm::dquat jacobian_to_quat(const glm::dmat3& J) {
+        const glm::dvec3 up    = glm::normalize(J[1]);
+        const glm::dvec3 right = glm::normalize(J[0] - up * glm::dot(J[0], up));
+        const glm::dvec3 fwd   = glm::cross(right, up);
+        return glm::quat_cast(glm::dmat3(right, up, fwd));
     }
 }
