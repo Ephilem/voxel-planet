@@ -33,8 +33,6 @@ add_library(VoxelPlanetCore STATIC
         world/spatial/spatial_components.h
         world/spatial/spatial_prefabs.h
         world/planet/planet_utils.h
-        world/planet/PlanetChunkManager.cpp
-        world/planet/PlanetChunkManager.h
         world/planet/PlanetModule.cpp
         world/planet/PlanetModule.h
         world/planet/planet_components.h

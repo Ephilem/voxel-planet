@@ -19,8 +19,6 @@ add_library(VoxelPlanetClient STATIC
         player/PlayerClientModule.cpp
         player/PlayerClientModule.h
         player/player_components.h
-        world/planet/SurfaceWindowManager.cpp
-        world/planet/SurfaceWindowManager.h
         world/planet/planet_client_components.h
         world/planet/PlanetClientModule.cpp
         world/planet/PlanetClientModule.h

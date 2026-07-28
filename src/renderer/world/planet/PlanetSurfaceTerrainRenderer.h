@@ -47,11 +47,6 @@ namespace vp {
 
         static void Register(flecs::world &ecs);
 
-        void set_anchor_information(const SurfaceAnchorComp& anchor) {
-            m_ubo.anchorX = glm::vec4(anchor.anchorRight, 0);
-            m_ubo.anchorY = glm::vec4(anchor.anchorUp, 0);
-            m_ubo.anchorZ = glm::vec4(anchor.anchorForward, 0);
-        }
 
     private:
         VulkanBackend *m_backend = nullptr;
@@ -86,7 +81,7 @@ namespace vp {
 
         VoxelBuffer &create_buffer();
 
-        void system_upload_chunk_mesh(const Renderer *renderer, VoxelChunkMesh &mesh, const SurfaceChunkCoord &coord);
-        void system_initialize_chunk_mesh(flecs::entity e, const VoxelChunk &mesh, const PlanetChunkCoord &coord);
+        void system_upload_chunk_mesh(const Renderer *renderer, VoxelChunkMesh &mesh, const PlanetNodeCoord &coord);
+        void system_initialize_chunk_mesh(flecs::entity e, const VoxelChunk &mesh, const PlanetNodeCoord &coord);
     };
 }

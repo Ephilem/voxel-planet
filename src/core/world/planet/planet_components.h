@@ -1,64 +1,24 @@
 #pragma once
-#include "renderer/world/planet/PlanetQuadtree.h"
 
 namespace vp {
-    struct SurfaceChunkCoord {
-        // pos in the center of the grid.
-        int localU, localV;
-        int alt;
-
-        bool operator==(const SurfaceChunkCoord &other) const {
-            return localU == other.localU && localV == other.localV && alt == other.alt;
-        }
+    enum CubeFace {
+        PosX = 0,
+        NegX = 1,
+        PosY = 2,
+        NegY = 3,
+        PosZ = 4,
+        NegZ = 5,
     };
 
-    struct SurfaceChunkCoordHash {
-        std::size_t operator()(SurfaceChunkCoord const& c) const {
-            uint64_t key =
-              static_cast<uint64_t>(c.alt & 0x1FFF) << 48 |
-              static_cast<uint64_t>(c.localV & 0xFFFFFF) << 24 |
-              static_cast<uint64_t>(c.localU & 0xFFFFFF);
-            return std::hash<uint64_t>{}(key);
-        }
-    };
-
-    struct SurfaceAnchorComp {
+    struct PlanetNodeCoord {
         CubeFace face;
-
-        glm::vec3 anchorRight;
-        glm::vec3 anchorForward;
-        glm::vec3 anchorUp;
-
-        glm::ivec2 gridCenter; // player position in the logical grid
-        glm::ivec2 gridOrigin; // index
-    };
-
-    struct PlanetChunkCoord {
-        CubeFace face;
-        int x;
-        int y;
-        int altitude;
-
-        bool operator==(PlanetChunkCoord const& other) const {
-            return face == other.face && x == other.x && y == other.y && altitude == other.altitude;
-        }
-    };
-
-    struct PlanetChunkCoordHash {
-        std::size_t operator()(PlanetChunkCoord const& c) const {
-            uint64_t key =
-              (static_cast<uint64_t>(c.face)          << 61) |
-              (static_cast<uint64_t>(c.altitude & 0x1FFF) << 48) |
-              (static_cast<uint64_t>(c.y        & 0xFFFFFF) << 24) |
-              (static_cast<uint64_t>(c.x        & 0xFFFFFF));
-            return std::hash<uint64_t>{}(key);
-        }
+        unsigned char level = 0; // 0 the smallest
+        int32_t u = 0, v = 0, alt = 0;
     };
 
     struct PlanetComp {
         // world unit (meter)s
         float radius = 667544.0f;
-
     };
 
     struct PlanetGenerationConfig {

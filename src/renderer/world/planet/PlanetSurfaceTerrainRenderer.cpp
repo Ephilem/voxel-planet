@@ -4,13 +4,10 @@
 #include "client/player/player_components.h"
 #include "client/world/planet/planet_client_components.h"
 #include "core/GameState.h"
-#include "core/main_components.h"
 #include "core/TracyIntegration.h"
 #include "core/debug/DebugDraw.h"
 #include "core/log/Logger.h"
-#include "core/world/planet/PlanetChunkManager.h"
 #include "core/world/planet/planet_components.h"
-#include "core/world/planet/planet_utils.h"
 #include "core/world/spatial/spatial_components.h"
 #include "core/world/spatial/spatial_utils.h"
 #include "renderer/Renderer.h"
@@ -35,66 +32,6 @@ void PlanetSurfaceTerrainRenderer::init(flecs::world &ecs) {
 
     init_gpu();
 
-    // Systems
-    ecs.system<const SurfaceAnchorComp, const GlobalTransform>("PlanetSurface-UpdateUBO")
-            .kind(flecs::PreUpdate)
-            .with<const PlanetComp>().parent().and_().with<const Grid>().parent()
-            .each([this](flecs::entity anchor, const SurfaceAnchorComp a, const GlobalTransform gTrs) {
-                flecs::entity planet = anchor.parent();
-                const PlanetComp* planetComp = planet.get<PlanetComp>();
-                const Grid* grid = planet.get<Grid>();
-                glm::dvec3 anchorWorldPos = get_hp_position(anchor);
-
-                const LocalFloatingOrigin &lfo = grid->localOrigin;
-                glm::dvec3 foPos = glm::dvec3(lfo.cell) * grid->cellSize + glm::dvec3(lfo.translation);
-
-                m_ubo.planetRadius = planetComp->radius;
-                m_ubo.anchorCameraPos = glm::vec4(gTrs.pos, 0);
-
-                m_ubo.anchorFacePos = glm::vec4(
-                    float(a.gridCenter.x),
-                    float(a.gridCenter.y),
-                    float(static_cast<int>(a.face)),
-                    float(planetComp->radius));
-
-                set_anchor_information(a);
-            });
-
-    ecs.system<VoxelChunkMesh, const SurfaceChunkCoord>("PlanetSurface-UploadMesh")
-            .kind(flecs::PreStore)
-            .with<const SurfaceAnchorComp>().parent()
-            .with<VoxelChunkMeshState, voxel_chunk_mesh_state::ReadyForUpload>()
-            .each([this](flecs::entity e, VoxelChunkMesh &mesh, const SurfaceChunkCoord &coord) {
-                const auto *renderer = e.world().get<Renderer>();
-                if (!renderer) return;
-                system_upload_chunk_mesh(renderer, mesh, coord);
-                e.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Clean>();
-            });
-
-    ecs.system<Renderer>("PlanetSurface-Render")
-            .kind(flecs::OnStore)
-            .each([this](flecs::entity e, Renderer &renderer) {
-                if (!renderer.frameContext.frameActive) return;
-                e.world().each<Camera3d>([&](flecs::entity, Camera3d &camera) {
-                    render(renderer.frameContext.commandList, camera, *renderer.backend);
-                });
-            });
-
-    // ecs.system<const VoxelChunk, const PlanetChunkCoord>("PlanetSurface-InitializeChunkMesh")
-    //         .kind(flecs::OnStore)
-    //         .without<VoxelChunkMesh>()
-    //         .each([this](flecs::entity e, const VoxelChunk &chunk, const PlanetChunkCoord &coord) {
-    //             system_initialize_chunk_mesh(e, chunk, coord);
-    //         });
-
-    ecs.observer<VoxelChunkMesh>("PlanetSurface-Cleanup")
-            .event(flecs::OnRemove)
-            .each([this](flecs::entity, VoxelChunkMesh &mesh) {
-                if (!mesh.is_allocated() || m_chunkBuffers.empty()) return;
-                int idx = mesh.bufferIndex;
-                m_meshUploader.enqueue_free(mesh.drawSlotIndex, &m_chunkBuffers[idx]);
-                m_chunkBuffers[idx].free(mesh);
-            });
 
     // draw a cube of 1x1 a the player feet
     ecs.system<const PlanetUpVector>("PlanetSurface-CubeTemoin")
@@ -247,14 +184,13 @@ VoxelBuffer &PlanetSurfaceTerrainRenderer::create_buffer() {
     return buf;
 }
 
-void PlanetSurfaceTerrainRenderer::system_upload_chunk_mesh(const Renderer *renderer, VoxelChunkMesh &mesh,
-                                                            const SurfaceChunkCoord &coord) {
+void PlanetSurfaceTerrainRenderer::system_upload_chunk_mesh(const Renderer *renderer, VoxelChunkMesh &mesh, const PlanetNodeCoord &coord) {
     VOXEL_VK_NVRHI_ZONE(renderer->backend->tracyVkCtx, renderer->frameContext.commandList, "GPU Upload Planet Chunk");
 
     TerrainOUB oub{};
 
     SurfaceChunkOUB chunkOUB{};
-    chunkOUB.coord = {coord.localU, coord.localV, coord.alt, 0};
+    chunkOUB.coord = {coord.u, coord.v, coord.alt, 0};
 
     static_assert(sizeof(SurfaceChunkOUB) <= sizeof(TerrainOUB));
     std::memcpy(&oub, &chunkOUB, sizeof(SurfaceChunkOUB));
@@ -286,8 +222,7 @@ void PlanetSurfaceTerrainRenderer::system_upload_chunk_mesh(const Renderer *rend
     system_upload_chunk_mesh(renderer, mesh, coord);
 }
 
-void PlanetSurfaceTerrainRenderer::system_initialize_chunk_mesh(flecs::entity e, const VoxelChunk &mesh,
-                                                                const PlanetChunkCoord &coord) {
+void PlanetSurfaceTerrainRenderer::system_initialize_chunk_mesh(flecs::entity e, const VoxelChunk &mesh, const PlanetNodeCoord &coord) {
     VOXEL_ZONE_N("Initialize Chunk in Renderer");
     e.set<VoxelChunkMesh>({}).add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
 

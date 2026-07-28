@@ -7,7 +7,6 @@
 
 #include "core/math/aabb.h"
 #include "core/resource/asset_id.h"
-#include "renderer/world/planet/PlanetQuadtree.h"
 
 /////////////////////
 /// Chunks related components

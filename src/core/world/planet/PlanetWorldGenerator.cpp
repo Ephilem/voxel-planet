@@ -8,8 +8,7 @@ using namespace vp;
 PlanetWorldGenerator::PlanetWorldGenerator() {
 }
 
-bool PlanetWorldGenerator::generate_planet_chunk(VoxelChunk &chunk, SurfaceChunkCoord coord,
-                                                 const PlanetGenerationConfig &config) {
+bool PlanetWorldGenerator::generate_planet_chunk(VoxelChunk &chunk, PlanetNodeCoord coord, const PlanetGenerationConfig &config) {
     VOXEL_ZONE_N("Generate Planet Chunk");
     check_noise_generator(config);
     float planetRadius = config.radius;

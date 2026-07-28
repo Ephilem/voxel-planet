@@ -18,8 +18,6 @@ add_library(VoxelPlanetRenderer STATIC
         world/VoxelMeshUploadBatcher.h
         debug/DebugDrawRenderer.cpp
         debug/DebugDrawRenderer.h
-        world/planet/PlanetOctree.cpp
-        world/planet/PlanetOctree.h
         world/planet/PlanetRenderModule.cpp
         world/planet/PlanetRenderModule.h
         camera/Camera3dModule.cpp
@@ -27,8 +25,6 @@ add_library(VoxelPlanetRenderer STATIC
         camera/camera3d_systems.h
         debug/DebugRenderModule.cpp
         debug/DebugRenderModule.h
-        world/planet/PlanetQuadtree.cpp
-        world/planet/PlanetQuadtree.h
         world/planet/PlanetSurfaceTerrainRenderer.cpp
         world/planet/PlanetSurfaceTerrainRenderer.h
         world/planet/PlanetChunkMesher.cpp

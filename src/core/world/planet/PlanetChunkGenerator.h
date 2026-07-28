@@ -1,6 +1,7 @@
 #pragma once
 
 #include <flecs.h>
+#include <vector>
 
 #include "planet_components.h"
 #include "core/TracyIntegration.h"
@@ -9,7 +10,7 @@
 namespace vp {
     struct ChunkGenInput {
         flecs::entity chunkEntity;
-        SurfaceChunkCoord coord;
+        PlanetNodeCoord coord;
         glm::dvec3 sphereDir;
         PlanetGenerationConfig config;
         float priority = 0.0f;
@@ -17,7 +18,7 @@ namespace vp {
 
     struct ChunkGenOutput {
         flecs::entity chunkEntity;
-        SurfaceChunkCoord coord;
+        PlanetNodeCoord coord;
         VoxelChunk chunk;
         bool success = false;
         bool empty = true;

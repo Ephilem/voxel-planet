@@ -70,13 +70,13 @@ void PlanetChunkMesher::init(flecs::world &ecs) {
                 ImGui::Text("Pending results: %zu", total);
                 ImGui::Separator();
                 // query count entities with certain flags :
-                auto queryMeshing = it.world().query_builder<const PlanetChunkCoord>()
+                auto queryMeshing = it.world().query_builder<const PlanetNodeCoord>()
                         .with<VoxelChunkMeshState, voxel_chunk_mesh_state::Meshing>().build();
-                auto queryReady = it.world().query_builder<const PlanetChunkCoord>()
+                auto queryReady = it.world().query_builder<const PlanetNodeCoord>()
                         .with<VoxelChunkMeshState, voxel_chunk_mesh_state::ReadyForUpload>().build();
-                auto queryDirty = it.world().query_builder<const PlanetChunkCoord>()
+                auto queryDirty = it.world().query_builder<const PlanetNodeCoord>()
                         .with<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>().build();
-                auto queryClean = it.world().query_builder<const PlanetChunkCoord>()
+                auto queryClean = it.world().query_builder<const PlanetNodeCoord>()
                         .with<VoxelChunkMeshState, voxel_chunk_mesh_state::Clean>().build();
 
                 ImGui::Text("Clean: %ul", queryClean.count());

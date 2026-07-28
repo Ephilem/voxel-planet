@@ -19,7 +19,7 @@ public:
       * @param config The planet generation config to use for this chunk generation
       * @return True if the chunk has been filled with data, false if it is empty (all air)
       */
-    bool generate_planet_chunk(VoxelChunk &chunk, SurfaceChunkCoord coord, const PlanetGenerationConfig& config);
+    bool generate_planet_chunk(VoxelChunk &chunk, PlanetNodeCoord coord, const PlanetGenerationConfig& config);
 
 private:
     PlanetGenerationConfig m_cachedConfig;
