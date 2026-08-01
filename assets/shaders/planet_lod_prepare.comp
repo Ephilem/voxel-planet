@@ -1,0 +1,48 @@
+#version 450
+
+// Single threaded pass slotted between two traversal levels.
+//
+// The CPU cannot know how many nodes a level pushed into its output queue, so it cannot size the
+// next dispatch. This pass reads that count on the GPU and turns it into dispatch arguments,
+// which is what makes the whole traversal GPU driven: only the root level is dispatched with a
+// count the CPU knows.
+//
+// It also clears the counter of the queue the next level will write into, saving a round trip
+// to the CPU between every level.
+
+layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+layout (set = 0, binding = 0, std430) buffer CounterBuffer {
+    uint counters[];
+};
+
+layout (set = 0, binding = 1, std430) writeonly buffer DispatchArgsBuffer {
+    uint dispatchArgs[];
+};
+
+layout (push_constant) uniform PushConstants {
+// Counter holding the node count the next level will consume.
+    uint readCountIndex;
+// Counter to reset, belonging to the queue the next level will fill.
+    uint zeroCountIndex;
+// Where to write the three uint of the dispatch command, in uint units.
+    uint argsOffset;
+// Capacity of one traversal queue, in entries.
+    uint maxQueueEntries;
+// Workgroup size of planet_lod_traversal.comp.
+    uint groupSize;
+} pc;
+
+void main() {
+    // The traversal keeps incrementing the counter past the capacity when a queue overflows, so
+    // clamp before deriving anything from it. Writing the clamped value back also keeps the next
+    // level from reading entries that were never stored.
+    uint count = min(counters[pc.readCountIndex], pc.maxQueueEntries);
+    counters[pc.readCountIndex] = count;
+
+    dispatchArgs[pc.argsOffset + 0u] = (count + pc.groupSize - 1u) / pc.groupSize;
+    dispatchArgs[pc.argsOffset + 1u] = 1u;
+    dispatchArgs[pc.argsOffset + 2u] = 1u;
+
+    counters[pc.zeroCountIndex] = 0u;
+}

@@ -1,0 +1,120 @@
+#version 450
+
+// One breadth first pass over a single LOD level of the planet octree.
+//
+// Each invocation takes one node from the input queue and decides what to do with it:
+//   - outside the frustum or too far away  -> dropped
+//   - too big on screen, children present  -> push the children into the output queue
+//   - too big on screen, no children yet   -> ask the CPU to subdivide, keep drawing the parent
+//   - small enough, geometry present       -> push into the render queue
+//   - small enough, no geometry yet        -> ask the CPU for a mesh
+//
+// The shader never generates anything and never waits: everything it lacks becomes a request
+// that the CPU reads back a few frames later
+
+#include "planet_lod_common.glsl"
+
+#define LOCAL_SIZE 64
+
+layout (local_size_x = LOCAL_SIZE, local_size_y = 1, local_size_z = 1) in;
+
+layout (push_constant) uniform PushConstants {
+    uint inCountIndex;
+    uint outCountIndex;
+    uint maxQueueEntries;
+} pc;
+
+/// Append a child to the queue the next level will read from
+void push_child(uint childIndex) {
+    uint slot = atomicAdd(counters[pc.outCountIndex], 1u);
+    if (slot < pc.maxQueueEntries) outQueue[slot] = childIndex;
+}
+
+void main() {
+    uint threadIndex = gl_GlobalInvocationID.x;
+    if (threadIndex >= counters[pc.inCountIndex]) return;
+
+    uint nodeIndex = inQueue[threadIndex];
+    LodNode node = nodes[nodeIndex];
+
+    uint flags = node_flags(node);
+
+    // Uniform node: nothing to draw, and nothing worth asking for
+    if ((flags & NODE_EMPTY) != 0u) return;
+
+    int level = int(node_level(node));
+    ivec3 coord = ivec3(node_u(node), node_v(node), node_alt(node));
+
+    // Walk the 8 corners once, building both the world space box used for culling and the
+    // screen space box used for the LOD decision
+    vec3 boundsMin = vec3(1e30);
+    vec3 boundsMax = vec3(-1e30);
+    vec2 ndcMin = vec2(1e30);
+    vec2 ndcMax = vec2(-1e30);
+    bool crossesNearPlane = false;
+    float nearestDistance = 1e30;
+
+    for (uint i = 0u; i < 8u; ++i) {
+        vec3 corner = lod_node_corner(level, coord, i) - ubo.cameraWorldPos;
+
+        boundsMin = min(boundsMin, corner);
+        boundsMax = max(boundsMax, corner);
+        nearestDistance = min(nearestDistance, length(corner));
+
+        vec4 clip = ubo.viewProj * vec4(corner, 1.0);
+        if (clip.w <= 1e-4) {
+            crossesNearPlane = true;
+            continue;
+        }
+
+        vec2 ndc = clip.xy / clip.w;
+        ndcMin = min(ndcMin, ndc);
+        ndcMax = max(ndcMax, ndc);
+    }
+
+    float nodeSize = CHUNK_SIZE_F * float(1 << level);
+
+    if (nearestDistance - nodeSize > ubo.maxRenderDistance) return;
+
+    vec4 planes[6];
+    lod_extract_frustum_planes(ubo.viewProj, planes);
+    if (!lod_aabb_visible(boundsMin, boundsMax, planes)) return;
+
+    float screenSize;
+    if (crossesNearPlane) {
+        screenSize = 1e9;
+    } else {
+        vec2 extent = (ndcMax - ndcMin) * 0.5 * ubo.viewportSize;
+        screenSize = max(extent.x, extent.y);
+    }
+
+    uint priority = uint(clamp(screenSize, 0.0, 65535.0));
+
+    bool wantsFiner = screenSize > ubo.subdivisionThreshold
+    && level > 0
+    && (flags & NODE_FINEST) == 0u;
+
+    if (wantsFiner) {
+        if (node_has_children(node)) {
+            uint childMask = node_child_mask(node);
+            uint childBase = node_child_ptr(node);
+
+            for (uint i = 0u; i < 8u; ++i) {
+                if ((childMask & (1u << i)) == 0u) continue;
+                push_child(childBase + i);
+            }
+            return;
+        }
+
+        lod_emit_request(nodeIndex, LOD_REQ_CHILDREN, priority);
+
+        if ((flags & NODE_HAS_MESH) != 0u) lod_push_render(nodeIndex);
+        return;
+    }
+
+    if ((flags & NODE_HAS_MESH) != 0u) {
+        lod_push_render(nodeIndex);
+    } else {
+        lod_emit_request(nodeIndex, LOD_REQ_MESH, priority);
+    }
+}
