@@ -38,6 +38,8 @@ add_library(VoxelPlanetRenderer STATIC
         world/planet/PlanetLodGpuBuffers.h
         world/planet/PlanetLodTraverser.cpp
         world/planet/PlanetLodTraverser.h
+        world/planet/PlanetLodJobs.cpp
+        world/planet/PlanetLodJobs.h
 )
 
 add_library(VoxelPlanet::Renderer ALIAS VoxelPlanetRenderer)

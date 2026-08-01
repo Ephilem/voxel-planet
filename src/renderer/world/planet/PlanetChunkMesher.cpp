@@ -37,20 +37,6 @@ void PlanetChunkMesher::Register(flecs::world &ecs) {
 }
 
 void PlanetChunkMesher::init(flecs::world &ecs) {
-    ecs.system<const VoxelChunk, VoxelChunkMesh>("PlanetChunkMesher-Enqueue")
-            .kind(flecs::PostUpdate)
-            // .with<const PlanetChunkCoord>()
-            .with<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>()
-            .run([this](flecs::iter &it) {
-                system_enqueue(it);
-            });
-
-    ecs.system("PlanetChunkMesher-PollResults")
-            .kind(flecs::OnStore)
-            .run([this](flecs::iter &it) {
-                system_poll_results(it);
-            });
-
     ecs.system("PlanetChunkMesher-ImguiDebugStat")
             .kind(flecs::PostUpdate)
             .run([this](flecs::iter &it) {
@@ -68,95 +54,37 @@ void PlanetChunkMesher::init(flecs::world &ecs) {
                     total += wr->results.size();
                 }
                 ImGui::Text("Pending results: %zu", total);
-                ImGui::Separator();
-                // query count entities with certain flags :
-                auto queryMeshing = it.world().query_builder<const PlanetNodeCoord>()
-                        .with<VoxelChunkMeshState, voxel_chunk_mesh_state::Meshing>().build();
-                auto queryReady = it.world().query_builder<const PlanetNodeCoord>()
-                        .with<VoxelChunkMeshState, voxel_chunk_mesh_state::ReadyForUpload>().build();
-                auto queryDirty = it.world().query_builder<const PlanetNodeCoord>()
-                        .with<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>().build();
-                auto queryClean = it.world().query_builder<const PlanetNodeCoord>()
-                        .with<VoxelChunkMeshState, voxel_chunk_mesh_state::Clean>().build();
 
-                ImGui::Text("Clean: %ul", queryClean.count());
-                ImGui::Text("Meshing: %ul", queryMeshing.count());
-                ImGui::Text("Ready for upload: %ul", queryReady.count());
-                ImGui::Text("Dirty: %ul", queryDirty.count());
+                // The VoxelChunkMeshState counters that used to sit here counted ECS chunk
+                // entities, which no longer exist. The equivalent state now lives in the node
+                // flags, and is reported by the PlanetLod panel.
 
                 ImGui::End();
             });
 }
 
-void PlanetChunkMesher::system_enqueue(flecs::iter &it) {
-    auto *textureManager = it.world().get_mut<VoxelTextureManager>();
+void PlanetChunkMesher::enqueue(uint64_t jobId,
+                                std::shared_ptr<const std::array<uint16_t, CHUNK_VOLUME> > voxels,
+                                std::unordered_map<uint8_t, uint16_t> gpuTextureIds,
+                                float priority) {
+    if (!voxels) return;
 
-    std::vector<MesherTaskInput> toEnqueue;
-
-    while (it.next()) {
-        // fields of the table
-        auto datas = it.field<const VoxelChunk>(0);
-        auto meshes = it.field<VoxelChunkMesh>(1);
-
-        for (auto i: it) {
-            flecs::entity e = it.entity(i);
-            VoxelChunkMesh &mesh = meshes[i];
-            const VoxelChunk &data = datas[i];
-
-            MesherTaskInput input = {
-                .e = e,
-                .voxels = data.voxels,
-                .gpuTextureIds = {},
-                .priority = 0.0f, // TODO compute priority based on distance to player
-                .meshGeneration = ++mesh.meshGeneration
-            };
-
-            if (textureManager)
-                for (const auto &[texId, voxelId]: data.textureIDs)
-                    input.gpuTextureIds[voxelId] = textureManager->request_texture_slot(texId);
-            else
-                LOG_ERROR("PlanetChunkMesher", "Missing VoxelTextureManager, cannot request texture slots for meshing");
-
-            toEnqueue.push_back(std::move(input));
-            e.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Meshing>();
-        }
+    MesherTaskInput input = {
+        .jobId = jobId,
+        .voxels = std::move(voxels),
+        .gpuTextureIds = std::move(gpuTextureIds),
+        .priority = priority,
+    }; {
+        std::lock_guard lock(m_taskMutex);
+        m_queue.push(std::move(input));
     }
 
-    if (!toEnqueue.empty()) {
-        size_t enqueued = 0; {
-            std::lock_guard lock(m_taskMutex);
-            for (auto &input: toEnqueue) {
-                if (m_pending.contains(input.e)) continue;
-                m_pending.insert(input.e);
-                m_queue.push(std::move(input));
-                enqueued++;
-            }
-        }
-        if (enqueued > 0)
-            m_taskSemaphore.release(std::min((enqueued + BATCH_SIZE - 1) / BATCH_SIZE, size_t(3)));
-    }
+    m_taskSemaphore.release(1);
 }
 
-void PlanetChunkMesher::system_poll_results(flecs::iter &it) {
-    auto results = poll_results(999);
-
-    for (auto &result: results) {
-        flecs::entity e = result.e;
-        if (!e.is_valid() || !e.is_alive() || !e.has<VoxelChunkMesh>()) continue;
-
-        auto *mesh = e.get_mut<VoxelChunkMesh>();
-        // mesh was updated again after this task was enqueued, skip
-        if (mesh->meshGeneration != result.meshGeneration) continue;
-        // weird state to be, to be sure, we rerequest a meshing
-        if (!e.has<VoxelChunkMeshState, voxel_chunk_mesh_state::Meshing>()) {
-            e.add<VoxelChunkMeshState, voxel_chunk_mesh_state::Dirty>();
-            continue;
-        }
-
-        mesh->faceCount = result.faces.size();
-        mesh->faces = std::move(result.faces);
-        e.add<VoxelChunkMeshState, voxel_chunk_mesh_state::ReadyForUpload>();
-    }
+size_t PlanetChunkMesher::queued_task_count() {
+    std::lock_guard lock(m_taskMutex);
+    return m_queue.size();
 }
 
 std::vector<PlanetChunkMesher::MesherTaskOutput> PlanetChunkMesher::poll_results(size_t maxResults) {
@@ -283,9 +211,8 @@ PlanetChunkMesher::MesherTaskOutput PlanetChunkMesher::build_mesh(const MesherTa
 
 
     MesherTaskOutput result;
-    result.e = input.e;
+    result.jobId = input.jobId;
     result.success = true;
-    result.meshGeneration = input.meshGeneration;
 
     const auto &voxels = *input.voxels;
 

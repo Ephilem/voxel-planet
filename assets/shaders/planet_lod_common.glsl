@@ -3,17 +3,7 @@
 
 #include "planet_utils.glsl"
 #include "planet_lod_node.glsl"
-
-// Indices into the shared counters buffer, in uint units
-#define LOD_COUNTER_REQUEST          0u
-#define LOD_COUNTER_REQUEST_OVERFLOW 1u
-#define LOD_COUNTER_QUEUE_0          4u
-#define LOD_COUNTER_QUEUE_1          8u
-#define LOD_COUNTER_RENDER           12u
-
-// Must match PlanetLodGpuBuffers::MAX_REQUESTS and MAX_RENDER.
-#define LOD_MAX_REQUESTS 2048u
-#define LOD_MAX_RENDER   2048u
+#include "planet_lod_counters.glsl"
 
 // Mirror of vp::LodRequestType.
 #define LOD_REQ_MESH     0u

@@ -45,8 +45,16 @@ uint node_flags(LodNode node) { return (node.x >> NODE_FLAGS_SHIFT) & NODE_FLAGS
 
 int node_alt(LodNode node) { return int((node.x >> NODE_ALT_SHIFT) & NODE_ALT_MASK) - NODE_ALT_BIAS; }
 
-int node_u(LodNode node) { return int(node.y & 0xFFFFu); }
-int node_v(LodNode node) { return int((node.y >> 16u) & 0xFFFFu); }
+// u and v are read as signed 16 bit values, so a cube face is centred on the origin. Mirror of
+// vp::node_sign_extend_16(). The subtraction is done in int space to stay portable: converting
+// an out of range uint straight to int is not something the spec pins down.
+int node_sign_extend_16(uint value) {
+    uint bits = value & 0xFFFFu;
+    return (bits & 0x8000u) != 0u ? int(bits) - 65536 : int(bits);
+}
+
+int node_u(LodNode node) { return node_sign_extend_16(node.y); }
+int node_v(LodNode node) { return node_sign_extend_16(node.y >> 16u); }
 
 uint node_child_ptr(LodNode node) { return node.z & 0xFFFFFFu; }
 uint node_child_mask(LodNode node) { return (node.z >> 24u) & 0xFFu; }

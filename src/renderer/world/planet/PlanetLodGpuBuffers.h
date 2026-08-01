@@ -27,7 +27,9 @@ namespace vp {
         static constexpr uint32_t MAX_REQUESTS = 2048;
 
         /// Maximum number of nodes the traversal can select for rendering in one frame.
-        static constexpr uint32_t MAX_RENDER = 2048;
+        /// Nine LOD levels at the default subdivision threshold land around 2000 nodes in 1080p,
+        /// so this leaves room before the traversal starts dropping visible geometry.
+        static constexpr uint32_t MAX_RENDER = 4096;
 
         static constexpr uint32_t REQUESTS_READBACK_COUNT = MAX_FRAMES_IN_FLIGHT + 1;
 

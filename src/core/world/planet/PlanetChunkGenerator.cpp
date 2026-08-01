@@ -38,9 +38,13 @@ void PlanetChunkGenerator::enqueues(const ChunkGenInput *inputs, size_t count) {
         for (auto i = 0; i < count; i++) {
             m_generationQueue.push_back(inputs[i]);
         }
+        // make_heap puts the element that compares "largest" at the front, so the comparator has
+        // to be a plain less-than for the most urgent chunk to be the one popped first. The
+        // priority is the node's size on screen, which is what makes the terrain fill in from
+        // where the player is looking.
         std::make_heap(m_generationQueue.begin(), m_generationQueue.end(),
                        [](const ChunkGenInput &a, const ChunkGenInput &b) {
-                           return a.priority > b.priority; // max-heap
+                           return a.priority < b.priority; // max-heap
                        });
         m_generationSemaphore.release(
             std::min((count + GENERATION_BATCH_SIZE - 1) / GENERATION_BATCH_SIZE, static_cast<size_t>(3)));
@@ -94,7 +98,7 @@ void PlanetChunkGenerator::worker_loop(size_t workerId) {
             while (batch.size() < GENERATION_BATCH_SIZE && !m_generationQueue.empty()) {
                 std::pop_heap(m_generationQueue.begin(), m_generationQueue.end(),
                               [](const ChunkGenInput &a, const ChunkGenInput &b) {
-                                  return a.priority > b.priority; // max-heap
+                                  return a.priority < b.priority; // max-heap
                               });
                 batch.push_back(std::move(m_generationQueue.back()));
                 m_generationQueue.pop_back();
@@ -111,7 +115,7 @@ void PlanetChunkGenerator::worker_loop(size_t workerId) {
                 bool hasContent = generator.generate_planet_chunk(chunk, input.coord, input.config);
 
                 ChunkGenOutput output;
-                output.chunkEntity = input.chunkEntity;
+                output.jobId = input.jobId;
                 output.coord = input.coord;
                 output.chunk = std::move(chunk);
                 output.success = true; // or false if generation failed

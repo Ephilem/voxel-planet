@@ -4,6 +4,8 @@
 
 #include "PlanetLodTree.h"
 
+#include <cstdlib>
+
 #include "core/log/Logger.h"
 
 using namespace vp;
@@ -204,6 +206,11 @@ void PlanetLodTree::update_roots(CubeFace face, int32_t rootU, int32_t rootV) {
         }
     }
 
+    // u and v are stored on 16 signed bits at each node's own level, so a root has to stay
+    // within the range its level 0 descendants can still address. At root level 8 that leaves
+    // 127 roots in each direction, a bit over 1000 km of flat terrain
+    const int32_t rootLimit = NODE_UV_MAX >> m_config.rootLevel;
+
     // A full rescan of the disc, a few hundred iterations at most. An incremental ring delta
     // would only pay off with a much larger root count.
     for (int dv = -radius; dv <= radius; ++dv) {
@@ -212,7 +219,7 @@ void PlanetLodTree::update_roots(CubeFace face, int32_t rootU, int32_t rootV) {
 
             for (int alt = m_config.rootAltMin; alt <= m_config.rootAltMax; ++alt) {
                 const PlanetNodeCoord coord{face, m_config.rootLevel, rootU + du, rootV + dv, alt};
-                if (coord.u < 0 || coord.v < 0) continue; // outside the face
+                if (std::abs(coord.u) > rootLimit || std::abs(coord.v) > rootLimit) continue;
                 if (m_roots.contains(coord)) continue;
 
                 const uint32_t index = create_root(coord);

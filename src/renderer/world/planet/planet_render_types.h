@@ -16,6 +16,18 @@ namespace vp {
     /// Representable altitude range is therefore [-256, 255] nodes at the node's own level
     inline constexpr int32_t NODE_ALT_BIAS = 256;
 
+    /// GpuNode::u and GpuNode::v hold 16 bits read as signed, so a cube face is centred on the
+    /// origin rather than starting at one of its corners. The player can then stand near
+    /// coordinate zero, where float32 still has centimetre precision, instead of half a million
+    /// metres away where it no longer does
+    inline constexpr int32_t NODE_UV_MIN = -32768;
+    inline constexpr int32_t NODE_UV_MAX = 32767;
+
+    /// Read the low 16 bits of a packed field as a signed value
+    inline constexpr int32_t node_sign_extend_16(uint32_t value) {
+        return static_cast<int16_t>(static_cast<uint16_t>(value));
+    }
+
     enum NodeFlags : uint8_t {
         NODE_HAS_MESH = 1 << 0,
         /// A request for this node is already pending
@@ -65,8 +77,8 @@ namespace vp {
         return {
             static_cast<CubeFace>(n.face),
             static_cast<unsigned char>(n.level),
-            static_cast<int32_t>(n.u),
-            static_cast<int32_t>(n.v),
+            node_sign_extend_16(n.u),
+            node_sign_extend_16(n.v),
             static_cast<int32_t>(n.alt) - NODE_ALT_BIAS
         };
     }

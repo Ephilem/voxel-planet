@@ -25,10 +25,14 @@ layout (set = 0, binding = 0) uniform PlanetSurfaceUBO {
 
     // Anchor in cube-face space : (faceU, faceV, faceIndex, planetRadius)
     vec4 anchorFacePos;
+
+    // Camera position in world space. During the flat terrain phase this replaces the whole
+    // anchor frame above, which stays in the block but is no longer read.
+    vec4 cameraWorldPos;
 } ubo;
 
 struct PlanetChunkOUB {
-    ivec4 coord; // chunk coord in local surface window space : x = localU, y = localV, z = altitude
+    ivec4 coord; // node coord : x = u, y = v, z = alt, w = LOD level
 };
 layout (set = 1, binding = 0, std430) readonly buffer ChunkCoordBuffer {
     PlanetChunkOUB chunks[];
@@ -110,39 +114,22 @@ void main() {
     /// Calculate position of the vertex
 
     PlanetChunkOUB chunk = oub.chunks[gl_InstanceIndex];
-    float tx = float(chunk.coord.x) * CHUNK_SIZE_F + localPos.x;
-    float ty = float(chunk.coord.z) * CHUNK_SIZE_F + localPos.y;
-    float tz = float(chunk.coord.y) * CHUNK_SIZE_F + localPos.z;
 
-    float R = ubo.anchorFacePos.w;
+    // Flat terrain phase: a cube face is a plain grid, with no cube to sphere mapping at all.
+    // This has to stay the exact mirror of lod_node_corner() in planet_lod_common.glsl, or the
+    // traversal would cull and pick LOD levels against positions that are never drawn here.
+    // planet__local_to_world() in planet_utils.glsl is the equiangular version to come back to.
+    //
+    // A node at level L covers CHUNK_SIZE << L on each axis, so both its grid position and its
+    // voxels scale by the same factor.
+    float nodeScale = float(1 << chunk.coord.w);
+    vec3 nodeOrigin = vec3(float(chunk.coord.x), float(chunk.coord.z), float(chunk.coord.y)) * CHUNK_SIZE_F;
 
-    float Rty = R + ty;
-    float horiz2 = tx * tx + tz * tz;
+    vec3 worldPos = (nodeOrigin + localPos) * nodeScale - ubo.cameraWorldPos.xyz;
 
-    float ratio = horiz2 / (Rty * Rty);
-    float sqrtTerm = sqrt(1.0 + ratio);
-    float d = Rty * sqrtTerm;
+    fragNormal = LOCAL_FACE_NORMALS[faceDir];
 
-    float sag = -horiz2 / (Rty + d);
-    float scale = sag / d;
-
-    vec3 curvatureLocal = vec3(tx * scale, Rty * scale, tz * scale);
-
-    vec3 relPos_tangent = tx * ubo.anchorX.xyz
-                        + tz * ubo.anchorZ.xyz
-                        + ty * ubo.anchorY.xyz;
-    vec3 curvatureWorld = curvatureLocal.x * ubo.anchorX.xyz
-                        + curvatureLocal.y * ubo.anchorY.xyz
-                        + curvatureLocal.z * ubo.anchorZ.xyz;
-
-    vec3 spherePos = ubo.anchorCameraPos.xyz + relPos_tangent + curvatureWorld;
-
-    vec3 localNormal = LOCAL_FACE_NORMALS[faceDir];
-    fragNormal = localNormal.x * ubo.anchorX.xyz
-                + localNormal.y * ubo.anchorY.xyz
-                + localNormal.z * ubo.anchorZ.xyz;
-
-    fragWorldPos = spherePos;
-    gl_Position  = ubo.projection * ubo.view * vec4(spherePos, 1.0);
+    fragWorldPos = worldPos;
+    gl_Position  = ubo.projection * ubo.view * vec4(worldPos, 1.0);
     v_clip_w     = gl_Position.w;
 }

@@ -1,23 +1,32 @@
 #pragma once
 
-#include <flecs.h>
+#include <chrono>
+#include <mutex>
+#include <semaphore>
+#include <thread>
 #include <vector>
+
+#include <flecs.h>
 
 #include "planet_components.h"
 #include "core/TracyIntegration.h"
 #include "core/world/world_components.h"
 
 namespace vp {
+    /// Opaque token the caller uses to recognise its own job when the result comes back. The
+    /// generator never looks inside it. See vp::PlanetLodJobs for the LOD side of the contract
+    using ChunkGenJobId = uint64_t;
+
     struct ChunkGenInput {
-        flecs::entity chunkEntity;
+        ChunkGenJobId jobId = 0;
         PlanetNodeCoord coord;
-        glm::dvec3 sphereDir;
+        glm::dvec3 sphereDir; // unused during the flat terrain phase
         PlanetGenerationConfig config;
         float priority = 0.0f;
     };
 
     struct ChunkGenOutput {
-        flecs::entity chunkEntity;
+        ChunkGenJobId jobId = 0;
         PlanetNodeCoord coord;
         VoxelChunk chunk;
         bool success = false;
