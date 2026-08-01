@@ -2,7 +2,7 @@
 
 using namespace vp;
 
-uint64_t PlanetLodJobs::open(uint32_t nodeIndex, const PlanetNodeCoord &coord) {
+uint64_t PlanetLodJobs::open(uint32_t nodeIndex, const PlanetNodeCoord &coord, uint8_t generation) {
     uint32_t slotIndex;
 
     if (!m_free.empty()) {
@@ -14,7 +14,7 @@ uint64_t PlanetLodJobs::open(uint32_t nodeIndex, const PlanetNodeCoord &coord) {
     }
 
     Slot &slot = m_slots[slotIndex];
-    slot.job = {nodeIndex, coord};
+    slot.job = {nodeIndex, coord, generation};
     slot.open = true;
 
     return (static_cast<uint64_t>(slotIndex) << 32) | slot.generation;

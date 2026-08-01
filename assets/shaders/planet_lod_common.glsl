@@ -114,24 +114,44 @@ void lod_push_render(uint nodeIndex) {
 }
 
 /**
+ * Flag bit a request type claims.
+ *
+ * Mesh and subdivision have their own bit because a node that is too coarse and owns nothing
+ * asks for both in the same pass: with one shared bit whichever request reached the atomic first
+ * would lock the other out, and the node would either never get its fallback geometry or never
+ * get subdivided.
+ *
+ * A merge reuses the subdivision bit, which is what it wants anyway: a node with a subdivision
+ * in flight must not give its children back before that subdivision has landed.
+ */
+uint lod_request_bit(uint type) {
+    return type == LOD_REQ_MESH ? NODE_REQ_MESH_BIT : NODE_REQ_SPLIT_BIT;
+}
+
+/**
  * Ask the CPU for the data this node is missing.
  *
  * The node is claimed first, so a request is emitted once and not on every frame for as long as
  * the job takes. If the queue turns out to be full the claim is rolled back: leaving the flag
  * set would mean the CPU never hears about this node, and it would stay coarse forever.
+ *
+ * @param generation node_generation() of the node, carried back so the CPU can drop the request
+ *                   if the slot has been recycled in the meantime
  */
-void lod_emit_request(uint nodeIndex, uint type, uint priority) {
-    uint previous = atomicOr(nodes[nodeIndex].x, NODE_REQUESTED_BIT);
-    if ((previous & NODE_REQUESTED_BIT) != 0u) return;
+void lod_emit_request(uint nodeIndex, uint type, uint priority, uint generation) {
+    uint bit = lod_request_bit(type);
+
+    uint previous = atomicOr(nodes[nodeIndex].x, bit);
+    if ((previous & bit) != 0u) return;
 
     uint slot = atomicAdd(counters[LOD_COUNTER_REQUEST], 1u);
     if (slot >= ubo.maxRequestEntries) {
-        atomicAnd(nodes[nodeIndex].x, ~NODE_REQUESTED_BIT);
+        atomicAnd(nodes[nodeIndex].x, ~bit);
         atomicAdd(counters[LOD_COUNTER_REQUEST_OVERFLOW], 1u);
         return;
     }
 
-    requests[slot] = uvec4(nodeIndex, type, priority, 0u);
+    requests[slot] = uvec4(nodeIndex, type, priority, generation);
 }
 
 #endif

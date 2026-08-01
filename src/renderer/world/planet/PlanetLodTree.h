@@ -13,8 +13,12 @@ namespace vp {
     struct LodJobResult {
         /// Node the job was started for.
         uint32_t nodeIndex = NODE_INVALID_PTR;
-        /// Coordinate the job was started for, used to detect a recycled slot.
+        /// Coordinate the job was started for, kept for diagnostics and for the arena debugger.
         PlanetNodeCoord coord;
+        /// GpuNode::generation when the job was started. This, and not the coordinate, is what
+        /// detects a recycled slot: destroying a node and recreating the same coordinate is
+        /// routine, and the coordinates then match while the two nodes are unrelated
+        uint8_t generation = 0;
         /// True if the node turned out uniform: no geometry, and no point subdividing it.
         bool empty = false;
         /// VoxelChunkMesh::drawSlotIndex of the uploaded geometry, ignored when empty.
@@ -34,7 +38,8 @@ namespace vp {
      */
     class PlanetLodTree {
     public:
-        using SubmitJobFn = std::function<void(uint32_t nodeIndex, const PlanetNodeCoord &coord, uint32_t priority)>;
+        using SubmitJobFn = std::function<void(uint32_t nodeIndex, const PlanetNodeCoord &coord,
+                                              uint8_t generation, uint32_t priority)>;
         using ReleaseMeshFn = std::function<void(uint32_t meshId)>;
 
         struct Config {
@@ -97,6 +102,26 @@ namespace vp {
         void update_roots(CubeFace face, int32_t rootU, int32_t rootV);
 
         /**
+         * Drop the subdivisions that have stopped making progress.
+         *
+         * A subdivision publishes only once all eight children are back, so a single job that
+         * never returns strands it for good: the block is never released, and the parent keeps
+         * NODE_REQ_SPLIT so the traversal never asks about it again. That is a hole that no
+         * amount of moving around repairs
+         *
+         * Dropping the entry destroys the children, rearms the parent and lets the GPU ask
+         * again. The jobs still running find their slot recycled and discard themselves
+         *
+         * @param maxAge Frames a subdivision is allowed to stay open before it is dropped
+         * @return Number of subdivisions dropped
+         */
+        uint32_t sweep_stranded(uint64_t maxAge);
+
+        /// Subdivisions dropped by sweep_stranded() since the last reset, for diagnostics. A
+        /// non zero value is always a bug somewhere upstream, not a tuning problem
+        uint32_t stranded_dropped() const { return m_strandedDropped; }
+
+        /**
          * Backstop for the subtrees the traversal never gets to judge
          *
          * Merging is normally the shader's call, delivered as a LOD_REQ_MERGE and applied by
@@ -157,7 +182,10 @@ namespace vp {
          */
         uint64_t oldest_pending_age() const;
 
-        void reset_collapse_stats() { m_collapsedByGpu = 0; }
+        void reset_collapse_stats() {
+            m_collapsedByGpu = 0;
+            m_strandedDropped = 0;
+        }
 
     private:
         /**
@@ -209,10 +237,29 @@ namespace vp {
         /// Live descendants of a node, for the released counter reported by collapse_distant()
         uint32_t count_subtree(uint32_t nodeIndex) const;
 
-        /// Allocate a block and place a root node in its first slot
+        /// Take a root slot out of the pool, growing it by a block when it runs dry
+        uint32_t alloc_root_slot();
+
+        /// Hand a root slot back to the pool
+        void free_root_slot(uint32_t index) { m_freeRootSlots.push_back(index); }
+
+        /// Place a root node in a slot from the pool
         uint32_t create_root(const PlanetNodeCoord &coord);
 
-        /// Clear NODE_REQUESTED on the GPU side so the shader is allowed to ask again
+        /**
+         * Write a fresh node into a slot, carrying its generation over.
+         *
+         * make_node() alone would reset the generation to zero, which is exactly what the
+         * generation exists to prevent: a request or a job result aimed at the previous occupant
+         * would match again
+         *
+         * @param index Slot to fill
+         * @param coord Coordinate of the new node
+         * @param flags Extra NodeFlags
+         */
+        void place_node(uint32_t index, const PlanetNodeCoord &coord, uint8_t flags);
+
+        /// Clear the pending request flags on the GPU side so the shader is allowed to ask again
         void rearm(uint32_t nodeIndex);
 
         /// Forward a job to the worker pool and account for it in the in flight budget
@@ -227,11 +274,25 @@ namespace vp {
         std::unordered_map<PlanetNodeCoord, uint32_t, PlanetNodeCoordHash> m_roots;
         std::vector<uint32_t> m_rootIndices;
 
+        /**
+         * Individual node slots available to roots.
+         *
+         * The store only hands out blocks of 8, because a parent addresses its children with one
+         * pointer plus a mask. A root has no parent, so giving it a whole block wastes seven
+         * slots each: at radius 7 that is around 1200 dead nodes. Roots draw from this pool
+         * instead, and a block is only taken from the store when it runs dry
+         *
+         * Blocks that reach the pool never go back to the store. The pool is bounded by the peak
+         * root count, so it settles rather than growing
+         */
+        std::vector<uint32_t> m_freeRootSlots;
+
         std::vector<PendingSubdivision> m_pending;
         std::unordered_map<uint32_t, size_t> m_childToPending; // child node index -> m_pending slot
 
         uint32_t m_inFlight = 0;
         uint32_t m_collapsedByGpu = 0;
+        uint32_t m_strandedDropped = 0;
 
         /// Ticks once per ingest_requests(), which is once per rendered frame. Only used to date
         /// pending subdivisions

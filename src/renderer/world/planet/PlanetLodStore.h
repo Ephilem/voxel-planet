@@ -31,11 +31,23 @@ namespace vp {
         uint32_t allocate_block();
 
         /**
-         * Release a block and zero its nodes. The whole block is flagged dirty so the GPU sees
+         * Release a block and recycle its nodes. The whole block is flagged dirty so the GPU sees
          * the nodes disappear on the next upload
          * @param first First index of the 8 nodes, as returned by allocate_block()
          */
         void free_block(uint32_t first);
+
+        /**
+         * Retire a single node: clear it, bump its generation and flag it dirty.
+         *
+         * The generation is what makes a slot recognisable across a reuse. Requests come back
+         * MAX_FRAMES_IN_FLIGHT frames late and job results later still, and a cleared node reads
+         * as a perfectly valid level 0 node at the origin, so neither the contents nor the
+         * coordinate can be used to tell a live slot from a recycled one
+         *
+         * @param index Node index
+         */
+        void recycle(uint32_t index);
 
         /**
          * Access a node for reading

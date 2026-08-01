@@ -28,7 +28,12 @@ namespace vp {
     struct ChunkGenOutput {
         ChunkGenJobId jobId = 0;
         PlanetNodeCoord coord;
-        VoxelChunk chunk;
+        /// Unallocated by default: an empty node never touches it, and allocating one costs
+        /// 64 KB plus the zeroing
+        VoxelChunk chunk{VoxelChunk::Unallocated{}};
+        /// Carried over from the input, so the meshing hop can keep the same ordering the
+        /// generation used. Without it the terrain stops filling in from where the player looks
+        float priority = 0.0f;
         bool success = false;
         bool empty = true;
     };

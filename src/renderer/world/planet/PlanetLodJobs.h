@@ -21,15 +21,19 @@ namespace vp {
         struct Job {
             uint32_t nodeIndex = NODE_INVALID_PTR;
             PlanetNodeCoord coord;
+            /// GpuNode::generation of the slot when the job was opened, so the tree can tell a
+            /// result for this node from one for whatever took the slot in the meantime
+            uint8_t generation = 0;
         };
 
         /**
          * Open a job and mint the token to hand to the workers
          * @param nodeIndex Node the job is going to fill
          * @param coord Coordinate of that node at the time the job starts
+         * @param generation Generation of that node slot at the time the job starts
          * @return Token, valid until close() accepts it
          */
-        uint64_t open(uint32_t nodeIndex, const PlanetNodeCoord &coord);
+        uint64_t open(uint32_t nodeIndex, const PlanetNodeCoord &coord, uint8_t generation);
 
         /**
          * Look a job up without closing it, for the hop between generation and meshing

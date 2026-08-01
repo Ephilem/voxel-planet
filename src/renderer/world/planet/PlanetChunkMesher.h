@@ -1,7 +1,7 @@
 #pragma once
-#include <queue>
+#include <mutex>
+#include <semaphore>
 #include <thread>
-#include <unordered_set>
 #include <vector>
 #include <flecs.h>
 
@@ -37,13 +37,28 @@ namespace vp {
         static void Register(flecs::world& ecs);
 
         /**
+         * Depth of the border skirts, in voxels of the chunk's own level.
+         *
+         * Neighbour chunks are not available to the mesher, so the lateral borders emit no faces
+         * at all. Between two chunks of the same level that is nearly free, but between two LOD
+         * levels the terrain genuinely steps by up to a coarse voxel, and the gap is a hole
+         * straight through the planet. A skirt hanging under the border closes it without needing
+         * to know anything about the neighbour, and it is hidden inside the ground everywhere the
+         * terrain happens to line up
+         */
+        static constexpr int SKIRT_VOXELS = 16;
+
+        /**
          * Queue a chunk for meshing
          * @param jobId Caller side token, returned as is in the matching output
          * @param voxels Voxel data to mesh, shared with the generator so nothing is copied
          * @param gpuTextureIds Maps the chunk local texture ids to slots in the texture array
          * @param priority Higher runs first
+         * @return False if the task was rejected, in which case the caller still owns the job and
+         *         has to close it itself. Dropping it silently strands the node: it keeps its
+         *         pending flag for good, and the subdivision waiting on it never completes
          */
-        void enqueue(uint64_t jobId,
+        bool enqueue(uint64_t jobId,
                      std::shared_ptr<const std::array<uint16_t, CHUNK_VOLUME>> voxels,
                      std::unordered_map<uint8_t, uint16_t> gpuTextureIds,
                      float priority);
@@ -77,14 +92,28 @@ namespace vp {
         std::vector<std::thread> m_workerThreads;
         VOXEL_LOCKABLE(std::mutex, m_taskMutex);
         std::counting_semaphore<> m_taskSemaphore{0};
-        std::priority_queue<MesherTaskInput, std::vector<MesherTaskInput>, std::greater<>> m_queue;
-        // Deduplication by entity, unused now that every job carries a fresh token
-        std::unordered_set<flecs::entity_t> m_pending;
+
+        /// Max heap on priority, kept by hand rather than in a std::priority_queue: popping a
+        /// task out of one needs a const_cast on top(), because the container is only exposed as
+        /// const even though the element is about to be removed
+        std::vector<MesherTaskInput> m_queue;
+
         std::vector<std::unique_ptr<MesherWorkerResult>> m_workerResults;
         std::atomic<bool> m_stop{false};
 
         void worker_loop(size_t id);
         MesherTaskOutput build_mesh(const MesherTaskInput &input);
+
+        /**
+         * Hang a skirt under each of the four lateral borders of the chunk.
+         *
+         * @param voxels Chunk voxels
+         * @param gpuTextureIds Local to gpu texture slot mapping
+         * @param faces Face list to append to
+         */
+        static void emit_border_skirts(const std::array<uint16_t, CHUNK_VOLUME> &voxels,
+                                       const std::unordered_map<uint8_t, uint16_t> &gpuTextureIds,
+                                       std::vector<TerrainFace3d> &faces);
 
 
     };

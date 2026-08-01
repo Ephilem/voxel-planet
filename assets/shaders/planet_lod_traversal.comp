@@ -5,7 +5,8 @@
 // Each invocation takes one node from the input queue and decides what to do with it:
 //   - outside the frustum or too far away  -> dropped
 //   - too big on screen, children present  -> push the children into the output queue
-//   - too big on screen, no children yet   -> ask the CPU to subdivide, keep drawing the parent
+//   - too big on screen, no children yet   -> ask the CPU to subdivide, keep drawing the parent,
+//                                             and ask for the parent's own mesh if it has none
 //   - small enough, geometry present       -> push into the render queue
 //   - small enough, no geometry yet        -> ask the CPU for a mesh
 //
@@ -49,6 +50,11 @@ void main() {
     LodNode node = nodes[nodeIndex];
 
     uint flags = node_flags(node);
+
+    // Freed slot. Everything a live node reaches is live, so this only fires on a corrupt queue
+    // entry, but a dead node reads as a valid level 0 node at the origin and would be both drawn
+    // and requested
+    if ((flags & NODE_ALIVE) == 0u) return;
 
     // Uniform node: nothing to draw, and nothing worth asking for
     if ((flags & NODE_EMPTY) != 0u) return;
@@ -100,6 +106,7 @@ void main() {
     }
 
     uint priority = uint(clamp(screenSize, 0.0, 65535.0));
+    uint generation = node_generation(node);
 
     bool wantsFiner = screenSize > ubo.subdivisionThreshold
     && level > 0
@@ -111,16 +118,35 @@ void main() {
             return;
         }
 
-        lod_emit_request(nodeIndex, LOD_REQ_CHILDREN, priority);
+        lod_emit_request(nodeIndex, LOD_REQ_CHILDREN, priority, generation);
 
-        if ((flags & NODE_HAS_MESH) != 0u) lod_push_render(nodeIndex);
+        if ((flags & NODE_HAS_MESH) != 0u) {
+            lod_push_render(nodeIndex);
+            return;
+        }
+
+        // Neither geometry nor children: there is nothing at all to draw here, and a subdivision
+        // takes a full generate and mesh round trip per child before that changes. Asking for
+        // this node's own mesh as well is what closes the hole in the meantime, and it is the
+        // only thing that ever gives a root geometry, since a root is always too coarse and so
+        // never reaches the branch below.
+        //
+        // It also feeds the way back up: a merge is only ever applied to a node that owns a
+        // mesh, so without this a subdivided node could never be collapsed again.
+        if ((flags & NODE_NO_MESH) == 0u) {
+            lod_emit_request(nodeIndex, LOD_REQ_MESH, priority, generation);
+        }
         return;
     }
 
     // Small enough to be drawn as a single node from here on.
 
     if ((flags & NODE_HAS_MESH) == 0u) {
-        lod_emit_request(nodeIndex, LOD_REQ_MESH, priority);
+        // NODE_NO_MESH means the CPU has already tried and this node has no geometry of its own.
+        // Asking again would resubmit the same generate and mesh round trip every single frame.
+        if ((flags & NODE_NO_MESH) == 0u) {
+            lod_emit_request(nodeIndex, LOD_REQ_MESH, priority, generation);
+        }
 
         // Nothing of its own to draw yet. Any children it still owns cover exactly the same
         // ground, so keep drawing them rather than leaving a hole until the mesh lands.
@@ -134,6 +160,6 @@ void main() {
     // CPU is told to give their slots and their geometry back. Only the shader ever judges what
     // is too small: the CPU applying its own version of this test is how the two drift apart.
     if (node_has_children(node) && screenSize < ubo.mergeThreshold) {
-        lod_emit_request(nodeIndex, LOD_REQ_MERGE, priority);
+        lod_emit_request(nodeIndex, LOD_REQ_MERGE, priority, generation);
     }
 }

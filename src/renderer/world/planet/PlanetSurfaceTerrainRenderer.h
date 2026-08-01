@@ -57,9 +57,34 @@ namespace vp {
         /// Node capacity of the LOD tree, shared by the CPU mirror and every GPU buffer.
         static constexpr uint32_t LOD_MAX_NODES = 1u << 18;
 
-        /// Only one VoxelBuffer is allowed for now. Growing past it needs the draw slot to also
-        /// carry which buffer it lives in, which GpuNode::meshFlags is reserved for.
-        static constexpr size_t MAX_CHUNK_BUFFERS = 1;
+        /**
+         * Level the root disc sits at, and therefore the depth of the traversal.
+         *
+         * It has to be PLANET_MAX_LOD: PlanetLodTraverser dispatches one level per LOD level from
+         * PLANET_MAX_LOD down to 0, so a root any deeper would never be visited. The two used to
+         * agree only because the tree's default happened to match.
+         */
+        static constexpr uint8_t LOD_ROOT_LEVEL = PLANET_MAX_LOD;
+
+        /**
+         * Jobs the tree accepts at once.
+         *
+         * Deliberately well under PlanetLodGpuBuffers::MAX_REQUESTS. When the two are equal the
+         * budget and the request queue saturate together, and there is no way to tell a backlog
+         * draining from a queue that is simply too small. It also has to stay in proportion to
+         * MAX_MESH_RESULTS_PER_FRAME, which is the rate the backlog actually drains at.
+         */
+        static constexpr uint32_t LOD_MAX_JOBS_IN_FLIGHT = 512;
+
+        /**
+         * Upper bound on the generated chunks turned into meshing tasks in a single frame.
+         *
+         * The generator used to be drained without a limit while the mesher was drained at
+         * MAX_MESH_RESULTS_PER_FRAME, so the meshing queue grew without bound and the job budget
+         * stayed pinned for as long as it took to work off. Both ends have to be throttled
+         * together for the pipeline to have a steady state at all.
+         */
+        static constexpr size_t MAX_GEN_RESULTS_PER_FRAME = 128;
 
         /**
          * Upper bound on the meshes turned into geometry in a single frame. Each one costs an
@@ -206,17 +231,22 @@ namespace vp {
 
         // Set 1: per-chunk OUB (chunk coords)
         nvrhi::BindingLayoutHandle m_oubBindingLayout;
-        std::vector<nvrhi::BindingSetHandle> m_oubBindingSets;
+        nvrhi::BindingSetHandle m_oubBindingSet;
 
         // Set 2: face buffer
         nvrhi::BindingLayoutHandle m_faceBindingLayout;
-        std::vector<nvrhi::BindingSetHandle> m_faceBindingSets;
+        nvrhi::BindingSetHandle m_faceBindingSet;
 
         nvrhi::ShaderHandle m_vertexShader;
         nvrhi::ShaderHandle m_pixelShader;
         nvrhi::GraphicsPipelineHandle m_pipeline;
 
-        std::vector<VoxelBuffer> m_chunkBuffers;
+        /// The one geometry arena. Growing past a single buffer needs the draw slot to also carry
+        /// which buffer it lives in, which GpuNode::meshFlags is reserved for. Held by pointer
+        /// rather than by value in a vector: several places keep a reference to it for the
+        /// lifetime of the renderer, and a vector that ever reallocated would dangle them all
+        std::unique_ptr<VoxelBuffer> m_chunkBuffer;
+
         VoxelMeshUploadBatcher m_meshUploader;
 
         /// Uploaded meshes indexed by draw slot. The LOD tree only ever refers to geometry by
@@ -263,6 +293,10 @@ namespace vp {
         /// Nodes released by the last collapse pass, for the debug panel
         uint32_t m_lodCollapsedLastFrame = 0;
 
+        /// Meshing tasks the mesher refused this frame, for the debug panel. Their jobs are
+        /// closed as uniform rather than dropped, so the node comes back instead of stranding
+        uint32_t m_mesherRejectsLastFrame = 0;
+
         /// Pixels a one metre object one metre away would cover, straight out of the projection.
         /// Kept from the last update_lod() so the panel can turn the thresholds, which are in
         /// pixels, into the distances in metres they actually mean
@@ -274,7 +308,7 @@ namespace vp {
         void init_emit_draws_pipeline();
         void destroy();
 
-        VoxelBuffer &create_buffer();
+        void create_buffer();
 
         /**
          * Move a mesh into the draw slot table, which is its final home: the upload batcher

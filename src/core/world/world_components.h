@@ -71,11 +71,29 @@ struct VoxelChunk {
     std::shared_ptr<std::array<uint16_t, CHUNK_VOLUME>> voxels;
     std::unordered_map<AssetID, uint8_t> textureIDs;
 
+    /// Tag for the constructor that leaves the voxel array unallocated. The planet generator
+    /// rejects the large majority of the nodes it is handed on a pair of altitude comparisons,
+    /// and a chunk is 64 KB that would be allocated and zeroed only to be thrown away
+    struct Unallocated {};
+
     VoxelChunk() : voxels(std::make_shared<std::array<uint16_t, CHUNK_VOLUME>>()) {
         voxels->fill(0);
     }
 
+    explicit VoxelChunk(Unallocated) {}
+
+    /// Allocate the voxel array if it is not there yet. Cheap to call on an allocated chunk
+    void allocate() {
+        if (voxels) return;
+        voxels = std::make_shared<std::array<uint16_t, CHUNK_VOLUME>>();
+        voxels->fill(0);
+    }
+
     void ensure_unique() {
+        if (!voxels) {
+            allocate();
+            return;
+        }
         if (voxels.use_count() > 1) {
             voxels = std::make_shared<std::array<uint16_t, CHUNK_VOLUME>>(*voxels);
         }

@@ -57,6 +57,11 @@ bool PlanetWorldGenerator::generate_planet_chunk(VoxelChunk &chunk, PlanetNodeCo
     if (nodeBottom >= groundMax) return false;
     if (nodeTop <= shellBottom) return false;
 
+    // Past the two tests above there is ground to write, so the voxel array is worth its 64 KB.
+    // The altitude band the terrain lives in is a thin slice of a root node, so the large
+    // majority of the nodes handed to this function never reach this line
+    chunk.allocate();
+
     chunk.textureIDs = {
         {"voxelplanet:textures/grass"_asset, TEXTURE_GRASS},
         {"voxelplanet:textures/cobblestone"_asset, TEXTURE_STONE}
@@ -135,7 +140,7 @@ bool PlanetWorldGenerator::generate_planet_chunk(VoxelChunk &chunk, PlanetNodeCo
                     static_cast<int>((localHeight - static_cast<float>(topVoxel)) * 16.0f), 1, 15);
 
                 chunk.set(lx, topVoxel, lz,
-                          {.localTextureID = TEXTURE_GRASS, .height = static_cast<uint8_t>(15)});
+                          {.localTextureID = TEXTURE_GRASS, .height = static_cast<uint8_t>(subHeight)});
                 anyVoxel = true;
             } else if (lastFull > firstFull) {
                 // The surface is above the ceiling, but its underside still crosses this node

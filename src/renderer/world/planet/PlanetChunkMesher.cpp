@@ -1,5 +1,8 @@
 #include "PlanetChunkMesher.h"
 
+#include <algorithm>
+#include <bit>
+
 #include <imgui.h>
 
 #include "core/log/Logger.h"
@@ -22,8 +25,12 @@ PlanetChunkMesher::PlanetChunkMesher() {
 }
 
 PlanetChunkMesher::~PlanetChunkMesher() {
-    // join
     m_stop = true;
+
+    // Every worker is parked inside acquire(). Setting the stop flag alone is not enough: nothing
+    // would ever wake them, and the join below would hang the process on exit
+    m_taskSemaphore.release(static_cast<int>(m_workerThreads.size()));
+
     for (auto &thread: m_workerThreads) {
         if (thread.joinable()) thread.join();
     }
@@ -63,11 +70,40 @@ void PlanetChunkMesher::init(flecs::world &ecs) {
             });
 }
 
-void PlanetChunkMesher::enqueue(uint64_t jobId,
+namespace {
+    /// Max heap on priority, so the most urgent chunk is the one popped first
+    bool mesher_task_less(const vp::PlanetChunkMesher::MesherTaskInput &a,
+                          const vp::PlanetChunkMesher::MesherTaskInput &b) {
+        return a.priority < b.priority;
+    }
+
+    /// One greedy meshing mask: the rows of a single slice that share a key
+    struct MaskEntry {
+        uint32_t key = 0;
+        std::array<uint32_t, CHUNK_SIZE> rows{};
+    };
+
+    /// Masks of one slice. A slice carries a handful of distinct keys, so a linear scan over a
+    /// flat list is both faster and allocation free compared to a hash map
+    using SliceMasks = std::vector<MaskEntry>;
+
+    /// Rows of a key inside a slice, created empty on first use. The reference is only valid
+    /// until the next call on the same slice
+    std::array<uint32_t, CHUNK_SIZE> &rows_for(SliceMasks &slice, uint32_t key) {
+        for (MaskEntry &entry: slice) {
+            if (entry.key == key) return entry.rows;
+        }
+
+        slice.push_back(MaskEntry{key, {}});
+        return slice.back().rows;
+    }
+}
+
+bool PlanetChunkMesher::enqueue(uint64_t jobId,
                                 std::shared_ptr<const std::array<uint16_t, CHUNK_VOLUME> > voxels,
                                 std::unordered_map<uint8_t, uint16_t> gpuTextureIds,
                                 float priority) {
-    if (!voxels) return;
+    if (!voxels) return false;
 
     MesherTaskInput input = {
         .jobId = jobId,
@@ -76,10 +112,12 @@ void PlanetChunkMesher::enqueue(uint64_t jobId,
         .priority = priority,
     }; {
         std::lock_guard lock(m_taskMutex);
-        m_queue.push(std::move(input));
+        m_queue.push_back(std::move(input));
+        std::push_heap(m_queue.begin(), m_queue.end(), mesher_task_less);
     }
 
     m_taskSemaphore.release(1);
+    return true;
 }
 
 size_t PlanetChunkMesher::queued_task_count() {
@@ -121,8 +159,9 @@ void PlanetChunkMesher::worker_loop(size_t id) {
             return; {
             std::lock_guard lock(m_taskMutex);
             while (batch.size() < BATCH_SIZE && !m_queue.empty()) {
-                batch.push_back(std::move(const_cast<MesherTaskInput &>(m_queue.top())));
-                m_queue.pop();
+                std::pop_heap(m_queue.begin(), m_queue.end(), mesher_task_less);
+                batch.push_back(std::move(m_queue.back()));
+                m_queue.pop_back();
             }
             if (!m_queue.empty()) {
                 m_taskSemaphore.release(1);
@@ -221,27 +260,42 @@ PlanetChunkMesher::MesherTaskOutput PlanetChunkMesher::build_mesh(const MesherTa
     // Returning air on every side made each chunk emit its full border wall, and the wall of the
     // chunk next door landed on exactly the same plane: two coplanar quads at identical depth,
     // drawn in whatever order the indirect draws happen to run, which reads as violent flicker
-    // along every seam. Reporting the sideways neighbours as solid drops both walls instead.
+    // along every seam. Reporting the neighbours as solid drops both walls instead.
     //
-    // The cost is the reverse error: a genuine step in the terrain that falls exactly on a chunk
-    // border loses its face and leaves a crack. That is the better failure while there is no
-    // neighbour data, and it goes away once there is. The vertical neighbours stay air, or the
-    // ground would lose its top face at the ceiling of every node.
+    // The lateral cost is the reverse error: a genuine step in the terrain on a chunk border
+    // loses its face and leaves a crack, and across a LOD boundary that step is a whole coarse
+    // voxel. emit_border_skirts() below covers exactly that, without needing neighbour data.
+    //
+    // The floor (face 2) is reported solid for the same reason the sides are: a node sitting
+    // fully under the surface is solid to its ceiling, so its own top face and the bottom face of
+    // the node above land on the same plane and fight. The ceiling (face 3) stays air, or a
+    // column whose ground reaches the top of the node would lose its grass face.
     constexpr uint16_t NEIGHBOR_SOLID = 1u | (15u << 8);
 
-    auto get_neighbor_voxel = [&input](int neighborIdx, int lx, int ly, int lz) -> uint16_t {
+    // Careful with neighborIdx: it is the mirrored face direction, so the query made across face
+    // f passes f ^ 1. Index 2 is therefore what face 3 asks with, the look at the node above, and
+    // index 3 is what face 2 asks with, the look at the node below.
+    auto get_neighbor_voxel = [](int neighborIdx, int lx, int ly, int lz) -> uint16_t {
         // if (const auto &nv = input.neighborVoxels[neighborIdx]) {
         //     return (*nv)[lx + CHUNK_SIZE * (ly + CHUNK_SIZE * lz)];
         // }
-        const bool vertical = neighborIdx == 2 || neighborIdx == 3;
-        return vertical ? 0 : NEIGHBOR_SOLID;
+        const bool lookingUp = neighborIdx == 2;
+        return lookingUp ? 0 : NEIGHBOR_SOLID;
     };
 
     // Masks keyed by uint32_t: texID (8b) | blkH (8b) | nbH (8b).
     // For top/bottom faces nbH stays 0. Side faces encode the neighbor height
     // so that only faces with the same visible extent can greedy-merge.
-    using SliceMasks = std::unordered_map<uint32_t, std::array<uint32_t, CHUNK_SIZE> >;
-    std::array<std::array<SliceMasks, CHUNK_SIZE>, 6> allMasks; {
+    //
+    // A slice holds a handful of distinct keys, so a flat list searched linearly beats a hash
+    // map by a wide margin here: there are 6 * 32 of these per chunk, and an unordered_map that
+    // allocates its buckets on every one of them was the single most expensive thing the mesher
+    // did. Kept thread_local so the storage is reused from one chunk to the next.
+    thread_local std::array<std::array<SliceMasks, CHUNK_SIZE>, 6> allMasks;
+
+    for (auto &face: allMasks) {
+        for (auto &slice: face) slice.clear(); // keeps the capacity
+    } {
         VOXEL_ZONE_N("BuildAllMasks");
         for (int z = 0; z < CHUNK_SIZE; z++) {
             for (int y = 0; y < CHUNK_SIZE; y++) {
@@ -259,8 +313,8 @@ PlanetChunkMesher::MesherTaskOutput PlanetChunkMesher::build_mesh(const MesherTa
                         const uint8_t nbTexID = nb & 0xFF;
                         const uint8_t nbH = static_cast<uint8_t>(nb >> 8);
                         if (nbTexID == 0 || blkH > nbH)
-                            allMasks[0][x][static_cast<uint32_t>(voxel) | (static_cast<uint32_t>(nbH) << 16)][y] |= (
-                                1u << z);
+                            rows_for(allMasks[0][x],
+                                     static_cast<uint32_t>(voxel) | (static_cast<uint32_t>(nbH) << 16))[y] |= (1u << z);
                     }
                     // Face 1: +X, check x+1
                     {
@@ -270,8 +324,8 @@ PlanetChunkMesher::MesherTaskOutput PlanetChunkMesher::build_mesh(const MesherTa
                         const uint8_t nbTexID = nb & 0xFF;
                         const uint8_t nbH = static_cast<uint8_t>(nb >> 8);
                         if (nbTexID == 0 || blkH > nbH)
-                            allMasks[1][x][static_cast<uint32_t>(voxel) | (static_cast<uint32_t>(nbH) << 16)][y] |= (
-                                1u << z);
+                            rows_for(allMasks[1][x],
+                                     static_cast<uint32_t>(voxel) | (static_cast<uint32_t>(nbH) << 16))[y] |= (1u << z);
                     }
                     // Face 2: -Y (bottom, toward planet center), check y-1
                     // Visible when neighbor below is air OR has a gap above it (nbH < 15)
@@ -282,7 +336,7 @@ PlanetChunkMesher::MesherTaskOutput PlanetChunkMesher::build_mesh(const MesherTa
                         const uint8_t nbTexID = nb & 0xFF;
                         const uint8_t nbH = static_cast<uint8_t>(nb >> 8);
                         if (nbTexID == 0 || nbH < 15)
-                            allMasks[2][y][static_cast<uint32_t>(voxel)][z] |= (1u << x);
+                            rows_for(allMasks[2][y], static_cast<uint32_t>(voxel))[z] |= (1u << x);
                     }
                     // Face 3: +Y (top/grass face, away from planet), check y+1
                     // Visible when neighbor above is air OR current block is partial
@@ -291,7 +345,7 @@ PlanetChunkMesher::MesherTaskOutput PlanetChunkMesher::build_mesh(const MesherTa
                                           ? voxels[x + CHUNK_SIZE * ((y + 1) + CHUNK_SIZE * z)]
                                           : get_neighbor_voxel(2, x, 0, z);
                         if ((nb & 0xFF) == 0 || blkH < 15)
-                            allMasks[3][y][static_cast<uint32_t>(voxel)][z] |= (1u << x);
+                            rows_for(allMasks[3][y], static_cast<uint32_t>(voxel))[z] |= (1u << x);
                     }
                     // Face 4: -Z (side face), check z-1
                     {
@@ -301,7 +355,8 @@ PlanetChunkMesher::MesherTaskOutput PlanetChunkMesher::build_mesh(const MesherTa
                         const uint8_t nbTexID = nb & 0xFF;
                         const uint8_t nbH = static_cast<uint8_t>(nb >> 8);
                         if (nbTexID == 0 || blkH > nbH)
-                            allMasks[4][z][static_cast<uint32_t>(voxel) | (static_cast<uint32_t>(nbH) << 16)][y] |= (1u << x);
+                            rows_for(allMasks[4][z],
+                                     static_cast<uint32_t>(voxel) | (static_cast<uint32_t>(nbH) << 16))[y] |= (1u << x);
                     }
                     // Face 5: +Z (side face), check z+1
                     {
@@ -311,7 +366,8 @@ PlanetChunkMesher::MesherTaskOutput PlanetChunkMesher::build_mesh(const MesherTa
                         const uint8_t nbTexID = nb & 0xFF;
                         const uint8_t nbH = static_cast<uint8_t>(nb >> 8);
                         if (nbTexID == 0 || blkH > nbH)
-                            allMasks[5][z][static_cast<uint32_t>(voxel) | (static_cast<uint32_t>(nbH) << 16)][y] |= (1u << x);
+                            rows_for(allMasks[5][z],
+                                     static_cast<uint32_t>(voxel) | (static_cast<uint32_t>(nbH) << 16))[y] |= (1u << x);
                     }
                 }
             }
@@ -401,5 +457,79 @@ PlanetChunkMesher::MesherTaskOutput PlanetChunkMesher::build_mesh(const MesherTa
         }
     }
 
+    emit_border_skirts(voxels, input.gpuTextureIds, result.faces);
+
     return result;
+}
+
+void PlanetChunkMesher::emit_border_skirts(const std::array<uint16_t, CHUNK_VOLUME> &voxels,
+                                           const std::unordered_map<uint8_t, uint16_t> &gpuTextureIds,
+                                           std::vector<TerrainFace3d> &faces) {
+    VOXEL_ZONE_N("BorderSkirts");
+
+    // {faceDir, the axis the border runs along}. Face 0 is the x = 0 wall, face 1 the x = 31 one,
+    // face 4 the z = 0 wall and face 5 the z = 31 one. The greedy pass above emits none of these
+    // at the borders, because it reports the lateral neighbours as solid
+    struct Border {
+        int faceDir;
+        int fixedX; // -1 when the border runs along x
+        int fixedZ; // -1 when the border runs along z
+    };
+    constexpr Border BORDERS[4] = {
+        {0, 0, -1},
+        {1, CHUNK_SIZE - 1, -1},
+        {4, -1, 0},
+        {5, -1, CHUNK_SIZE - 1},
+    };
+
+    for (const Border &border: BORDERS) {
+        for (int along = 0; along < CHUNK_SIZE; ++along) {
+            const int x = border.fixedX >= 0 ? border.fixedX : along;
+            const int z = border.fixedZ >= 0 ? border.fixedZ : along;
+
+            // Topmost solid voxel of this border column. Everything under it is either solid or
+            // out of the node, so the skirt only has to start there
+            int topY = -1;
+            uint16_t topVoxel = 0;
+            for (int y = CHUNK_SIZE - 1; y >= 0; --y) {
+                const uint16_t voxel = voxels[x + CHUNK_SIZE * (y + CHUNK_SIZE * z)];
+                if ((voxel & 0xFF) == 0) continue;
+                topY = y;
+                topVoxel = voxel;
+                break;
+            }
+
+            if (topY < 0) continue; // empty column, nothing to hang a skirt from
+
+            const auto blkH = static_cast<uint8_t>(topVoxel >> 8);
+
+            // Sub voxel altitude of the top of the column, in the same units the face encoding
+            // uses: 16 per voxel
+            const int topSub = topY * 16 + blkH;
+            const int bottomSub = std::max(0, topSub - SKIRT_VOXELS * 16);
+            const int extentSub = topSub - bottomSub;
+            if (extentSub <= 0) continue;
+
+            uint32_t texSlot = 0;
+            if (const auto it = gpuTextureIds.find(static_cast<uint8_t>(topVoxel & 0xFF));
+                it != gpuTextureIds.end()) {
+                texSlot = it->second;
+            }
+
+            TerrainFace3d face{};
+            face.x = static_cast<uint32_t>(x);
+            face.z = static_cast<uint32_t>(z);
+            face.y = static_cast<uint32_t>(bottomSub);
+            face.faceIndex = static_cast<uint32_t>(border.faceDir);
+
+            // For every lateral face the vertex shader scales one corner axis by width and the
+            // altitude axis by height, so one voxel wide and extentSub tall is what closes the
+            // column. Both fields are stored as value - 1
+            face.width = 16u - 1u;
+            face.height = static_cast<uint32_t>(extentSub - 1);
+            face.textureSlot = texSlot;
+
+            faces.push_back(face);
+        }
+    }
 }

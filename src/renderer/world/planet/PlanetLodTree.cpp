@@ -18,10 +18,12 @@ void PlanetLodTree::init(const Config &config) {
 
     m_roots.clear();
     m_rootIndices.clear();
+    m_freeRootSlots.clear();
     m_pending.clear();
     m_childToPending.clear();
 
     m_inFlight = 0;
+    m_strandedDropped = 0;
     m_hasCenter = false;
 }
 
@@ -33,10 +35,17 @@ void PlanetLodTree::ingest_requests(std::span<const GpuLodRequest> requests) {
 
         GpuNode &node = m_store.at(request.nodeIndex);
 
-        // Already working on it. The mirror keeps NODE_REQUESTED set for the whole lifetime of
-        // the job, so this also absorbs the duplicates the GPU emits when a node upload happens
-        // to overwrite the flag it had just set.
-        if (node.flags & NODE_REQUESTED) continue;
+        // The request was emitted MAX_FRAMES_IN_FLIGHT frames ago. Since then the slot may have
+        // been released, or released and handed to a different node. Neither is detectable from
+        // the contents: a released slot is all zeroes, which reads as a valid level 0 node at the
+        // origin, and the same coordinate is routinely recreated as the player moves around.
+        //
+        // Acting on a dead slot is not harmless. The tree would mesh it, and that geometry is
+        // reachable from nothing, so it is never released: the arena fills up, allocations start
+        // failing, and failed allocations are reported as uniform nodes, which is a permanent
+        // hole. Both tests are needed, the flag for a slot that was never handed out at all.
+        if (!(node.flags & NODE_ALIVE)) continue;
+        if (node.generation != request.generation) continue;
 
         // Nothing to generate, but the GPU does not know that yet.
         if (node.flags & NODE_EMPTY) {
@@ -48,10 +57,21 @@ void PlanetLodTree::ingest_requests(std::span<const GpuLodRequest> requests) {
         // They are also the only thing that reclaims a subtree the shader can still see: the
         // decision is made by the traversal, never guessed at here.
         if (request.type == REQ_MERGE) {
-            if (node_has_children(node)) m_collapsedByGpu += collapse_children(request.nodeIndex);
+            // The shader only asks for this on a node it believes owns geometry, but the mirror
+            // is a frame or two ahead of what the shader saw. Dropping the children of a node
+            // with nothing of its own to draw would open a hole with no way to fill it.
+            if ((node.flags & NODE_HAS_MESH) && node_has_children(node)) {
+                m_collapsedByGpu += collapse_children(request.nodeIndex);
+            }
             rearm(request.nodeIndex);
             continue;
         }
+
+        // Already working on this exact kind of request. The two have their own flag so a node
+        // that owns neither geometry nor children can have both in flight at once, which is what
+        // lets it be drawn coarsely while its subtree is being built.
+        const uint8_t pendingBit = request.type == REQ_MESH ? NODE_REQ_MESH : NODE_REQ_SPLIT;
+        if (node.flags & pendingBit) continue;
 
         // Out of budget for this frame. Rearm so the request comes back instead of being lost.
         if (m_inFlight >= m_config.maxJobInFlight) {
@@ -70,12 +90,14 @@ void PlanetLodTree::ingest_requests(std::span<const GpuLodRequest> requests) {
 void PlanetLodTree::handle_mesh_request(uint32_t nodeIndex, uint32_t priority) {
     GpuNode &node = m_store.at(nodeIndex);
 
-    if (node.flags & NODE_HAS_MESH) {
+    // Either it already has geometry, or the CPU has already established it has none. The shader
+    // checks both too, but a request in flight predates whatever the mirror knows now
+    if (node.flags & (NODE_HAS_MESH | NODE_NO_MESH)) {
         rearm(nodeIndex);
         return;
     }
 
-    node.flags |= NODE_REQUESTED;
+    node.flags |= NODE_REQ_MESH;
     submit_job(nodeIndex, node_coord(node), priority);
 }
 
@@ -102,7 +124,7 @@ void PlanetLodTree::handle_children_request(uint32_t nodeIndex, uint32_t priorit
         return;
     }
 
-    parent.flags |= NODE_REQUESTED;
+    parent.flags |= NODE_REQ_SPLIT;
 
     m_pending.push_back({nodeIndex, block, 0, 0, m_frame});
     const size_t pendingIndex = m_pending.size() - 1;
@@ -110,7 +132,7 @@ void PlanetLodTree::handle_children_request(uint32_t nodeIndex, uint32_t priorit
     for (uint32_t i = 0; i < PlanetLodStore::BLOCK_SIZE; ++i) {
         const PlanetNodeCoord childCoord = parentCoord.child(i);
 
-        m_store.at(block + i) = make_node(childCoord, NODE_REQUESTED);
+        place_node(block + i, childCoord, NODE_REQ_MESH);
         m_childToPending[block + i] = pendingIndex;
 
         submit_job(block + i, childCoord, priority);
@@ -126,16 +148,32 @@ void PlanetLodTree::on_job_done(const LodJobResult &result) {
 
     GpuNode &node = m_store.at(result.nodeIndex);
 
-    // The slot may have been recycled while the job was running, in which case the result
-    // belongs to a node that no longer exists.
-    if (!(node_coord(node) == result.coord)) {
+    // The slot may have been recycled while the job was running, in which case the result belongs
+    // to a node that no longer exists. Comparing coordinates is not enough: destroying a node and
+    // recreating the same coordinate a few frames later is the normal thing that happens when the
+    // player moves back and forth, and the stale result would then be accepted for a node that
+    // never asked for it.
+    if (!(node.flags & NODE_ALIVE) || node.generation != result.generation) {
         if (!result.empty && m_releaseMesh) m_releaseMesh(result.meshId);
         return;
     }
 
-    node.flags &= ~NODE_REQUESTED;
+    node.flags &= ~NODE_REQ_MESH;
     if (result.empty) {
-        node.flags |= NODE_EMPTY;
+        node.flags |= NODE_NO_MESH;
+
+        // Emptiness is hereditary in this generator: it only reports a node uniform when the node
+        // sits entirely above the highest possible ground or entirely below the solid shell, and
+        // a child is contained in its parent. So a node with nothing of its own and no
+        // subdivision under way has nothing anywhere below it either, and the traversal can stop
+        // visiting it altogether.
+        //
+        // The guard matters: with a subdivision in flight the children may well have geometry,
+        // and marking the parent uniform would make the traversal skip the whole subtree the
+        // moment it published.
+        if (!(node.flags & NODE_REQ_SPLIT) && !node_has_children(node)) {
+            node.flags |= NODE_EMPTY;
+        }
     } else {
         // A node can already own geometry here: destroying and rebuilding the same coordinate
         // leaves the first job running, and both results then match. Overwriting the id without
@@ -186,7 +224,7 @@ void PlanetLodTree::publish_subdivision(size_t pendingIndex) {
         parent.childMask = static_cast<uint8_t>(~pending.emptyMask);
     }
 
-    parent.flags &= ~NODE_REQUESTED;
+    parent.flags &= ~NODE_REQ_SPLIT;
     m_store.mark_dirty(pending.parentIndex);
 
     erase_pending(pendingIndex);
@@ -217,20 +255,44 @@ void PlanetLodTree::drop_pending_subdivision(uint32_t parentIndex) {
 
             // Some children may already have come back with geometry, even though the
             // subdivision as a whole never got published
-            GpuNode &child = m_store.at(block + c);
+            const GpuNode &child = m_store.at(block + c);
             if ((child.flags & NODE_HAS_MESH) && m_releaseMesh) m_releaseMesh(child.meshId);
-
-            child = GpuNode{};
-            m_store.mark_dirty(block + c);
         }
 
+        // Bumps every child's generation, which is what makes the jobs still running for these
+        // slots recognise themselves as stale and drop their results
         m_store.free_block(block);
 
-        // The jobs still running for these slots will find the coordinate no longer matches and
-        // drop themselves, which is also what decrements the in flight count
+        // The parent is left free to ask again. Without this it keeps NODE_REQ_SPLIT for good and
+        // the traversal never emits another request for it
+        GpuNode &parent = m_store.at(parentIndex);
+        parent.flags &= ~NODE_REQ_SPLIT;
+        m_store.mark_dirty(parentIndex);
+
         erase_pending(i);
         return;
     }
+}
+
+uint32_t PlanetLodTree::sweep_stranded(uint64_t maxAge) {
+    uint32_t dropped = 0;
+
+    // Backwards, because drop_pending_subdivision() erases by swapping the last entry into the
+    // hole: everything past the current index has already been looked at
+    for (size_t i = m_pending.size(); i-- > 0;) {
+        if (m_frame - m_pending[i].openedFrame < maxAge) continue;
+
+        const uint32_t parentIndex = m_pending[i].parentIndex;
+        LOG_WARN("PlanetLodTree",
+                 "Subdivision of node {} stranded for {} frames, dropping it",
+                 parentIndex, m_frame - m_pending[i].openedFrame);
+
+        drop_pending_subdivision(parentIndex);
+        ++dropped;
+    }
+
+    m_strandedDropped += dropped;
+    return dropped;
 }
 
 void PlanetLodTree::update_roots(CubeFace face, int32_t rootU, int32_t rootV) {
@@ -249,8 +311,10 @@ void PlanetLodTree::update_roots(CubeFace face, int32_t rootU, int32_t rootV) {
         const int dv = it->first.v - rootV;
 
         if (it->first.face != face || du * du + dv * dv > radiusSq) {
+            // destroy_subtree() already recycles the slot itself, all that is left is to let
+            // another root have it
             destroy_subtree(it->second);
-            m_store.free_block(it->second);
+            free_root_slot(it->second);
             it = m_roots.erase(it);
         } else {
             ++it;
@@ -286,13 +350,33 @@ void PlanetLodTree::update_roots(CubeFace face, int32_t rootU, int32_t rootV) {
     }
 }
 
-uint32_t PlanetLodTree::create_root(const PlanetNodeCoord &coord) {
-    const uint32_t block = m_store.allocate_block();
-    if (block == NODE_INVALID_PTR) return NODE_INVALID_PTR;
+uint32_t PlanetLodTree::alloc_root_slot() {
+    if (m_freeRootSlots.empty()) {
+        const uint32_t block = m_store.allocate_block();
+        if (block == NODE_INVALID_PTR) return NODE_INVALID_PTR;
 
-    m_store.at(block) = make_node(coord);
-    m_store.mark_dirty(block);
-    return block;
+        for (uint32_t i = 0; i < PlanetLodStore::BLOCK_SIZE; ++i) {
+            m_freeRootSlots.push_back(block + i);
+        }
+    }
+
+    const uint32_t slot = m_freeRootSlots.back();
+    m_freeRootSlots.pop_back();
+    return slot;
+}
+
+uint32_t PlanetLodTree::create_root(const PlanetNodeCoord &coord) {
+    const uint32_t index = alloc_root_slot();
+    if (index == NODE_INVALID_PTR) return NODE_INVALID_PTR;
+
+    place_node(index, coord, 0);
+    m_store.mark_dirty(index);
+    return index;
+}
+
+void PlanetLodTree::place_node(uint32_t index, const PlanetNodeCoord &coord, uint8_t flags) {
+    const auto generation = static_cast<uint8_t>(m_store.at(index).generation);
+    m_store.at(index) = make_node(coord, flags, generation);
 }
 
 void PlanetLodTree::destroy_subtree(uint32_t nodeIndex) {
@@ -300,7 +384,7 @@ void PlanetLodTree::destroy_subtree(uint32_t nodeIndex) {
 
     // A subdivision still in flight is not linked through childPtr, so the recursion below would
     // walk straight past it and leak the whole block
-    if (node.flags & NODE_REQUESTED) drop_pending_subdivision(nodeIndex);
+    if (node.flags & NODE_REQ_SPLIT) drop_pending_subdivision(nodeIndex);
 
     // This node may itself be a child of a subdivision that has not been published. Leaving the
     // mapping behind would credit a later job on the recycled slot to that subdivision.
@@ -332,9 +416,9 @@ void PlanetLodTree::destroy_subtree(uint32_t nodeIndex) {
         m_releaseMesh(node.meshId);
     }
 
-    // A job may still be running for this node. It will find the slot recycled and drop itself
-    node = GpuNode{};
-    m_store.mark_dirty(nodeIndex);
+    // A job may still be running for this node. Bumping the generation is what makes it find the
+    // slot recycled and drop itself
+    m_store.recycle(nodeIndex);
 }
 
 namespace {
@@ -432,8 +516,9 @@ uint64_t PlanetLodTree::oldest_pending_age() const {
 }
 
 void PlanetLodTree::rearm(uint32_t nodeIndex) {
-    // The mirror never carries NODE_REQUESTED here, so uploading the node as it stands is what
-    // clears the bit the traversal shader set and lets it emit the request again
+    // Uploading the node as it stands is what clears the request bits the traversal shader set:
+    // the mirror only carries them for the kinds of job that really are running, so a rearm
+    // cancels the shader's claim without cancelling a genuine one
     m_store.mark_dirty(nodeIndex);
 }
 
@@ -444,5 +529,5 @@ void PlanetLodTree::submit_job(uint32_t nodeIndex, const PlanetNodeCoord &coord,
     }
 
     ++m_inFlight;
-    m_submitJob(nodeIndex, coord, priority);
+    m_submitJob(nodeIndex, coord, static_cast<uint8_t>(m_store.at(nodeIndex).generation), priority);
 }

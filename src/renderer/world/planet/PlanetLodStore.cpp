@@ -34,10 +34,20 @@ uint32_t PlanetLodStore::allocate_block() {
 
 void PlanetLodStore::free_block(uint32_t first) {
     for (uint32_t i = 0; i < BLOCK_SIZE; ++i) {
-        m_nodes[first + i] = GpuNode{};
-        mark_dirty(first + i);
+        recycle(first + i);
     }
     m_freeBlocks.push_back(first);
+}
+
+void PlanetLodStore::recycle(uint32_t index) {
+    // Wrapping at 256 is fine: it would take 256 reuses of the same slot within the few frames a
+    // request or a job result stays in flight for a stale one to be mistaken for a fresh one
+    const uint32_t nextGeneration = (m_nodes[index].generation + 1u) & 0xFFu;
+
+    m_nodes[index] = GpuNode{};
+    m_nodes[index].generation = nextGeneration;
+
+    mark_dirty(index);
 }
 
 void PlanetLodStore::mark_dirty(uint32_t index) {

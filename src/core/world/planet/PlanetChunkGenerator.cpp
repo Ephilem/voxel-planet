@@ -115,13 +115,17 @@ void PlanetChunkGenerator::worker_loop(size_t workerId) {
             VOXEL_ZONE_N("ProcessBatch");
             results.clear();
             for (auto &input: batch) {
-                VoxelChunk chunk = {};
+                // Left unallocated on purpose: generate_planet_chunk() rejects most nodes on a
+                // pair of altitude comparisons and only allocates once it is sure it has
+                // something to write
+                VoxelChunk chunk{VoxelChunk::Unallocated{}};
                 bool hasContent = generator.generate_planet_chunk(chunk, input.coord, input.config);
 
                 ChunkGenOutput output;
                 output.jobId = input.jobId;
                 output.coord = input.coord;
                 output.chunk = std::move(chunk);
+                output.priority = input.priority;
                 output.success = true; // or false if generation failed
                 output.empty = !hasContent; // or true if the generated chunk is empty
                 results.push_back(std::move(output));

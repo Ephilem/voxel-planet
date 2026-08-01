@@ -35,7 +35,9 @@ void VoxelMeshUploadBatcher::destroy() {
     }
 }
 
-bool VoxelMeshUploadBatcher::enqueue(const VoxelChunkMesh &meshData, const TerrainOUB &oub, VoxelBuffer* targetBuffer) {
+bool VoxelMeshUploadBatcher::enqueue(const VoxelChunkMesh &meshData, const TerrainOUB &oub,
+                                     const glm::vec3 &aabbMin, const glm::vec3 &aabbMax,
+                                     VoxelBuffer* targetBuffer) {
     VOXEL_ZONE_N("VoxelMeshUploadBatcher-Enqueue");
     // Size test
     size_t totalSizeNeeded = meshData.faces.size() * sizeof(TerrainFace3d) + sizeof(TerrainOUB) + sizeof(VoxelChunkCullData);
@@ -52,6 +54,8 @@ bool VoxelMeshUploadBatcher::enqueue(const VoxelChunkMesh &meshData, const Terra
         .faceDataOffset = meshData.faceRegionStart * FACES_REGION_SIZE,
 
         .oub = oub,
+        .aabbMin = glm::vec4(aabbMin, 0.0f),
+        .aabbMax = glm::vec4(aabbMax, 0.0f),
         .drawSlotIndex = meshData.drawSlotIndex,
 
         .targetBuffer = targetBuffer
@@ -78,6 +82,8 @@ bool VoxelMeshUploadBatcher::enqueue_free(uint32_t drawSlotIndex, VoxelBuffer* t
         .faceDataOffset = 0,
 
         .oub = {},
+        .aabbMin = glm::vec4(0.0f),
+        .aabbMax = glm::vec4(0.0f),
         .drawSlotIndex = drawSlotIndex,
 
         .targetBuffer = targetBuffer
@@ -140,22 +146,12 @@ void VoxelMeshUploadBatcher::flush(VkCommandBuffer cmd) {
         stagingOffset += sizeof(vp::SurfaceChunkOUB);
 
         // --- Chunk cull data and indirectCmd ---
-        // Cull information
+        // Cull information, computed by the caller: only it knows how its OUB is laid out and
+        // what world size one of its chunks actually covers
         VoxelChunkCullData cullData = {};
 
-        glm::vec3 corners[8] = {
-            {0, 0, 0}, {CHUNK_SIZE, 0, 0}, {0, CHUNK_SIZE, 0},
-            {CHUNK_SIZE, CHUNK_SIZE, 0}, {0, 0, CHUNK_SIZE},{CHUNK_SIZE, 0, CHUNK_SIZE},
-            {0, CHUNK_SIZE, CHUNK_SIZE},{CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE},
-        };
-        glm::vec3 wMin(FLT_MAX), wMax(-FLT_MAX);
-        for (auto& c : corners) {
-            glm::vec3 w = glm::vec3(task.oub.model * glm::vec4(c, 1.0f));
-            wMin = glm::min(wMin, w);
-            wMax = glm::max(wMax, w);
-        }
-        cullData.aabbMin = glm::vec4(wMin, 0.0f);
-        cullData.aabbMax = glm::vec4(wMax, 0.0f);
+        cullData.aabbMin = task.aabbMin;
+        cullData.aabbMax = task.aabbMax;
 
         uint32_t faceCount = task.faceDataSize / sizeof(TerrainFace3d);
         uint32_t faceRegionStart = task.faceDataOffset / FACES_REGION_SIZE;
@@ -251,12 +247,19 @@ void VoxelMeshUploadBatcher::flush(VkCommandBuffer cmd) {
     // };
     // vkCmdPipelineBarrier2(cmd, &depAfter);
 
+    // COMPUTE_SHADER is not optional here. The chunk cull data written just above is read by
+    // planet_lod_emit_draws.comp later in the same frame, and nvrhi cannot insert that dependency
+    // itself: the buffer is declared with keepInitialState in ShaderResource, and these copies go
+    // through raw Vulkan, so its tracking never sees them. Without this stage the emission pass
+    // reads whatever the previous frame left in the slot, which draws the wrong vertex range for
+    // a mesh that has just moved.
     VkMemoryBarrier2 barrier = {
         .sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2,
         .srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT,
         .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
         .dstStageMask = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT
                         | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT
+                        | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT
                         | VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
         .dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT
                          | VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT,

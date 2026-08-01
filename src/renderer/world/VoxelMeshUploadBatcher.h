@@ -27,11 +27,15 @@ public:
      * Will try to queue a mesh to upload to the GPU.
      * If there is not space left in the staging buffer, this will return false and the caller should try again in the next frame.
      * @param meshData Mesh data to upload
-     * @param oub
+     * @param oub Per chunk data, layout owned by the renderer that fills it
+     * @param aabbMin World space lower corner of the mesh, stored in the chunk cull data
+     * @param aabbMax World space upper corner of the mesh, stored in the chunk cull data
      * @param targetBuffer
      * @return true if the mesh was successfully queued for upload, false if there was not enough space in the staging buffer and the caller should try again in the next frame.
      */
-    bool enqueue(const VoxelChunkMesh& meshData, const TerrainOUB& oub, VoxelBuffer* targetBuffer);
+    bool enqueue(const VoxelChunkMesh& meshData, const TerrainOUB& oub,
+                 const glm::vec3& aabbMin, const glm::vec3& aabbMax,
+                 VoxelBuffer* targetBuffer);
 
     /**
      * Will write to the draw slot index a null draw (instance count = 0)
@@ -61,6 +65,14 @@ private:
         VkDeviceSize faceDataOffset; // offset in the target buffer
 
         TerrainOUB oub;
+
+        // World space bounds of the mesh. They used to be rebuilt here by pushing the 8 corners
+        // of a CHUNK_SIZE cube through oub.model, which only ever worked for the renderer that
+        // happened to store a model matrix there. The LOD path stores a packed node coordinate in
+        // the same bytes, so that produced a singular matrix and garbage bounds, and it ignored
+        // the LOD level entirely. The caller knows its own layout, so it passes them in.
+        glm::vec4 aabbMin;
+        glm::vec4 aabbMax;
 
         uint32_t drawSlotIndex;
 

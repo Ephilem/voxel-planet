@@ -30,11 +30,28 @@ namespace vp {
 
     enum NodeFlags : uint8_t {
         NODE_HAS_MESH = 1 << 0,
-        /// A request for this node is already pending
-        NODE_REQUESTED = 1 << 1,
-        /// The node is uniform (full air or full solid): it will never get a mesh nor children
+        /// A job for this node's own geometry is pending
+        NODE_REQ_MESH = 1 << 1,
+        /// The node and its whole subtree are uniform: the traversal skips it outright
         NODE_EMPTY = 1 << 2,
         NODE_FINEST = 1 << 3,
+        /// A subdivision for this node is pending. Separate from NODE_REQ_MESH on purpose: a
+        /// node that is too coarse on screen and owns nothing asks for both at once, and a
+        /// single shared bit would let whichever request won the race lock out the other
+        NODE_REQ_SPLIT = 1 << 4,
+        /// The slot holds a real node. A freed slot is all zeroes, and zero is a perfectly valid
+        /// coordinate, so nothing else distinguishes the two
+        NODE_ALIVE = 1 << 5,
+        /**
+         * This node's own geometry came back empty. Stop asking for it, but keep descending.
+         *
+         * Distinct from NODE_EMPTY because a node can now have a mesh job and a subdivision in
+         * flight at the same time: that is what draws it coarsely while its subtree is being
+         * built. Folding the two together would let an empty mesh result mark a node whose
+         * subdivision is still running as uniform, and the traversal would then skip the whole
+         * subtree the moment it published.
+         */
+        NODE_NO_MESH = 1 << 6,
     };
 
     /**
@@ -45,7 +62,14 @@ namespace vp {
         uint32_t face : 3;
         uint32_t flags : 8; // NodeFlags
         uint32_t alt : 9; // biased by NODE_ALT_BIAS
-        uint32_t _pad0 : 8;
+
+        /// Bumped every time the slot is recycled, and echoed back by every request the traversal
+        /// emits for it. A request is read back MAX_FRAMES_IN_FLIGHT frames late, by which time
+        /// the slot may hold a different node or no node at all, and comparing coordinates is not
+        /// enough to notice: a freed slot reads as a valid coordinate, and the same coordinate is
+        /// routinely recreated. Without this the tree acts on dead slots, and the geometry it
+        /// allocates for them is unreachable and never released
+        uint32_t generation : 8 = 0;
 
         uint32_t u : 16;
         uint32_t v : 16;
@@ -62,12 +86,21 @@ namespace vp {
     };
     static_assert(sizeof(GpuNode) == 16, "GpuNode should be 16 bytes");
 
-    inline GpuNode make_node(const PlanetNodeCoord &c, uint8_t flags = 0) {
+    /**
+     * Build a live node.
+     * @param c Coordinate of the node
+     * @param flags Extra NodeFlags, NODE_ALIVE is always added
+     * @param generation Generation of the slot the node is about to occupy, from the node
+     *                   already there. Passing 0 for a slot that has been used before makes
+     *                   stale requests indistinguishable from fresh ones again
+     */
+    inline GpuNode make_node(const PlanetNodeCoord &c, uint8_t flags = 0, uint8_t generation = 0) {
         GpuNode n{};
         n.level = c.level;
         n.face = static_cast<uint32_t>(c.face);
-        n.flags = flags;
+        n.flags = flags | NODE_ALIVE;
         n.alt = static_cast<uint32_t>(c.alt + NODE_ALT_BIAS) & 0x1FFu;
+        n.generation = generation;
         n.u = static_cast<uint32_t>(c.u) & 0xFFFFu;
         n.v = static_cast<uint32_t>(c.v) & 0xFFFFu;
         n.childPtr = NODE_INVALID_PTR;
@@ -108,7 +141,8 @@ namespace vp {
         uint32_t nodeIndex;
         uint32_t type; // LodRequestType
         uint32_t priority; // higher is more urgent
-        uint32_t _pad0;
+        /// GpuNode::generation as it stood when the request was emitted. See that field for why
+        uint32_t generation;
     };
 
     static_assert(sizeof(GpuLodRequest) == 16, "GpuLodRequest should be 16 bytes");

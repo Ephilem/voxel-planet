@@ -57,8 +57,12 @@ namespace vp {
          *
          * LodTraversalStats::renderedNodes counts what the traversal wanted, before the cap, so
          * comparing it against this is what tells the two apart.
+         *
+         * At 8192 a wide root disc with the default threshold reached it just by looking at the
+         * horizon. The queue is one index per entry, so the headroom costs 128 KB in total, which
+         * is nothing next to what a frame of flickering terrain costs to debug.
          */
-        static constexpr uint32_t MAX_RENDER = 4096 * 2;
+        static constexpr uint32_t MAX_RENDER = 32768;
 
         static constexpr uint32_t REQUESTS_READBACK_COUNT = MAX_FRAMES_IN_FLIGHT + 1;
 
