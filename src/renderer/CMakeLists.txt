@@ -29,6 +29,13 @@ add_library(VoxelPlanetRenderer STATIC
         world/planet/PlanetSurfaceTerrainRenderer.h
         world/planet/PlanetChunkMesher.cpp
         world/planet/PlanetChunkMesher.h
+        world/planet/PlanetLodTree.cpp
+        world/planet/PlanetLodTree.h
+        world/planet/planet_render_types.h
+        world/planet/PlanetLodStore.cpp
+        world/planet/PlanetLodStore.h
+        world/planet/PlanetLodGpuBuffers.cpp
+        world/planet/PlanetLodGpuBuffers.h
 )
 
 add_library(VoxelPlanet::Renderer ALIAS VoxelPlanetRenderer)

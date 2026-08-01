@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
+
 namespace vp {
     enum CubeFace {
         PosX = 0,
@@ -11,9 +14,48 @@ namespace vp {
     };
 
     struct PlanetNodeCoord {
-        CubeFace face;
-        unsigned char level = 0; // 0 the smallest
+        CubeFace face = PosX;
+        uint8_t level = 0;
         int32_t u = 0, v = 0, alt = 0;
+
+        /**
+         * Coordinate of one of the 8 children of this node.
+         * @param index Child index, bit 0 selects u, bit 1 selects v, bit 2 selects alt
+         * @return Coordinate at level - 1
+         */
+        PlanetNodeCoord child(uint32_t index) const {
+            return {
+                face,
+                static_cast<uint8_t>(level - 1),
+                u * 2 + static_cast<int32_t>(index & 1u),
+                v * 2 + static_cast<int32_t>((index >> 1) & 1u),
+                alt * 2 + static_cast<int32_t>((index >> 2) & 1u)
+            };
+        }
+
+        /**
+         * Coordinate of the parent node. Arithmetic shift keeps negative altitudes correct.
+         * @return Coordinate at level + 1
+         */
+        PlanetNodeCoord parent() const {
+            return {face, static_cast<unsigned char>(level + 1), u >> 1, v >> 1, alt >> 1};
+        }
+
+        bool operator==(const PlanetNodeCoord &other) const = default;
+    };
+
+    struct PlanetNodeCoordHash {
+        size_t operator()(const PlanetNodeCoord &c) const noexcept {
+            uint64_t k = (static_cast<uint64_t>(c.face) << 61)
+                         | (static_cast<uint64_t>(c.level) << 57)
+                         | (static_cast<uint64_t>(static_cast<uint32_t>(c.u) & 0xFFFFu) << 41)
+                         | (static_cast<uint64_t>(static_cast<uint32_t>(c.v) & 0xFFFFu) << 25)
+                         | (static_cast<uint64_t>(static_cast<uint32_t>(c.alt + 256) & 0x1FFu) << 16);
+            k ^= k >> 33;
+            k *= 0xff51afd7ed558ccdULL;
+            k ^= k >> 33;
+            return static_cast<size_t>(k);
+        }
     };
 
     struct PlanetComp {
