@@ -1,8 +1,11 @@
 #include "PlanetSurfaceTerrainRenderer.h"
 
+#include <algorithm>
 #include <cmath>
+#include <iterator>
 #include <unordered_map>
 
+#include <glm/gtc/constants.hpp>
 #include <imgui.h>
 
 #include "PlanetChunkMesher.h"
@@ -24,6 +27,20 @@ using namespace vp;
 namespace {
     /// Workgroup size of planet_lod_emit_draws.comp.
     constexpr uint32_t EMIT_DRAWS_GROUP_SIZE = 64;
+
+    /// One colour per LOD level, so the subdivision rings are readable at a glance.
+    constexpr glm::vec4 LOD_LEVEL_COLORS[] = {
+        {1.0f, 0.2f, 0.2f, 1.0f}, // 0, finest
+        {1.0f, 0.6f, 0.1f, 1.0f}, // 1
+        {1.0f, 1.0f, 0.2f, 1.0f}, // 2
+        {0.3f, 1.0f, 0.3f, 1.0f}, // 3
+        {0.2f, 1.0f, 1.0f, 1.0f}, // 4
+        {0.3f, 0.5f, 1.0f, 1.0f}, // 5
+        {0.7f, 0.3f, 1.0f, 1.0f}, // 6
+        {1.0f, 0.3f, 0.8f, 1.0f}, // 7
+        {1.0f, 1.0f, 1.0f, 1.0f}, // 8, roots
+    };
+    constexpr int LOD_LEVEL_COLOR_COUNT = std::size(LOD_LEVEL_COLORS);
 }
 
 PlanetSurfaceTerrainRenderer::~PlanetSurfaceTerrainRenderer() {
@@ -72,6 +89,25 @@ void PlanetSurfaceTerrainRenderer::init(flecs::world &ecs) {
             .kind(flecs::PostUpdate)
             .run([this](flecs::iter &) {
                 debug_ui();
+            });
+
+    // PreStore, so the lines are in the buffer before DebugDrawRenderer consumes it in OnStore,
+    // and after PlanetSurface-FeedCameraPosition has placed the camera
+    ecs.system("PlanetSurface-LodDebugDraw")
+            .kind(flecs::PreStore)
+            .run([this](flecs::iter &) {
+                debug_draw();
+            });
+
+    // Renderer::renderPasses is disabled, so the pass drives itself the way DebugDrawRenderer
+    // does. It has to run while the frame's command list is open.
+    ecs.system<const Renderer, Camera3d>("PlanetSurface-Render")
+            .term_at(0).singleton()
+            .kind(flecs::OnStore)
+            .each([this](const Renderer &renderer, Camera3d &camera) {
+                if (!renderer.frameContext.frameActive || !renderer.frameContext.commandList) return;
+                VOXEL_ZONE_N("PlanetSurfaceTerrainRenderer-Render");
+                render(renderer.frameContext.commandList, camera, *renderer.backend);
             });
 
 
@@ -216,33 +252,12 @@ void PlanetSurfaceTerrainRenderer::init_lod() {
 
     PlanetLodTree::Config config{};
     config.maxNodes = LOD_MAX_NODES;
+    config.rootRadius = lodRootRadius;
     m_lodTree.init(config);
 
     // Geometry release. The tree only knows a draw slot, so the mesh it belongs to is looked up
     // in the slot table, which is where meshes live now that chunks are not ECS entities.
-    m_lodTree.set_release_mesh([this](uint32_t meshId) {
-        if (meshId >= m_meshBySlot.size()) return;
-
-        VoxelChunkMesh &mesh = m_meshBySlot[meshId];
-        if (!mesh.is_allocated()) return;
-
-        // enqueue_free() used to write a null draw into the slot so a stale entry could not be
-        // drawn. The LOD path never reaches a slot no node points at, and the node is zeroed
-        // right here, so the write is redundant. Worse, it collides: the slot goes back to the
-        // free list immediately, and a reallocation next frame would queue an upload for the
-        // same destination as this pending free, two overlapping regions in one copy command.
-        //
-        // m_meshUploader.enqueue_free(mesh.drawSlotIndex, &m_chunkBuffers[0]);
-
-        m_chunkBuffers[0].free(mesh);
-
-        // Releases happen in update_lod(), after the batcher has been flushed, so no pending
-        // upload is still pointing at these faces
-        mesh.faces.clear();
-        mesh.faces.shrink_to_fit();
-        mesh.faceCount = 0;
-        mesh.bufferIndex = UINT32_MAX;
-    });
+    m_lodTree.set_release_mesh([this](uint32_t meshId) { retire_geometry(meshId); });
 
     // Work submission. The tree hands out a node index, the generator only ever sees an opaque
     // token: nothing in the worker pools knows the octree exists.
@@ -336,16 +351,18 @@ VoxelBuffer &PlanetSurfaceTerrainRenderer::create_buffer() {
     return buf;
 }
 
-VoxelChunkMesh &PlanetSurfaceTerrainRenderer::remember_mesh(VoxelChunkMesh &&mesh) {
+VoxelChunkMesh &PlanetSurfaceTerrainRenderer::remember_mesh(VoxelChunkMesh &&mesh, const PlanetNodeCoord &coord) {
     const uint32_t slot = mesh.drawSlotIndex;
 
     if (slot >= m_meshBySlot.size()) {
         // Growing moves the stored meshes, but a vector move carries its heap buffer along, so
         // the face pointers the upload batcher is holding survive it
         m_meshBySlot.resize(slot + 1);
+        m_coordBySlot.resize(slot + 1);
     }
 
     m_meshBySlot[slot] = std::move(mesh);
+    m_coordBySlot[slot] = coord;
     return m_meshBySlot[slot];
 }
 
@@ -370,10 +387,50 @@ uint32_t PlanetSurfaceTerrainRenderer::upload_mesh(VoxelChunkMesh &&mesh, const 
 
     // The batcher only keeps a pointer into the face vector until it is flushed, so the mesh
     // has to reach its final home before being enqueued
-    const VoxelChunkMesh &stored = remember_mesh(std::move(mesh));
+    const VoxelChunkMesh &stored = remember_mesh(std::move(mesh), coord);
     m_meshUploader.enqueue(stored, oub, &buffer);
 
     return stored.drawSlotIndex;
+}
+
+void PlanetSurfaceTerrainRenderer::retire_geometry(uint32_t meshId) {
+    if (meshId >= m_meshBySlot.size()) return;
+
+    VoxelChunkMesh &mesh = m_meshBySlot[meshId];
+    if (!mesh.is_allocated()) return;
+
+    // enqueue_free() used to write a null draw into the slot so a stale entry could not be drawn.
+    // The LOD path never reaches a slot no node points at, and the node is zeroed by the caller,
+    // so the write is redundant. Worse, it collides with the reallocation of the same slot.
+    //
+    // m_meshUploader.enqueue_free(mesh.drawSlotIndex, &m_chunkBuffers[0]);
+
+    VoxelChunkMesh retired = std::move(mesh);
+
+    // The slot table entry has to read as empty right now: the tree considers the geometry gone,
+    // and the debugger walks this table
+    mesh = VoxelChunkMesh{};
+    if (meshId < m_coordBySlot.size()) m_coordBySlot[meshId] = {};
+
+    // Retiring happens after the batcher has been flushed, so nothing points at these faces any
+    // more and the CPU copy is dead weight. Only the allocation indices have to survive
+    retired.faces.clear();
+    retired.faces.shrink_to_fit();
+
+    m_retiringMeshes[m_frameIndex % GEOMETRY_RETIRE_SLOTS].push_back(std::move(retired));
+}
+
+void PlanetSurfaceTerrainRenderer::reclaim_retired_geometry() {
+    // The bucket this frame is about to write into is the one it last used a full rotation ago,
+    // so everything in it predates every frame the GPU could still be executing
+    if (m_chunkBuffers.empty()) return;
+
+    std::vector<VoxelChunkMesh> &bucket = m_retiringMeshes[m_frameIndex % GEOMETRY_RETIRE_SLOTS];
+
+    for (VoxelChunkMesh &mesh: bucket) {
+        m_chunkBuffers[0].free(mesh);
+    }
+    bucket.clear();
 }
 
 void PlanetSurfaceTerrainRenderer::poll_jobs() {
@@ -430,23 +487,174 @@ void PlanetSurfaceTerrainRenderer::debug_ui() {
     ImGui::Begin("PlanetLod Debug");
 
     ImGui::Text("Camera world pos: %.1f %.1f %.1f", cameraWorldPos.x, cameraWorldPos.y, cameraWorldPos.z);
+
+    // Bring up ladder: freeze on with radius 0 gives exactly one root, one mesh, one draw call
+    ImGui::Checkbox("Freeze subdivision (roots only)", &lodFreezeSubdivision);
+    ImGui::BeginDisabled(lodFreezeSubdivision);
     ImGui::SliderFloat("Subdivision threshold (px)", &lodSubdivisionThreshold, 16.0f, 512.0f);
+    ImGui::EndDisabled();
+
+    // The threshold is the whole quality knob, but it reads as an abstract pixel count. A node is
+    // CHUNK_SIZE voxels across, so it also fixes the voxel size on screen, and dividing it out of
+    // the projection gives the distance at which each level takes over. Neither has anything to
+    // do with how far the terrain goes: that is the render distance and the root disc below
+    if (!lodFreezeSubdivision && m_pixelScale > 0.0f) {
+        const float splitFactor = m_pixelScale / lodSubdivisionThreshold;
+        ImGui::TextDisabled("  %.1f px per voxel | splits within %.1f x node size",
+                            lodSubdivisionThreshold / static_cast<float>(CHUNK_SIZE), splitFactor);
+        ImGui::TextDisabled("  level 0 (%d m) under %.0f m, level %d (%d m) under %.1f km",
+                            CHUNK_SIZE, static_cast<float>(CHUNK_SIZE) * splitFactor,
+                            PLANET_MAX_LOD, CHUNK_SIZE << PLANET_MAX_LOD,
+                            static_cast<float>(CHUNK_SIZE << PLANET_MAX_LOD) * splitFactor * 0.001f);
+    }
+
+    if (ImGui::SliderInt("Root disc radius", &lodRootRadius, 0, 12)) {
+        m_lodTree.set_root_radius(lodRootRadius);
+    }
+
+    // Roots outside the frustum cost one node each, so widening the disc is close to free. What
+    // it buys is the only thing that lets the far clip actually reach: past this the terrain
+    // simply is not loaded, and the horizon ends on a straight edge
+    {
+        const float discHalfExtent =
+                static_cast<float>(lodRootRadius) * static_cast<float>(CHUNK_SIZE << PLANET_MAX_LOD);
+        ImGui::TextDisabled("  terrain loaded out to %.1f km", discHalfExtent * 0.001f);
+    }
+
+    // Both are multiples of the same split distance, which is what makes them comparable. The
+    // shader keeps children out to the hysteresis, the sweep destroys them past the margin
+    ImGui::SliderFloat("Merge hysteresis", &lodMergeHysteresis, 1.0f, 4.0f);
+    ImGui::SliderFloat("Backstop margin", &lodCollapseBackstop, 1.0f, 8.0f);
+    if (effective_backstop() > lodCollapseBackstop) {
+        ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f),
+                           "  raised to %.2f: below %.1fx the hysteresis the sweep and the shader fight",
+                           effective_backstop(), BACKSTOP_MIN_RATIO);
+    }
+
+    ImGui::Separator();
+    ImGui::Checkbox("Draw octree", &lodDrawOctree);
+    ImGui::BeginDisabled(!lodDrawOctree);
+    ImGui::Checkbox("Leaves only", &lodDrawOctreeLeavesOnly);
+    ImGui::SliderInt("Min level drawn", &lodDrawOctreeMinLevel, 0, PLANET_MAX_LOD);
+    ImGui::EndDisabled();
+    ImGui::Checkbox("Draw face bounds", &lodDrawFaceBounds);
 
     ImGui::Separator();
     ImGui::Text("Roots: %zu", m_lodTree.root_indices().size());
-    ImGui::Text("Node blocks used: %u / %u",
-                m_lodTree.store().used_blocks(), m_lodTree.store().capacity() / PlanetLodStore::BLOCK_SIZE);
-    ImGui::Text("Jobs in flight: %u (tokens open: %zu)", m_lodTree.jobs_in_flight(), m_lodJobs.open_count());
+
+    const uint32_t residentNodes = m_lodTree.store().used_blocks() * PlanetLodStore::BLOCK_SIZE;
+    ImGui::Text("Node blocks used: %u / %u (%u nodes)",
+                m_lodTree.store().used_blocks(), m_lodTree.store().capacity() / PlanetLodStore::BLOCK_SIZE,
+                residentNodes);
+
+    // The number the tuning actually turns on. Rendered is what the threshold buys and barely
+    // moves with the view distance; resident is everything kept alive on top of it. A ratio in
+    // the tens means the buffer is full of geometry nobody draws, which is a reclamation problem
+    // to take to the backstop margin, not a threshold problem
+    if (m_lodBuffers) {
+        const LodTraversalStats& stats = m_lodBuffers->last_stats();
+
+        ImGui::Text("Rendered nodes: %u", stats.renderedNodes);
+        if (stats.renderedNodes > PlanetLodGpuBuffers::MAX_RENDER) {
+            ImGui::SameLine();
+            ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.2f, 1.0f), "over queue, geometry dropped");
+        }
+
+        if (stats.renderedNodes > 0) {
+            const float ratio = static_cast<float>(residentNodes) / static_cast<float>(stats.renderedNodes);
+            ImGui::Text("Resident / rendered: %.1fx", ratio);
+        }
+
+        ImGui::Text("Requests last frame: %u", stats.requests);
+        if (stats.requestOverflow > 0) {
+            ImGui::SameLine();
+            ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.2f, 1.0f), "+%u dropped", stats.requestOverflow);
+        }
+    }
+
+    // Pinned at the cap is a backlog working itself off, not an oscillation: every request over
+    // budget is rearmed and comes back, so the request count stays high while it drains
+    ImGui::Text("Jobs in flight: %u / %u (tokens open: %zu)",
+                m_lodTree.jobs_in_flight(), m_lodTree.max_jobs_in_flight(), m_lodJobs.open_count());
+
+    // The count alone is not a symptom: a subdivision publishes only once all eight children are
+    // back, and the pools return them a few at a time, so a busy pipeline legitimately carries
+    // many partly satisfied entries. Only an entry that stops making progress is a leak
+    ImGui::Text("Pending subdivisions: %zu (%zu child links)",
+                m_lodTree.pending_subdivisions(), m_lodTree.pending_children());
+
+    const uint64_t oldestPending = m_lodTree.oldest_pending_age();
+    ImGui::Text("Oldest pending: %llu frames", static_cast<unsigned long long>(oldestPending));
+    if (oldestPending > STRANDED_PENDING_FRAMES) {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.2f, 1.0f), "stranded");
+    }
+    ImGui::Text("Merged on GPU request: %u total", m_lodTree.collapsed_by_gpu());
+    if (ImGui::IsItemClicked()) m_lodTree.reset_collapse_stats();
+    ImGui::Text("Merged by backstop: %u this frame", m_lodCollapsedLastFrame);
 
     if (m_mesher) ImGui::Text("Mesher queue: %zu", m_mesher->queued_task_count());
 
-    ImGui::Separator();
-    const VoxelBuffer &buffer = m_chunkBuffers[0];
-    ImGui::Text("Draw slots used: %u", buffer.get_unculled_draw_count());
-    ImGui::Text("Face regions used: %u / %u", buffer.get_used_face_regions(), MAX_FACES_REGIONS);
-    ImGui::Text("Largest free face block: %u", buffer.get_largest_free_face_block());
-
     ImGui::End();
+
+    // Everything about the geometry arena lives in its own panel
+    m_bufferDebugger.draw("Voxel Buffer Debug", m_chunkBuffers[0], m_meshBySlot, m_coordBySlot);
+}
+
+void PlanetSurfaceTerrainRenderer::debug_draw() {
+    if (lodDrawFaceBounds) {
+        // Extent of one cube face, as arc length on the sphere it will eventually wrap onto.
+        // The flat phase keeps that same footprint so the scale stays honest.
+        const float halfExtent = m_genConfig.radius * glm::quarter_pi<float>();
+        const float y = -cameraWorldPos.y;
+
+        const glm::vec3 corners[4] = {
+            {-halfExtent - cameraWorldPos.x, y, -halfExtent - cameraWorldPos.z},
+            {halfExtent - cameraWorldPos.x, y, -halfExtent - cameraWorldPos.z},
+            {halfExtent - cameraWorldPos.x, y, halfExtent - cameraWorldPos.z},
+            {-halfExtent - cameraWorldPos.x, y, halfExtent - cameraWorldPos.z},
+        };
+
+        constexpr glm::vec4 white{1.0f, 1.0f, 1.0f, 1.0f};
+        for (int i = 0; i < 4; ++i) {
+            DebugDraw::Line(corners[i], corners[(i + 1) % 4], white);
+        }
+    }
+
+    if (!lodDrawOctree) return;
+
+    for (const uint32_t rootIndex: m_lodTree.root_indices()) {
+        debug_draw_node(rootIndex);
+    }
+}
+
+void PlanetSurfaceTerrainRenderer::debug_draw_node(uint32_t nodeIndex) {
+    const PlanetLodStore &store = m_lodTree.store();
+    const GpuNode &node = store.at(nodeIndex);
+
+    if (node.flags & NODE_EMPTY) return;
+
+    const PlanetNodeCoord coord = node_coord(node);
+    const bool hasChildren = node_has_children(node);
+
+    if (static_cast<int>(coord.level) >= lodDrawOctreeMinLevel && (!hasChildren || !lodDrawOctreeLeavesOnly)) {
+        // Mirror of lod_node_corner() in planet_lod_common.glsl: node coords map straight onto
+        // world axes, u to x, alt to y, v to z, and the debug buffer is camera relative
+        const float nodeSize = static_cast<float>(CHUNK_SIZE) * static_cast<float>(1u << coord.level);
+        const glm::vec3 boundsMin =
+                glm::vec3(static_cast<float>(coord.u), static_cast<float>(coord.alt), static_cast<float>(coord.v))
+                * nodeSize - cameraWorldPos;
+
+        const int colorIndex = std::min(static_cast<int>(coord.level), LOD_LEVEL_COLOR_COUNT - 1);
+        DebugDraw::Aabb(boundsMin, boundsMin + glm::vec3(nodeSize), LOD_LEVEL_COLORS[colorIndex]);
+    }
+
+    if (!hasChildren) return;
+
+    for (uint32_t i = 0; i < PlanetLodStore::BLOCK_SIZE; ++i) {
+        if ((node.childMask & (1u << i)) == 0u) continue;
+        debug_draw_node(node.childPtr + i);
+    }
 }
 
 // --- ECS ---
@@ -462,7 +670,7 @@ void PlanetSurfaceTerrainRenderer::Register(flecs::world &ecs) {
     VoxelTextureManager::Register(ecs);
     PlanetChunkMesher::Register(ecs);
 
-    ecs.set<PlanetSurfaceTerrainRenderer>({});
+    ecs.emplace<PlanetSurfaceTerrainRenderer>();
     ecs.get_mut<PlanetSurfaceTerrainRenderer>()->init(ecs);
 }
 
@@ -479,21 +687,41 @@ void PlanetSurfaceTerrainRenderer::update_lod(nvrhi::CommandListHandle cmd, cons
     const auto rootV = static_cast<int32_t>(std::floor(cameraWorldPos.z / rootSize));
     m_lodTree.update_roots(PosX, rootU, rootV);
 
-    // 3. Publish the node changes the tree just made, then run the walk.
+    const auto extent = m_backend->get_swapchain_extent();
+    const float effectiveThreshold = lodFreezeSubdivision ? 1e30f : lodSubdivisionThreshold;
+
+    // 3. Backstop sweep. The merges that matter come from the traversal as LOD_REQ_MERGE and
+    //    were already applied by ingest_requests() above; this only reclaims the subtrees the
+    //    shader never reaches a verdict on, the ones it culls before deciding anything.
+    //
+    //    The shader subdivides when nodeSize / distance * pixelScale exceeds the threshold, so
+    //    the distance at which it stops wanting children is nodeSize * pixelScale / threshold.
+    //    pixelScale is read straight out of the projection: proj[1][1] is 1 / tan(fovY / 2).
+    m_pixelScale = 0.5f * static_cast<float>(extent.height) * camera.projectionMatrix[1][1];
+    const float keepFactor = m_pixelScale / effectiveThreshold * effective_backstop();
+    m_lodCollapsedLastFrame = m_lodTree.collapse_distant(cameraWorldPos, keepFactor);
+
+    // 4. Publish the node changes the tree just made, then run the walk.
     m_lodBuffers->upload_dirty(cmd, m_lodTree.store());
     m_lodTree.store().clear_dirty();
 
     m_lodBuffers->reset_counters(cmd);
     m_lodBuffers->seed_roots(cmd, m_lodTree.root_indices());
 
-    const auto extent = m_backend->get_swapchain_extent();
-
     PlanetLodUBO lodUbo{};
     lodUbo.viewProj = camera.projectionMatrix * camera.viewMatrix;
     lodUbo.cameraWorldPos = cameraWorldPos;
     lodUbo.viewportSize = {static_cast<float>(extent.width), static_cast<float>(extent.height)};
-    lodUbo.subdivisionThreshold = lodSubdivisionThreshold;
+    // Freezing puts the threshold out of reach of the 1e9 the traversal reports for a node
+    // crossing the near plane, so even the root the camera stands in stops asking to be split
+    lodUbo.subdivisionThreshold = effectiveThreshold;
+    lodUbo.mergeThreshold = effectiveThreshold / std::max(1.0f, lodMergeHysteresis);
     lodUbo.maxRenderDistance = camera.farClip;
+
+    // Straight from the buffers the traversal writes into, so the shader can never believe in a
+    // capacity that does not exist
+    lodUbo.maxRenderEntries = PlanetLodGpuBuffers::MAX_RENDER;
+    lodUbo.maxRequestEntries = PlanetLodGpuBuffers::MAX_REQUESTS;
 
     m_lodTraverser.traverse(cmd, lodUbo, static_cast<uint32_t>(m_lodTree.root_indices().size()));
 
@@ -501,6 +729,11 @@ void PlanetSurfaceTerrainRenderer::update_lod(nvrhi::CommandListHandle cmd, cons
 
     // 4. Turn the render queue into compacted draw commands. The dispatch covers the whole queue
     //    capacity, since only the GPU knows how many nodes were actually selected.
+    //    planet_lod_emit_draws.comp reads the queue capacity back out of its own thread count, so
+    //    the dispatch has to cover it exactly rather than merely reach it.
+    static_assert(PlanetLodGpuBuffers::MAX_RENDER % EMIT_DRAWS_GROUP_SIZE == 0,
+                  "MAX_RENDER must tile the emit draws workgroup exactly");
+
     constexpr uint32_t zero = 0;
     cmd->writeBuffer(m_chunkBuffers[0].get_culled_draw_count_buffer(), &zero, sizeof(zero));
 
@@ -521,9 +754,11 @@ void PlanetSurfaceTerrainRenderer::render(nvrhi::CommandListHandle commandList,
     auto* vkCmd = static_cast<VkCommandBuffer>(
         commandList->getNativeObject(nvrhi::ObjectTypes::VK_CommandBuffer));
 
-    // Order matters here. poll_jobs() allocates draw slots and queues their faces, the flush
+    // Order matters here. Reclaiming first is what lets a slot released a few frames ago serve
+    // an allocation now. poll_jobs() then allocates draw slots and queues their faces, the flush
     // sends them, and only then does update_lod() tell the GPU those nodes have geometry. Any
     // other order publishes a node whose faces are still a frame away.
+    reclaim_retired_geometry();
     poll_jobs();
     m_meshUploader.flush(vkCmd);
 

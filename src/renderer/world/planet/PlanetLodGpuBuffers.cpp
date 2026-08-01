@@ -125,6 +125,7 @@ void PlanetLodGpuBuffers::snapshot_requests(nvrhi::CommandListHandle cmd, uint64
 std::span<const GpuLodRequest> PlanetLodGpuBuffers::read_requests(uint64_t frame) {
     VOXEL_ZONE_N("PlanetLodGpuBuffers::read_requests");
     m_scratchCpu.clear();
+    m_lastStats = {};
 
     // Nothing has been through a full frames cycle
     if (frame < MAX_FRAMES_IN_FLIGHT) return {};
@@ -140,6 +141,10 @@ std::span<const GpuLodRequest> PlanetLodGpuBuffers::read_requests(uint64_t frame
     const auto* base = static_cast<const uint8_t*>(mapped);
     const uint32_t count = *reinterpret_cast<const uint32_t*>(base + LOD_COUNTER_OFFSET_REQUEST_COUNT);
     const uint32_t overflow = *reinterpret_cast<const uint32_t*>(base + LOD_COUNTER_OFFSET_REQUEST_OVERFLOW);
+
+    m_lastStats.requests = count;
+    m_lastStats.requestOverflow = overflow;
+    m_lastStats.renderedNodes = *reinterpret_cast<const uint32_t*>(base + LOD_COUNTER_OFFSET_RENDER_COUNT);
 
     const auto* items = reinterpret_cast<const GpuLodRequest*>(base + READBACK_REQUESTS_OFFSET);
     const uint32_t clamped = std::min(count, MAX_REQUESTS);

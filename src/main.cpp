@@ -69,13 +69,14 @@ int main() {
                 .set<Velocity>({})
 
                 // Flat terrain phase: the node grid puts y = 0 on the ground plane rather than
-                // at the planet centre, so the player spawns just above the generated terrain
-                // (baseHeight + heightAmplitude). Restore the radius sized altitude when the
-                // cube to sphere mapping comes back.
+                // at the planet centre, so the player spawns above the generated terrain. Keep
+                // this over baseHeight + heightAmplitude + mountainAmplitude, or the camera
+                // starts inside a peak. Restore the radius sized altitude when the cube to
+                // sphere mapping comes back.
                 .set<vp::CellCoord>({0, 0, 0})
                 .set<vp::GlobalTransform>({})
                 .set<vp::Transform>({
-                    .pos = { 0.f, 200.f, 0.f }
+                    .pos = { 0.f, 1800.f, 0.f }
                 })
 
                 .set<ChunkLoader>({

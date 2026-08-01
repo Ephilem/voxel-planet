@@ -30,6 +30,17 @@ void push_child(uint childIndex) {
     if (slot < pc.maxQueueEntries) outQueue[slot] = childIndex;
 }
 
+/// Hand every live child of a node to the next level
+void push_children(LodNode node) {
+    uint childMask = node_child_mask(node);
+    uint childBase = node_child_ptr(node);
+
+    for (uint i = 0u; i < 8u; ++i) {
+        if ((childMask & (1u << i)) == 0u) continue;
+        push_child(childBase + i);
+    }
+}
+
 void main() {
     uint threadIndex = gl_GlobalInvocationID.x;
     if (threadIndex >= counters[pc.inCountIndex]) return;
@@ -96,13 +107,7 @@ void main() {
 
     if (wantsFiner) {
         if (node_has_children(node)) {
-            uint childMask = node_child_mask(node);
-            uint childBase = node_child_ptr(node);
-
-            for (uint i = 0u; i < 8u; ++i) {
-                if ((childMask & (1u << i)) == 0u) continue;
-                push_child(childBase + i);
-            }
+            push_children(node);
             return;
         }
 
@@ -112,9 +117,23 @@ void main() {
         return;
     }
 
-    if ((flags & NODE_HAS_MESH) != 0u) {
-        lod_push_render(nodeIndex);
-    } else {
+    // Small enough to be drawn as a single node from here on.
+
+    if ((flags & NODE_HAS_MESH) == 0u) {
         lod_emit_request(nodeIndex, LOD_REQ_MESH, priority);
+
+        // Nothing of its own to draw yet. Any children it still owns cover exactly the same
+        // ground, so keep drawing them rather than leaving a hole until the mesh lands.
+        if (node_has_children(node)) push_children(node);
+        return;
+    }
+
+    lod_push_render(nodeIndex);
+
+    // This node now stands in for its whole subtree, so the children below are surplus and the
+    // CPU is told to give their slots and their geometry back. Only the shader ever judges what
+    // is too small: the CPU applying its own version of this test is how the two drift apart.
+    if (node_has_children(node) && screenSize < ubo.mergeThreshold) {
+        lod_emit_request(nodeIndex, LOD_REQ_MERGE, priority);
     }
 }

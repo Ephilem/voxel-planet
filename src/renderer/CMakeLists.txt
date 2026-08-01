@@ -9,6 +9,8 @@ add_library(VoxelPlanetRenderer STATIC
         debug/ImGuiManager.cpp
         world/VoxelBuffer.cpp
         world/VoxelBuffer.h
+        world/VoxelBufferDebugger.cpp
+        world/VoxelBufferDebugger.h
         render_types.h
         IRenderPass.h
         world/VoxelTextureManager.cpp

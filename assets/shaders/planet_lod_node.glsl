@@ -61,6 +61,10 @@ uint node_child_mask(LodNode node) { return (node.z >> 24u) & 0xFFu; }
 
 uint node_mesh_id(LodNode node) { return node.w & 0xFFFFFFu; }
 
-bool node_has_children(LodNode node) { return node_child_ptr(node) != NODE_INVALID_PTR; }
+// Mirror of vp::node_has_children(): the mask is part of the test, so a zeroed node cannot pass
+// as the parent of block 0
+bool node_has_children(LodNode node) {
+    return node_child_ptr(node) != NODE_INVALID_PTR && node_child_mask(node) != 0u;
+}
 
 #endif

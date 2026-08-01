@@ -50,11 +50,15 @@ namespace vp {
         uint32_t u : 16;
         uint32_t v : 16;
 
-        uint32_t childPtr : 24; // index of the first of 8 consecutive children
-        uint32_t childMask : 8; // bit i set if child i is worth visiting
+        // These two default to their "absent" sentinel rather than to zero, and that matters.
+        // A dead slot is produced with GpuNode{} in several places, and zero is a perfectly
+        // valid block index: without this a zeroed node claims to own the children at block 0,
+        // and node 0 lives in block 0, so destroying it recurses into itself forever.
+        uint32_t childPtr : 24 = NODE_INVALID_PTR; // index of the first of 8 consecutive children
+        uint32_t childMask : 8 = 0; // bit i set if child i is worth visiting
 
-        uint32_t meshId : 24; // VoxelChunkMesh::drawSlotIndex or NODE_INVALID_MESH
-        uint32_t meshFlags : 8;
+        uint32_t meshId : 24 = NODE_INVALID_MESH; // VoxelChunkMesh::drawSlotIndex
+        uint32_t meshFlags : 8 = 0;
     };
     static_assert(sizeof(GpuNode) == 16, "GpuNode should be 16 bytes");
 
@@ -83,14 +87,21 @@ namespace vp {
         };
     }
 
-    /// True if the node points at a block of children
-    inline bool node_has_children(const GpuNode &n) { return n.childPtr != NODE_INVALID_PTR; }
+    /// True if the node points at a block of children.
+    /// The mask is part of the test on purpose: a published subdivision always keeps at least
+    /// one live child, so a valid pointer with an empty mask can only be a corrupt node, and
+    /// treating it as childless is what stops the damage from spreading down a recursion.
+    inline bool node_has_children(const GpuNode &n) {
+        return n.childPtr != NODE_INVALID_PTR && n.childMask != 0;
+    }
 
     enum LodRequestType : uint32_t {
         /// The node is the right size on screen but owns no geometry yet
         REQ_MESH = 0,
         /// The node is too big on screen and must be subdivided
-        REQ_CHILDREN = 1
+        REQ_CHILDREN = 1,
+        /// The node has shrunk enough to stand in for its whole subtree: release the children
+        REQ_MERGE = 2
     };
 
     struct GpuLodRequest {

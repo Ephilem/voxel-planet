@@ -4,9 +4,11 @@
 
 #include "PlanetLodTree.h"
 
+#include <algorithm>
 #include <cstdlib>
 
 #include "core/log/Logger.h"
+#include "core/world/world_components.h"
 
 using namespace vp;
 
@@ -24,6 +26,8 @@ void PlanetLodTree::init(const Config &config) {
 }
 
 void PlanetLodTree::ingest_requests(std::span<const GpuLodRequest> requests) {
+    ++m_frame;
+
     for (const GpuLodRequest &request: requests) {
         if (request.nodeIndex >= m_store.capacity()) continue;
 
@@ -36,6 +40,15 @@ void PlanetLodTree::ingest_requests(std::span<const GpuLodRequest> requests) {
 
         // Nothing to generate, but the GPU does not know that yet.
         if (node.flags & NODE_EMPTY) {
+            rearm(request.nodeIndex);
+            continue;
+        }
+
+        // Merges cost nothing and free memory, so they are handled before the budget check.
+        // They are also the only thing that reclaims a subtree the shader can still see: the
+        // decision is made by the traversal, never guessed at here.
+        if (request.type == REQ_MERGE) {
+            if (node_has_children(node)) m_collapsedByGpu += collapse_children(request.nodeIndex);
             rearm(request.nodeIndex);
             continue;
         }
@@ -91,7 +104,7 @@ void PlanetLodTree::handle_children_request(uint32_t nodeIndex, uint32_t priorit
 
     parent.flags |= NODE_REQUESTED;
 
-    m_pending.push_back({nodeIndex, block, 0, 0});
+    m_pending.push_back({nodeIndex, block, 0, 0, m_frame});
     const size_t pendingIndex = m_pending.size() - 1;
 
     for (uint32_t i = 0; i < PlanetLodStore::BLOCK_SIZE; ++i) {
@@ -124,6 +137,13 @@ void PlanetLodTree::on_job_done(const LodJobResult &result) {
     if (result.empty) {
         node.flags |= NODE_EMPTY;
     } else {
+        // A node can already own geometry here: destroying and rebuilding the same coordinate
+        // leaves the first job running, and both results then match. Overwriting the id without
+        // handing the old one back loses its face regions for the rest of the session
+        if ((node.flags & NODE_HAS_MESH) && node.meshId != result.meshId && m_releaseMesh) {
+            m_releaseMesh(node.meshId);
+        }
+
         node.flags |= NODE_HAS_MESH;
         node.meshId = result.meshId;
     }
@@ -169,6 +189,10 @@ void PlanetLodTree::publish_subdivision(size_t pendingIndex) {
     parent.flags &= ~NODE_REQUESTED;
     m_store.mark_dirty(pending.parentIndex);
 
+    erase_pending(pendingIndex);
+}
+
+void PlanetLodTree::erase_pending(size_t pendingIndex) {
     // Swap and pop, then fix up the indices of the entry that moved into this slot.
     m_pending[pendingIndex] = m_pending.back();
     m_pending.pop_back();
@@ -179,6 +203,33 @@ void PlanetLodTree::publish_subdivision(size_t pendingIndex) {
             const auto it = m_childToPending.find(moved.childBlock + i);
             if (it != m_childToPending.end()) it->second = pendingIndex;
         }
+    }
+}
+
+void PlanetLodTree::drop_pending_subdivision(uint32_t parentIndex) {
+    for (size_t i = 0; i < m_pending.size(); ++i) {
+        if (m_pending[i].parentIndex != parentIndex) continue;
+
+        const uint32_t block = m_pending[i].childBlock;
+
+        for (uint32_t c = 0; c < PlanetLodStore::BLOCK_SIZE; ++c) {
+            m_childToPending.erase(block + c);
+
+            // Some children may already have come back with geometry, even though the
+            // subdivision as a whole never got published
+            GpuNode &child = m_store.at(block + c);
+            if ((child.flags & NODE_HAS_MESH) && m_releaseMesh) m_releaseMesh(child.meshId);
+
+            child = GpuNode{};
+            m_store.mark_dirty(block + c);
+        }
+
+        m_store.free_block(block);
+
+        // The jobs still running for these slots will find the coordinate no longer matches and
+        // drop themselves, which is also what decrements the in flight count
+        erase_pending(i);
+        return;
     }
 }
 
@@ -247,12 +298,32 @@ uint32_t PlanetLodTree::create_root(const PlanetNodeCoord &coord) {
 void PlanetLodTree::destroy_subtree(uint32_t nodeIndex) {
     GpuNode &node = m_store.at(nodeIndex);
 
+    // A subdivision still in flight is not linked through childPtr, so the recursion below would
+    // walk straight past it and leak the whole block
+    if (node.flags & NODE_REQUESTED) drop_pending_subdivision(nodeIndex);
+
+    // This node may itself be a child of a subdivision that has not been published. Leaving the
+    // mapping behind would credit a later job on the recycled slot to that subdivision.
+    m_childToPending.erase(nodeIndex);
+
     if (node_has_children(node)) {
         const uint32_t block = node.childPtr;
-        for (uint32_t i = 0; i < PlanetLodStore::BLOCK_SIZE; ++i) {
-            destroy_subtree(block + i);
+
+        // A node can never be its own descendant. Recursing into the block this node lives in
+        // would never terminate, and a blown stack says nothing about what went wrong, so the
+        // subtree is abandoned and reported instead.
+        const uint32_t ownBlock = nodeIndex - (nodeIndex % PlanetLodStore::BLOCK_SIZE);
+        if (block == ownBlock || block + PlanetLodStore::BLOCK_SIZE > m_store.capacity()) {
+            LOG_ERROR("PlanetLodTree",
+                      "Node {} points at an impossible child block {}, leaking it to stay alive",
+                      nodeIndex, block);
+        } else {
+            for (uint32_t i = 0; i < PlanetLodStore::BLOCK_SIZE; ++i) {
+                destroy_subtree(block + i);
+            }
+            m_store.free_block(block);
         }
-        m_store.free_block(block);
+
         node.childPtr = NODE_INVALID_PTR;
         node.childMask = 0;
     }
@@ -264,6 +335,100 @@ void PlanetLodTree::destroy_subtree(uint32_t nodeIndex) {
     // A job may still be running for this node. It will find the slot recycled and drop itself
     node = GpuNode{};
     m_store.mark_dirty(nodeIndex);
+}
+
+namespace {
+    /// Distance from a point to an axis aligned box, zero when the point is inside
+    float distance_to_aabb(const glm::vec3 &point, const glm::vec3 &boundsMin, const glm::vec3 &boundsMax) {
+        const glm::vec3 outside = glm::max(glm::max(boundsMin - point, point - boundsMax), glm::vec3(0.0f));
+        return glm::length(outside);
+    }
+}
+
+uint32_t PlanetLodTree::collapse_distant(const glm::vec3 &cameraWorldPos, float keepFactor) {
+    uint32_t released = 0;
+
+    // The root indices are stable across the walk: collapsing only ever frees blocks below a
+    // root, never a root itself. Roots are the business of update_roots()
+    for (const uint32_t rootIndex: m_rootIndices) {
+        released += collapse_node(rootIndex, cameraWorldPos, keepFactor);
+    }
+
+    return released;
+}
+
+uint32_t PlanetLodTree::collapse_node(uint32_t nodeIndex, const glm::vec3 &cameraWorldPos, float keepFactor) {
+    const GpuNode &node = m_store.at(nodeIndex);
+    if (!node_has_children(node)) return 0;
+
+    const PlanetNodeCoord coord = node_coord(node);
+
+    // Mirror of lod_node_corner() in planet_lod_common.glsl: node coordinates map straight onto
+    // world axes, u to x, alt to y, v to z
+    const float nodeSize = static_cast<float>(CHUNK_SIZE) * static_cast<float>(1u << coord.level);
+    const glm::vec3 boundsMin =
+            glm::vec3(static_cast<float>(coord.u), static_cast<float>(coord.alt), static_cast<float>(coord.v))
+            * nodeSize;
+
+    const float distance = distance_to_aabb(cameraWorldPos, boundsMin, boundsMin + glm::vec3(nodeSize));
+
+    // Collapsing a node that owns no geometry would leave nothing to draw in its place until the
+    // GPU notices and asks for a mesh, so those keep their children. In practice that only ever
+    // applies to roots, which are created empty
+    if (distance > nodeSize * keepFactor && (node.flags & NODE_HAS_MESH)) {
+        return collapse_children(nodeIndex);
+    }
+
+    uint32_t released = 0;
+    const uint32_t block = node.childPtr;
+    const uint32_t mask = node.childMask;
+
+    for (uint32_t i = 0; i < PlanetLodStore::BLOCK_SIZE; ++i) {
+        if ((mask & (1u << i)) == 0u) continue;
+        released += collapse_node(block + i, cameraWorldPos, keepFactor);
+    }
+
+    return released;
+}
+
+uint32_t PlanetLodTree::collapse_children(uint32_t nodeIndex) {
+    GpuNode &node = m_store.at(nodeIndex);
+    const uint32_t block = node.childPtr;
+
+    // Unlink first. The GPU stops descending into the block the moment this node is uploaded,
+    // and it falls back on the mesh this node already owns
+    node.childPtr = NODE_INVALID_PTR;
+    node.childMask = 0;
+    m_store.mark_dirty(nodeIndex);
+
+    uint32_t released = 0;
+    for (uint32_t i = 0; i < PlanetLodStore::BLOCK_SIZE; ++i) {
+        released += 1 + count_subtree(block + i);
+        destroy_subtree(block + i);
+    }
+    m_store.free_block(block);
+
+    return released;
+}
+
+uint32_t PlanetLodTree::count_subtree(uint32_t nodeIndex) const {
+    const GpuNode &node = m_store.at(nodeIndex);
+    if (!node_has_children(node)) return 0;
+
+    uint32_t total = 0;
+    for (uint32_t i = 0; i < PlanetLodStore::BLOCK_SIZE; ++i) {
+        if ((node.childMask & (1u << i)) == 0u) continue;
+        total += 1 + count_subtree(node.childPtr + i);
+    }
+    return total;
+}
+
+uint64_t PlanetLodTree::oldest_pending_age() const {
+    uint64_t oldest = m_frame;
+    for (const PendingSubdivision &pending: m_pending) {
+        oldest = std::min(oldest, pending.openedFrame);
+    }
+    return m_pending.empty() ? 0 : m_frame - oldest;
 }
 
 void PlanetLodTree::rearm(uint32_t nodeIndex) {

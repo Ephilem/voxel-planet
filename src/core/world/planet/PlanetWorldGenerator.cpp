@@ -8,7 +8,26 @@
 
 using namespace vp;
 
+namespace {
+    /// Hermite ramp between two edges, so the mountain mask opens without a visible seam
+    float smoothstep(float edge0, float edge1, float x) {
+        if (edge1 <= edge0) return x >= edge1 ? 1.0f : 0.0f;
+        const float t = std::clamp((x - edge0) / (edge1 - edge0), 0.0f, 1.0f);
+        return t * t * (3.0f - 2.0f * t);
+    }
+}
+
 PlanetWorldGenerator::PlanetWorldGenerator() {
+}
+
+std::pair<float, float> PlanetWorldGenerator::terrain_height_bounds(const PlanetGenerationConfig &config) {
+    // Both layers are normalised to 0..1 before being scaled, so the extremes are simply the
+    // sum of the amplitudes. Widen this the day a layer is allowed to go negative.
+    const auto lowest = static_cast<float>(config.baseHeight);
+    const float highest = lowest
+                          + static_cast<float>(config.heightAmplitude)
+                          + static_cast<float>(config.mountainAmplitude);
+    return {lowest, highest};
 }
 
 bool PlanetWorldGenerator::generate_planet_chunk(VoxelChunk &chunk, PlanetNodeCoord coord, const PlanetGenerationConfig &config) {
@@ -23,71 +42,103 @@ bool PlanetWorldGenerator::generate_planet_chunk(VoxelChunk &chunk, PlanetNodeCo
     const int64_t nodeBottom = static_cast<int64_t>(coord.alt) * CHUNK_SIZE * voxelSize;
     const int64_t nodeTop = nodeBottom + static_cast<int64_t>(CHUNK_SIZE) * voxelSize;
 
-    const auto groundMin = static_cast<int64_t>(config.baseHeight);
-    const auto groundMax = static_cast<int64_t>(config.baseHeight + config.heightAmplitude);
+    const auto [groundMinF, groundMaxF] = terrain_height_bounds(config);
+    const auto groundMin = static_cast<int64_t>(groundMinF);
+    const auto groundMax = static_cast<int64_t>(groundMaxF);
 
-    // Nothing to sample when the node sits entirely in the sky. Coarse levels answer this
-    // without touching the noise at all, which is what keeps the empty altitude band cheap.
+    // Only the metres of ground right under the surface are solid, so the node is worth
+    // generating when it overlaps that shell and nothing else. Coarse levels answer this without
+    // touching the noise at all, which is what keeps the empty altitude band cheap.
+    //
+    // Everything below the shell stays air: the world is a surface, not a volume. That holds as
+    // long as nothing looks at the terrain from underneath.
+    const int64_t shellBottom = groundMin - config.surfaceDepth;
+
     if (nodeBottom >= groundMax) return false;
-
-    // Fully buried nodes are reported empty too, so the world is a surface shell rather than a
-    // solid volume. That is only valid while nothing ever looks at the terrain from below: the
-    // day digging shows up, this has to become a solid fill instead.
-    if (nodeTop <= groundMin) return false;
+    if (nodeTop <= shellBottom) return false;
 
     chunk.textureIDs = {
         {"voxelplanet:textures/grass"_asset, TEXTURE_GRASS},
         {"voxelplanet:textures/cobblestone"_asset, TEXTURE_STONE}
     };
 
-    FastNoise::Generator *noise = noise_for_level(coord.level, config);
-    if (noise == nullptr) return false;
+    FastNoise::Generator *baseLayer = base_noise(coord.level, config);
+    FastNoise::Generator *ridgeLayer = ridge_noise(coord.level, config);
+    if (baseLayer == nullptr || ridgeLayer == nullptr) return false;
 
-    // The sample grid is uniform, so the whole chunk comes out of a single call. Sample spacing
-    // is one voxel of this level, which is exactly how the LOD gets its smoothing.
-    std::array<float, CHUNK_SIZE * CHUNK_SIZE> noiseOut{};
-    noise->GenUniformGrid2D(noiseOut.data(),
-                            coord.u * CHUNK_SIZE, coord.v * CHUNK_SIZE,
-                            CHUNK_SIZE, CHUNK_SIZE,
-                            static_cast<float>(voxelSize) / FLAT_TERRAIN_WAVELENGTH,
-                            static_cast<int>(config.seed));
+    // The sample grid is uniform, so each layer comes out of a single call. Sample spacing is one
+    // voxel of this level, which is exactly how the LOD gets its smoothing: GenUniformGrid2D
+    // walks (xStart + i) * frequency, so passing voxelSize / wavelength lands the samples on
+    // world metres divided by the wavelength, whatever the level.
+    std::array<float, CHUNK_SIZE * CHUNK_SIZE> baseOut{};
+    std::array<float, CHUNK_SIZE * CHUNK_SIZE> ridgeOut{};
+
+    baseLayer->GenUniformGrid2D(baseOut.data(),
+                                coord.u * CHUNK_SIZE, coord.v * CHUNK_SIZE,
+                                CHUNK_SIZE, CHUNK_SIZE,
+                                static_cast<float>(voxelSize) / config.terrainWavelength,
+                                static_cast<int>(config.seed));
+
+    ridgeLayer->GenUniformGrid2D(ridgeOut.data(),
+                                 coord.u * CHUNK_SIZE, coord.v * CHUNK_SIZE,
+                                 CHUNK_SIZE, CHUNK_SIZE,
+                                 static_cast<float>(voxelSize) / config.mountainWavelength,
+                                 static_cast<int>(config.seed + RIDGE_SEED_OFFSET));
 
     const float invVoxelSize = 1.0f / static_cast<float>(voxelSize);
+
+    // Solid depth expressed in this level's voxels. At least one, or a coarse node would have a
+    // surface with nothing underneath it.
+    const int fillDepth = std::max(1, static_cast<int>(config.surfaceDepth / voxelSize));
+
     bool anyVoxel = false;
 
     for (int lz = 0; lz < CHUNK_SIZE; ++lz) {
         for (int lx = 0; lx < CHUNK_SIZE; ++lx) {
-            const float n = noiseOut[lx + lz * CHUNK_SIZE]; // [-1, 1]
+            const int index = lx + lz * CHUNK_SIZE;
+
+            const float baseT = std::clamp(baseOut[index] * 0.5f + 0.5f, 0.0f, 1.0f);
+            const float ridgeT = std::clamp(ridgeOut[index] * 0.5f + 0.5f, 0.0f, 1.0f);
+
+            // Mountains only grow where the base layer is already high, ramped in smoothly so
+            // the range has foothills rather than a wall at the threshold
+            const float mask = smoothstep(config.mountainThreshold, 1.0f, baseT);
+
+            // Raising the ridge value to a power is what makes the flanks abrupt: it flattens
+            // everything but the crests, so the terrain drops away fast on either side
+            const float crest = std::pow(ridgeT, config.ridgeSharpness);
+
             const float groundHeight = static_cast<float>(config.baseHeight)
-                                       + (n * 0.5f + 0.5f) * static_cast<float>(config.heightAmplitude);
+                                       + baseT * static_cast<float>(config.heightAmplitude)
+                                       + mask * crest * static_cast<float>(config.mountainAmplitude);
 
             // Ground height in this node's own voxels, measured from its bottom face
             const float localHeight = (groundHeight - static_cast<float>(nodeBottom)) * invVoxelSize;
-            if (localHeight <= 0.0f) continue;
-
             const int topVoxel = static_cast<int>(std::floor(localHeight));
 
-            // Fractional part of the last voxel, on the 4 bits ChunkBlockInfo reserves for it.
-            // This is what carries the terrain shape at coarse levels, where a whole hill fits
-            // inside a single voxel. The floor of 1 matters: rounding it to 0 would make a
-            // coarse node report itself uniform, and the tree would then refuse to subdivide it,
-            // erasing the terrain entirely at distance.
-            const int subHeight = std::clamp(
-                static_cast<int>((localHeight - static_cast<float>(topVoxel)) * 16.0f), 1, 15);
+            // Solid range of the column, clipped to the node. Both bounds can fall outside it:
+            // below when the ground is under this node, above when it is over it.
+            const int lastFull = std::min(topVoxel, CHUNK_SIZE);
+            const int firstFull = std::max(0, topVoxel - fillDepth);
 
-            const int fullBlocks = std::clamp(topVoxel, 0, CHUNK_SIZE);
-            for (int ly = 0; ly < fullBlocks; ++ly) {
+            for (int ly = firstFull; ly < lastFull; ++ly) {
                 chunk.set(lx, ly, lz, {.localTextureID = TEXTURE_STONE, .height = VOXEL_FULL_HEIGHT});
             }
 
-            if (topVoxel < CHUNK_SIZE) {
-                // The ground lands inside this node, so the top block is the visible surface
+            if (topVoxel >= 0 && topVoxel < CHUNK_SIZE) {
+                // Fractional part of the last voxel, on the 4 bits ChunkBlockInfo reserves for
+                // it. This is what carries the terrain shape at coarse levels, where a whole
+                // mountain fits inside a single voxel. The floor of 1 matters: rounding it to 0
+                // would make a coarse node report itself uniform, and the tree would then refuse
+                // to subdivide it, erasing the range entirely at distance.
+                const int subHeight = std::clamp(
+                    static_cast<int>((localHeight - static_cast<float>(topVoxel)) * 16.0f), 1, 15);
+
                 chunk.set(lx, topVoxel, lz,
-                          {.localTextureID = TEXTURE_GRASS, .height = static_cast<uint8_t>(subHeight)});
+                          {.localTextureID = TEXTURE_GRASS, .height = static_cast<uint8_t>(15)});
                 anyVoxel = true;
-            } else if (fullBlocks > 0) {
-                // The ground is somewhere above: the column is solid through and through, and
-                // the surface belongs to the node overhead
+            } else if (lastFull > firstFull) {
+                // The surface is above the ceiling, but its underside still crosses this node
                 anyVoxel = true;
             }
         }
@@ -166,44 +217,59 @@ bool PlanetWorldGenerator::generate_planet_chunk(VoxelChunk &chunk, PlanetNodeCo
     // return anyVoxel;
 }
 
-FastNoise::SmartNode<FastNoise::FractalFBm> PlanetWorldGenerator::create_noise_generator(
-    int octaves, const PlanetGenerationConfig &config) {
-    VOXEL_ZONE_N("Create Noise Generator");
-    auto fractal = FastNoise::New<FastNoise::FractalFBm>();
-    auto simplex = FastNoise::New<FastNoise::Simplex>();
-
-    fractal->SetSource(simplex);
-    fractal->SetOctaveCount(octaves);
-    fractal->SetLacunarity(config.lacunarity);
-    fractal->SetGain(config.gain);
-
-    return fractal;
-}
-
-int PlanetWorldGenerator::octaves_for_level(uint8_t level, const PlanetGenerationConfig &config) {
-    const float voxelSize = static_cast<float>(1 << level);
+int PlanetWorldGenerator::octaves_for_level(uint8_t level, float wavelength, const PlanetGenerationConfig &config) {
+    const auto voxelSize = static_cast<float>(1 << level);
     const float lacunarity = config.lacunarity > 1.0f ? config.lacunarity : 2.0f;
 
     int usable = 1;
-    float wavelength = FLAT_TERRAIN_WAVELENGTH;
+    float current = wavelength;
 
     // Keep adding octaves while the next one still spans at least two voxels of this level
-    while (usable < config.maxOctave && wavelength / lacunarity >= 2.0f * voxelSize) {
-        wavelength /= lacunarity;
+    while (usable < config.maxOctave && current / lacunarity >= 2.0f * voxelSize) {
+        current /= lacunarity;
         ++usable;
     }
 
     return usable;
 }
 
-FastNoise::Generator *PlanetWorldGenerator::noise_for_level(uint8_t level, const PlanetGenerationConfig &config) {
-    const int octaves = std::clamp(octaves_for_level(level, config), 1, MAX_OCTAVES);
+FastNoise::Generator *PlanetWorldGenerator::base_noise(uint8_t level, const PlanetGenerationConfig &config) {
+    const int octaves = std::clamp(octaves_for_level(level, config.terrainWavelength, config), 1, MAX_OCTAVES);
 
-    if (m_noiseByOctaves[octaves] == nullptr) {
-        m_noiseByOctaves[octaves] = create_noise_generator(octaves, config);
+    if (m_baseByOctaves[octaves] == nullptr) {
+        VOXEL_ZONE_N("Create Base Noise");
+        auto fractal = FastNoise::New<FastNoise::FractalFBm>();
+        fractal->SetSource(FastNoise::New<FastNoise::Simplex>());
+        fractal->SetOctaveCount(octaves);
+        fractal->SetLacunarity(config.lacunarity);
+        fractal->SetGain(config.gain);
+
+        m_baseByOctaves[octaves] = fractal;
     }
 
-    return m_noiseByOctaves[octaves].get();
+    return m_baseByOctaves[octaves].get();
+}
+
+FastNoise::Generator *PlanetWorldGenerator::ridge_noise(uint8_t level, const PlanetGenerationConfig &config) {
+    const int octaves = std::clamp(octaves_for_level(level, config.mountainWavelength, config), 1, MAX_OCTAVES);
+
+    if (m_ridgeByOctaves[octaves] == nullptr) {
+        VOXEL_ZONE_N("Create Ridge Noise");
+        auto fractal = FastNoise::New<FastNoise::FractalRidged>();
+        fractal->SetSource(FastNoise::New<FastNoise::Simplex>());
+        fractal->SetOctaveCount(octaves);
+        fractal->SetLacunarity(config.lacunarity);
+        fractal->SetGain(config.gain);
+
+        // Scales each octave by the previous one, so detail piles up on the crests and the
+        // valleys stay smooth. Without it a ridged fractal is noisy everywhere and the ranges
+        // lose their shape.
+        fractal->SetWeightedStrength(config.ridgeWeighting);
+
+        m_ridgeByOctaves[octaves] = fractal;
+    }
+
+    return m_ridgeByOctaves[octaves].get();
 }
 
 float PlanetWorldGenerator::sample_terrain_height(const glm::dvec3 &dir, const PlanetGenerationConfig &config) {
@@ -211,7 +277,7 @@ float PlanetWorldGenerator::sample_terrain_height(const glm::dvec3 &dir, const P
     float ny = static_cast<float>(dir.y) * config.frequency;
     float nz = static_cast<float>(dir.z) * config.frequency;
 
-    float noiseVal = noise_for_level(0, config)->GenSingle3D(nx, ny, nz, static_cast<int>(config.seed));
+    float noiseVal = base_noise(0, config)->GenSingle3D(nx, ny, nz, static_cast<int>(config.seed));
 
     float t = (noiseVal + 1.0f) * 0.5f;
     return config.baseHeight + t * static_cast<float>(config.heightAmplitude);
@@ -220,8 +286,9 @@ float PlanetWorldGenerator::sample_terrain_height(const glm::dvec3 &dir, const P
 void PlanetWorldGenerator::check_noise_generator(const PlanetGenerationConfig &config) {
     if (config == m_cachedConfig) return;
 
-    // Octave count, lacunarity and gain are all baked into the fractals, so a config change
-    // invalidates every level at once
-    for (auto &node: m_noiseByOctaves) node.reset();
+    // Octave count, lacunarity, gain and weighting are all baked into the fractals, so a config
+    // change invalidates every level of both layers at once
+    for (auto &node: m_baseByOctaves) node.reset();
+    for (auto &node: m_ridgeByOctaves) node.reset();
     m_cachedConfig = config;
 }

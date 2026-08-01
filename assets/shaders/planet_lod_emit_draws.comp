@@ -60,8 +60,15 @@ layout (set = 0, binding = 5, std430) buffer CulledDrawCountBuffer {
 };
 
 void main() {
-    // The traversal keeps incrementing the counter past the capacity when the queue overflows.
-    uint renderCount = min(counters[LOD_COUNTER_RENDER], LOD_MAX_RENDER);
+    // The traversal keeps incrementing the counter past the capacity when the queue overflows, so
+    // it cannot be trusted as a bound on its own: entries past the capacity were never written
+    // and still hold whatever the previous frame left there.
+    //
+    // The dispatch is sized to cover exactly the queue capacity, so the thread count is that
+    // capacity. Deriving it here rather than repeating the number keeps the one definition of it
+    // on the C++ side, where the buffer is actually allocated.
+    uint capacity = gl_NumWorkGroups.x * LOCAL_SIZE;
+    uint renderCount = min(counters[LOD_COUNTER_RENDER], capacity);
     if (gl_GlobalInvocationID.x >= renderCount) return;
 
     LodNode node = nodes[renderQueue[gl_GlobalInvocationID.x]];

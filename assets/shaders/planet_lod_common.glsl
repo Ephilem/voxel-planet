@@ -8,6 +8,7 @@
 // Mirror of vp::LodRequestType.
 #define LOD_REQ_MESH     0u
 #define LOD_REQ_CHILDREN 1u
+#define LOD_REQ_MERGE    2u
 
 layout (set = 0, binding = 0, std140) uniform PlanetLodUBO {
     mat4 viewProj;
@@ -18,6 +19,15 @@ layout (set = 0, binding = 0, std140) uniform PlanetLodUBO {
     vec2 viewportSize;
     float subdivisionThreshold;
     float maxRenderDistance;
+
+    float mergeThreshold;
+
+    // Queue capacities, owned by the C++ side. See PlanetLodUBO in PlanetLodTraverser.h for why
+    // they are not #defines here
+    uint maxRenderEntries;
+    uint maxRequestEntries;
+
+    float _pad0;
 } ubo;
 
 layout (set = 1, binding = 0, std430) buffer NodeBuffer {
@@ -100,7 +110,7 @@ bool lod_aabb_visible(vec3 boundsMin, vec3 boundsMax, vec4 planes[6]) {
  */
 void lod_push_render(uint nodeIndex) {
     uint slot = atomicAdd(counters[LOD_COUNTER_RENDER], 1u);
-    if (slot < LOD_MAX_RENDER) renderQueue[slot] = nodeIndex;
+    if (slot < ubo.maxRenderEntries) renderQueue[slot] = nodeIndex;
 }
 
 /**
@@ -115,7 +125,7 @@ void lod_emit_request(uint nodeIndex, uint type, uint priority) {
     if ((previous & NODE_REQUESTED_BIT) != 0u) return;
 
     uint slot = atomicAdd(counters[LOD_COUNTER_REQUEST], 1u);
-    if (slot >= LOD_MAX_REQUESTS) {
+    if (slot >= ubo.maxRequestEntries) {
         atomicAnd(nodes[nodeIndex].x, ~NODE_REQUESTED_BIT);
         atomicAdd(counters[LOD_COUNTER_REQUEST_OVERFLOW], 1u);
         return;

@@ -54,12 +54,16 @@ void PlanetChunkGenerator::enqueues(const ChunkGenInput *inputs, size_t count) {
 std::vector<ChunkGenOutput> PlanetChunkGenerator::poll_results(size_t max) {
     std::vector<ChunkGenOutput> all;
     for (auto &worker: m_generationWorkerResults) {
+        // Stop before taking the lock rather than part way through a worker. Draining a worker
+        // by halves used to clear the whole vector regardless, which silently destroyed the
+        // results left behind: their jobs never came back, so the caller's in flight count never
+        // came down and the subdivisions waiting on them were stranded for good
+        if (max > 0 && all.size() >= max) break;
         if (worker->pendingCount.load() == 0) continue;
+
         std::lock_guard lock(worker->m_resultMutex);
-        for (auto &r: worker->results) {
-            all.push_back(std::move(r));
-            if (max > 0 && all.size() >= max) break;
-        }
+        for (auto &r: worker->results) all.push_back(std::move(r));
+
         worker->results.clear();
         worker->pendingCount.store(0);
     }

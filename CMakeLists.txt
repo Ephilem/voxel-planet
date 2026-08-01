@@ -299,6 +299,14 @@ file(GLOB_RECURSE SHADER_SOURCES
         "${CMAKE_SOURCE_DIR}/assets/shaders/*.comp"
 )
 
+# Shared headers pulled in with #include. glslc does not emit a depfile here, so every shader is
+# made to depend on all of them: touching planet_lod_node.glsl has to rebuild the traversal, or
+# the SPIR-V silently keeps the previous definitions.
+file(GLOB_RECURSE SHADER_INCLUDES
+        CONFIGURE_DEPENDS
+        "${CMAKE_SOURCE_DIR}/assets/shaders/*.glsl"
+)
+
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/assets
@@ -331,7 +339,7 @@ foreach(SHADER ${SHADER_SOURCES})
                 -fshader-stage=${SHADER_STAGE}
                 -g
                 ${SHADER} -o ${SHADER_OUTPUT}
-            DEPENDS ${SHADER}
+            DEPENDS ${SHADER} ${SHADER_INCLUDES}
             COMMENT "Compiling shader ${SHADER_NAME}"
     )
 

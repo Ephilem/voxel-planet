@@ -216,12 +216,25 @@ PlanetChunkMesher::MesherTaskOutput PlanetChunkMesher::build_mesh(const MesherTa
 
     const auto &voxels = *input.voxels;
 
-    // Returns 0 (air) when the neighbor chunk is absent
+    // Neighbour chunks are not available to the mesher yet, so the chunk borders are guessed.
+    //
+    // Returning air on every side made each chunk emit its full border wall, and the wall of the
+    // chunk next door landed on exactly the same plane: two coplanar quads at identical depth,
+    // drawn in whatever order the indirect draws happen to run, which reads as violent flicker
+    // along every seam. Reporting the sideways neighbours as solid drops both walls instead.
+    //
+    // The cost is the reverse error: a genuine step in the terrain that falls exactly on a chunk
+    // border loses its face and leaves a crack. That is the better failure while there is no
+    // neighbour data, and it goes away once there is. The vertical neighbours stay air, or the
+    // ground would lose its top face at the ceiling of every node.
+    constexpr uint16_t NEIGHBOR_SOLID = 1u | (15u << 8);
+
     auto get_neighbor_voxel = [&input](int neighborIdx, int lx, int ly, int lz) -> uint16_t {
         // if (const auto &nv = input.neighborVoxels[neighborIdx]) {
         //     return (*nv)[lx + CHUNK_SIZE * (ly + CHUNK_SIZE * lz)];
         // }
-        return 0;
+        const bool vertical = neighborIdx == 2 || neighborIdx == 3;
+        return vertical ? 0 : NEIGHBOR_SOLID;
     };
 
     // Masks keyed by uint32_t: texID (8b) | blkH (8b) | nbH (8b).

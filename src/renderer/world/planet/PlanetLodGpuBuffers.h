@@ -11,6 +11,26 @@
 
 namespace vp {
     /**
+     * What the traversal reported about the frame that just finished, read back alongside the
+     * requests.
+     *
+     * The rendered node count is the tuning metric of the whole LOD system: it is what the
+     * subdivision threshold actually buys, and comparing it against the resident node count is
+     * the only way to tell a detail problem from a reclamation problem.
+     */
+    struct LodTraversalStats {
+        /// Nodes the traversal selected for drawing. Counted before the queue cap, so a value
+        /// above MAX_RENDER means visible geometry was dropped this frame
+        uint32_t renderedNodes = 0;
+
+        /// Requests emitted, likewise counted before the queue cap
+        uint32_t requests = 0;
+
+        /// Requests thrown away because the queue was already full
+        uint32_t requestOverflow = 0;
+    };
+
+    /**
      * Owns every GPU buffer of the LOD system, and the readback of the requests emitted by the
      * traversal compute shader.
      *
@@ -26,10 +46,19 @@ namespace vp {
     public:
         static constexpr uint32_t MAX_REQUESTS = 2048;
 
-        /// Maximum number of nodes the traversal can select for rendering in one frame.
-        /// Nine LOD levels at the default subdivision threshold land around 2000 nodes in 1080p,
-        /// so this leaves room before the traversal starts dropping visible geometry.
-        static constexpr uint32_t MAX_RENDER = 4096;
+        /**
+         * Maximum number of nodes the traversal can select for drawing in one frame.
+         *
+         * Overflowing it is not a graceful degradation. The traversal claims its slot with an
+         * atomic increment and drops the node when the slot is past the end, so which nodes
+         * survive depends on the order the invocations happen to reach the atomic, and that order
+         * changes every frame. The result is terrain blinking in and out rather than a stable
+         * subset going missing, and it gets worse the further past the cap you are.
+         *
+         * LodTraversalStats::renderedNodes counts what the traversal wanted, before the cap, so
+         * comparing it against this is what tells the two apart.
+         */
+        static constexpr uint32_t MAX_RENDER = 4096 * 2;
 
         static constexpr uint32_t REQUESTS_READBACK_COUNT = MAX_FRAMES_IN_FLIGHT + 1;
 
@@ -90,6 +119,10 @@ namespace vp {
          */
         std::span<const GpuLodRequest> read_requests(uint64_t frame);
 
+        /// Counters of the frame the last read_requests() call brought back. Same lag as the
+        /// requests themselves, which is fine: nothing acts on these, they are only displayed
+        const LodTraversalStats& last_stats() const { return m_lastStats; }
+
         /// Node buffer, GpuNode[maxNodes]
         nvrhi::IBuffer* nodes() const { return m_nodes; }
 
@@ -135,6 +168,8 @@ namespace vp {
 
         nvrhi::BufferHandle m_dispatchArgs; // filled and managed by the GPU
         nvrhi::BufferHandle m_readback[REQUESTS_READBACK_COUNT];
+
+        LodTraversalStats m_lastStats;
 
         std::vector<GpuLodRequest> m_scratchCpu; // requests copied out of the mapped staging buffer
         std::vector<uint32_t> m_sortedDirty; // scratch for run merging in upload_dirty()

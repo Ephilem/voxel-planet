@@ -13,7 +13,7 @@ struct alignas(16) TerrainOUB {
     glm::vec4 _reserved[6]; // 96 bytes → total = 160 bytes
 };
 
-static constexpr uint64_t TOTAL_BUFFER_SIZE = 128 * 1024 * 1024;
+static constexpr uint64_t TOTAL_BUFFER_SIZE = 6 * 128 * 1024 * 1024;
 static constexpr uint64_t FACES_BUFFER_SIZE = TOTAL_BUFFER_SIZE;
 
 static constexpr uint32_t FACES_PER_REGION = 1000;

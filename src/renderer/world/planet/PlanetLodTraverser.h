@@ -20,7 +20,32 @@ namespace vp {
         /// A node covering more than this many pixels on screen gets subdivided
         float subdivisionThreshold = 128.0f;
         float maxRenderDistance = 100000.0f;
+
+        /**
+         * A node covering fewer than this many pixels gives its children back.
+         *
+         * Kept below subdivisionThreshold on purpose: with a single threshold a node sitting on
+         * the boundary would merge and split on alternate frames, and every cycle costs a full
+         * generate and mesh round trip.
+         */
+        float mergeThreshold = 80.0f;
+
+        /**
+         * Capacity of the render queue and of the request queue, in entries.
+         *
+         * They live here rather than as shader side constants because a shader that believes the
+         * queue is smaller than it is drops work silently, and one that believes it is larger
+         * writes out of bounds. Neither shows up as a build error, and the render queue case is
+         * particularly nasty: past the cap the traversal keeps only whichever nodes happen to win
+         * the atomic race, and that subset is reshuffled every frame, so the terrain flickers
+         * rather than simply going missing.
+         */
+        uint32_t maxRenderEntries = 0;
+        uint32_t maxRequestEntries = 0;
+
+        float _pad0 = 0.0f;
     };
+    static_assert(sizeof(PlanetLodUBO) == 112, "PlanetLodUBO must match the std140 block in planet_lod_common.glsl");
 
     /**
      * Drives the GPU side of the LOD system: one breadth first walk down the octree per frame

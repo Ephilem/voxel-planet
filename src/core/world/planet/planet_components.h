@@ -72,8 +72,43 @@ namespace vp {
         int maxOctave = 6; // max because lod will reduce octaves number. This value is used for the highest resolution
         float lacunarity = 2.0f;
         float gain = 0.5f;
-        int baseHeight = 100;
-        int heightAmplitude = 32;
+
+        /// Altitude of the lowest ground, in world meters
+        int baseHeight = 64;
+
+        /// Height added by the rolling base terrain on top of baseHeight
+        int heightAmplitude = 96;
+
+        // --- Mountains ---
+        //
+        // Two layers. A low frequency fBm decides where the land rises at all, and a ridged
+        // fractal carves the ridge network on top of it. Keeping them apart is what gives plains
+        // next to mountains instead of uniform lumpiness everywhere.
+
+        /// Wavelength of the coarsest octave of the rolling terrain, in world meters
+        float terrainWavelength = 2048.0f;
+
+        /// Wavelength of the coarsest octave of the ridge network, in world meters
+        float mountainWavelength = 1200.0f;
+
+        /// Height the ridges add where the mask is fully open, in world meters
+        int mountainAmplitude = 1400;
+
+        /// Base terrain value above which mountains start to grow, 0 to 1. Higher means rarer
+        /// but more isolated ranges
+        float mountainThreshold = 0.42f;
+
+        /// Exponent applied to the ridge value. 1 is rounded hills, 3 and above gives narrow
+        /// crests with steep flanks, which is what makes the terrain read as abrupt
+        float ridgeSharpness = 3.5f;
+
+        /// How far the later octaves of the ridge network are pulled toward the crests. Positive
+        /// values pile detail on the ridges and leave the valleys smooth, the way erosion does
+        float ridgeWeighting = 0.7f;
+
+        /// Solid ground kept under the surface, in world meters. It has to clear the biggest
+        /// height step between two neighbouring voxel columns, or steep flanks show through
+        int surfaceDepth = 48;
 
         bool operator==(const PlanetGenerationConfig &other) const {
             return seed == other.seed &&
@@ -82,7 +117,14 @@ namespace vp {
                    lacunarity == other.lacunarity &&
                    gain == other.gain &&
                    baseHeight == other.baseHeight &&
-                   heightAmplitude == other.heightAmplitude;
+                   heightAmplitude == other.heightAmplitude &&
+                   terrainWavelength == other.terrainWavelength &&
+                   mountainWavelength == other.mountainWavelength &&
+                   mountainAmplitude == other.mountainAmplitude &&
+                   mountainThreshold == other.mountainThreshold &&
+                   ridgeSharpness == other.ridgeSharpness &&
+                   ridgeWeighting == other.ridgeWeighting &&
+                   surfaceDepth == other.surfaceDepth;
         }
     };
 

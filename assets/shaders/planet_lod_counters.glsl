@@ -9,8 +9,11 @@
 #define LOD_COUNTER_QUEUE_1          8u
 #define LOD_COUNTER_RENDER           12u
 
-// Must match PlanetLodGpuBuffers::MAX_REQUESTS and MAX_RENDER.
-#define LOD_MAX_REQUESTS 2048u
-#define LOD_MAX_RENDER   4096u
+// The queue capacities used to live here as defines that had to be kept in step with
+// PlanetLodGpuBuffers by hand. They drifted, the shader capped the render queue at half what the
+// buffer could hold, and everything past the cap was dropped at random every frame.
+//
+// They now travel in PlanetLodUBO, so there is one definition and it is the C++ one. Shaders with
+// no access to that UBO derive the bound from their own dispatch size instead.
 
 #endif
