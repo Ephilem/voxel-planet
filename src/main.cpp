@@ -46,9 +46,9 @@ int main() {
         auto earth = ecs->entity("Earth")
                 .child_of(worldGrid)
                 .set<vp::PlanetComp>({.radius = 667544.0f})
-                .set<vp::PlanetGenerationConfig>({.radius = 667544.0f})
+                .set<vp::PlanetTerrainParams>({})
                 .set<vp::Grid>({.cellSize = 10'000.0})
-                .set<PlanetRenderComp>({})
+                .emplace<vp::PlanetTileLodComp>()
 
                 .set<vp::GlobalTransform>({})
                 .set<vp::CellCoord>({7, 0, 0})
@@ -68,22 +68,16 @@ int main() {
                 .set<RigidBody>({})
                 .set<Velocity>({})
 
-                // Flat terrain phase: the node grid puts y = 0 on the ground plane rather than
-                // at the planet centre, so the player spawns above the generated terrain. Keep
-                // this over baseHeight + heightAmplitude + mountainAmplitude, or the camera
-                // starts inside a peak. Restore the radius sized altitude when the cube to
-                // sphere mapping comes back.
                 .set<vp::CellCoord>({0, 0, 0})
                 .set<vp::GlobalTransform>({})
                 .set<vp::Transform>({
-                    .pos = { 0.f, 1800.f, 0.f }
+                    .pos = { 0.f, 667544.f+1000.f, 0.f }
                 })
 
                 .set<ChunkLoader>({
                     .loadRadius = 3,
                     .unloadRadius = 5
                 })
-                .set<vp::PlanetUpVector>({})
 
                 .child_of(earth);
 

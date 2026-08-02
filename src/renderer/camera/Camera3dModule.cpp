@@ -1,7 +1,6 @@
 #include "Camera3dModule.h"
 
 #include <GLFW/glfw3.h>
-#include <glm/ext/matrix_transform.hpp>
 
 #include "camera3d_systems.h"
 #include "client/world/planet/planet_client_components.h"
@@ -34,15 +33,12 @@ void Camera3dModule::register_systems(flecs::world &ecs) {
             .kind(flecs::OnUpdate)
             .each([](flecs::entity e, Camera3d &camera, const Transform &transform,
                      const Camera3dParameters &parameters) {
-                         VOXEL_ZONE_N("Camera-UpdateView");
+                VOXEL_ZONE_N("Camera-UpdateView");
                 glm::vec3 playerPos = glm::vec3(0.f);
                 glm::vec3 eyePos = glm::vec3(0.f);
                 auto type = parameters.viewType;
 
                 glm::vec3 worldUp = glm::vec3(0.f, 1.f, 0.f);
-                if (const auto *planetUp = e.get<PlanetUpVector>())
-                    worldUp = planetUp->up;
-
                 const glm::quat orientation = glm::normalize(transform.rot);
 
                 if (type == CameraViewType::FirstPerson) {

@@ -74,8 +74,6 @@ void PlayerControllerSystem::Register(flecs::world& ecs) {
                 speed *= 0.25f;
 
             glm::vec3 worldUp = glm::vec3(0.f, 1.f, 0.f);
-            if (const auto* planetUp = e.get<vp::PlanetUpVector>())
-                worldUp = planetUp->up;
 
             const glm::quat orientation = glm::normalize(transform.rot);
             glm::vec3 forward = orientation * glm::vec3(0.f, 0.f, -1.f);

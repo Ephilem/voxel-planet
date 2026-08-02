@@ -1,0 +1,136 @@
+#pragma once
+#include <array>
+#include <cmath>
+#include <queue>
+#include <vector>
+
+#include <glm/glm.hpp>
+
+#include "core/world/world_components.h"
+#include "core/world/planet/planet_types.h"
+
+namespace vp {
+    const uint32_t INVALID_NODE = 0xFFFFFFFF;
+
+    struct PlanetQuadtreeNode {
+        CubemapFace face = FACE_UNKNOWN;
+        uint8_t level = 0;
+        uint32_t x = 0, y = 0;
+
+        uint32_t firstChild = INVALID_NODE; // index of the first of the 4 contiguous children
+
+        [[nodiscard]] bool is_leaf() const { return firstChild == INVALID_NODE; }
+    };
+
+    struct PlanetLodParams {
+        double planetRadius = 667544.0;
+        uint8_t maxLevel = 11;
+
+        double splitFactor = 2.0;
+
+        /// Merge at splitFactor * mergeHysteresis
+        double mergeHysteresis = 1.6;
+
+        /// Vertical extent of a node, meters relative to sea level. Feeds both the
+        /// bounds distance and the horizon test. Later comes from the tile minH/maxH
+        double minNodeHeight = -2000.0;
+        double maxNodeHeight = 5000.0;
+
+        /// Coarse per face early out only. The real culling is per node, below the horizon
+        double faceCullAngleDeg = 120.0;
+
+        uint32_t chunkSize = CHUNK_SIZE;
+    };
+
+    /**
+     * Six quadtrees, one per cube face, sharing a single node pool.
+     * The tree only decides what to draw
+     */
+    class PlanetQuadtrees {
+    public:
+        explicit PlanetQuadtrees();
+        ~PlanetQuadtrees() = default;
+
+        /**
+         * Split and merge so the subdivision matches the camera
+         * @param cameraPosPlanet camera in planet space, meters, origin at the planet center
+         */
+        void update(const glm::dvec3& cameraPosPlanet, const PlanetLodParams& params);
+
+        [[nodiscard]] uint32_t root(CubemapFace face) const { return m_roots[face]; }
+        [[nodiscard]] const PlanetQuadtreeNode& node(uint32_t index) const { return m_nodes[index]; }
+        [[nodiscard]] size_t live_node_count() const { return m_nodes.size() - m_freeNodes.size() * 4; }
+
+        /// Center of a node on the sphere, in planet space
+        [[nodiscard]] glm::dvec3 node_center(uint32_t index, const PlanetLodParams& params) const;
+
+        /// Length of a node edge on the sphere, in meters
+        [[nodiscard]] double node_size(uint32_t index, const PlanetLodParams& params) const;
+
+        // Debug helpers
+        void set_frozen(bool frozen) { m_frozen = frozen; }
+        [[nodiscard]] bool is_frozen() const { return m_frozen; }
+
+        struct Stats {
+            uint32_t leafCount = 0;
+            uint32_t splits = 0;
+            uint32_t merges = 0;
+            uint32_t culledFaces = 0;
+            uint32_t culledNodes = 0;
+            uint32_t balanceSplits = 0; // splits forced by the 2:1 neighbour rule
+        };
+
+        [[nodiscard]] const Stats& stats() const { return m_stats; }
+
+        /// What debug_draw colors each node by
+        enum class DebugMode {
+            Level,
+            Face,
+        };
+
+        /**
+         * Draws the outline of every leaf
+         * @param originRender planet center in render space, ie the planet GlobalTransform position
+         * @param segmentsPerEdge subdivisions per edge, so the outline follows the curvature
+         */
+        void debug_draw(const glm::vec3& originRender, const PlanetLodParams& params,
+                        DebugMode mode = DebugMode::Level, int segmentsPerEdge = 6) const;
+
+    private:
+        void update_node(uint32_t index, const glm::dvec3& cameraPosPlanet, const PlanetLodParams& params);
+
+        /// Distance from the camera to the node bounds, meters. Zero inside the node
+        [[nodiscard]] double node_distance(uint32_t index, const glm::dvec3& cameraPosPlanet,
+                                           const PlanetLodParams& params) const;
+
+        /// True when every corner of the node is hidden by the planet itself
+        [[nodiscard]] bool below_horizon(uint32_t index, const glm::dvec3& cameraPosPlanet,
+                                         const PlanetLodParams& params) const;
+
+        /// Force splits until no leaf has a neighbour more than one level finer
+        void enforce_balance(const PlanetLodParams& params);
+
+        /// Leaf or internal node touching edge dir (0=+u, 1=-u, 2=+v, 3=-v), across faces
+        [[nodiscard]] uint32_t find_neighbour(uint32_t index, int dir) const;
+
+        /// Deepest node containing that face cell, clamped to the existing tree
+        [[nodiscard]] uint32_t find_node(CubemapFace face, uint8_t level, int64_t x, int64_t y) const;
+
+        void debug_draw_node(uint32_t index, const glm::vec3& originRender, const PlanetLodParams& params,
+                             DebugMode mode, int segmentsPerEdge) const;
+
+        /// Corner of a node on the sphere. cu,cv in [0,1] inside the node
+        [[nodiscard]] glm::dvec3 node_point(uint32_t index, double cu, double cv,
+                                            const PlanetLodParams& params) const;
+
+        void split(uint32_t index);
+        void merge(uint32_t index);
+
+        std::vector<PlanetQuadtreeNode> m_nodes;
+        std::array<uint32_t, 6> m_roots{};
+        std::queue<uint32_t> m_freeNodes; // indices of the first of 4 contiguous freed children
+
+        Stats m_stats;
+        bool m_frozen = false;
+    };
+}

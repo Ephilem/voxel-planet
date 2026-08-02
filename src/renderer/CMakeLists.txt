@@ -7,41 +7,22 @@ add_library(VoxelPlanetRenderer STATIC
         vulkan/vulkan_type.inl
         debug/ImGuiManager.h
         debug/ImGuiManager.cpp
-        world/VoxelBuffer.cpp
-        world/VoxelBuffer.h
-        world/VoxelBufferDebugger.cpp
-        world/VoxelBufferDebugger.h
+        debug/DebugImageTexture.h
+        debug/DebugImageTexture.cpp
         render_types.h
         IRenderPass.h
         world/VoxelTextureManager.cpp
         world/VoxelTextureManager.h
         TracyVulkanIntegration.h
-        world/VoxelMeshUploadBatcher.cpp
-        world/VoxelMeshUploadBatcher.h
         debug/DebugDrawRenderer.cpp
         debug/DebugDrawRenderer.h
-        world/planet/PlanetRenderModule.cpp
-        world/planet/PlanetRenderModule.h
         camera/Camera3dModule.cpp
         camera/Camera3dModule.h
         camera/camera3d_systems.h
         debug/DebugRenderModule.cpp
         debug/DebugRenderModule.h
-        world/planet/PlanetSurfaceTerrainRenderer.cpp
-        world/planet/PlanetSurfaceTerrainRenderer.h
-        world/planet/PlanetChunkMesher.cpp
-        world/planet/PlanetChunkMesher.h
-        world/planet/PlanetLodTree.cpp
-        world/planet/PlanetLodTree.h
-        world/planet/planet_render_types.h
-        world/planet/PlanetLodStore.cpp
-        world/planet/PlanetLodStore.h
-        world/planet/PlanetLodGpuBuffers.cpp
-        world/planet/PlanetLodGpuBuffers.h
-        world/planet/PlanetLodTraverser.cpp
-        world/planet/PlanetLodTraverser.h
-        world/planet/PlanetLodJobs.cpp
-        world/planet/PlanetLodJobs.h
+        world/planet/PlanetRendererModule.cpp
+        world/planet/PlanetRendererModule.h
 )
 
 add_library(VoxelPlanet::Renderer ALIAS VoxelPlanetRenderer)
@@ -62,6 +43,7 @@ target_link_libraries(VoxelPlanetRenderer
             imgui
             implot
             flecs::flecs_static
+            concurrentqueue
         PRIVATE
             VoxelPlanet::Core
             VoxelPlanet::Platform

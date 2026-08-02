@@ -6,6 +6,7 @@
 
 #include "camera/Camera3dModule.h"
 #include "debug/DebugRenderModule.h"
+#include "world/planet/PlanetRendererModule.h"
 
 #include "Renderer.h"
 #include "vulkan/VulkanBackend.h"
@@ -16,7 +17,6 @@
 #include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
 #include "core/world/world_components.h"
-#include "world/planet/PlanetRenderModule.h"
 
 
 #ifdef TRACY_ENABLE
@@ -111,7 +111,7 @@ void RendererModule::register_pipelines(flecs::world &ecs) {
 
 void RendererModule::register_submodules(flecs::world &ecs) {
     ecs.import<Camera3dModule>();
-    ecs.import<PlanetRenderModule>();
+    ecs.import<PlanetRendererModule>();
     ecs.import<DebugRenderModule>();
 }
 

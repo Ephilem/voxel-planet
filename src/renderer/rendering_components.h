@@ -25,10 +25,6 @@ struct Camera3d {
     glm::float32 aspect_ratio = 16.0f / 9.0f;
 };
 
-struct PlanetRenderComp {
-    uint32_t test = 0;
-};
-
 namespace voxel_chunk_mesh_state {
     struct WaitingForNeighbors {
     };

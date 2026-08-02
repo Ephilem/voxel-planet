@@ -32,15 +32,14 @@ add_library(VoxelPlanetCore STATIC
         world/spatial/SpatialModule.h
         world/spatial/spatial_components.h
         world/spatial/spatial_prefabs.h
-        world/planet/planet_utils.h
         world/planet/PlanetModule.cpp
         world/planet/PlanetModule.h
         world/planet/planet_components.h
-        world/planet/PlanetChunkGenerator.cpp
-        world/planet/PlanetChunkGenerator.h
-        world/planet/PlanetWorldGenerator.cpp
-        world/planet/PlanetWorldGenerator.h
         world/spatial/spatial_utils.h
+        world/planet/generator/PlanetTerrainSampler.cpp
+        world/planet/generator/PlanetTerrainSampler.h
+        world/planet/planet_types.h
+        world/planet/planet_transform.h
 )
 
 add_library(VoxelPlanet::Core ALIAS VoxelPlanetCore)

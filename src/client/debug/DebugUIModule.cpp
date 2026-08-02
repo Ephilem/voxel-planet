@@ -3,6 +3,8 @@
 #include "DebugUIManager.h"
 #include "LogConsole.h"
 #include "world/PlayerWorldInfo.h"
+#include "world/PlanetLayerViewer.h"
+#include "world/PlanetLodPanel.h"
 #include "entities/PlayerPanel.h"
 #include "performance/FpsCounter.h"
 
@@ -20,4 +22,6 @@ void DebugUIModule::register_systems(flecs::world &ecs) {
     debugUI->add_panel<PlayerWorldInfo>();
     debugUI->add_panel<LogConsole>();
     debugUI->add_panel<PlayerPanel>();
+    debugUI->add_panel<PlanetLayerViewer>();
+    debugUI->add_panel<PlanetLodPanel>();
 }

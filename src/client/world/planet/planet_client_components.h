@@ -1,12 +1,16 @@
 #pragma once
 
-#include <glm/glm.hpp>
+#include <memory>
+
+#include "PlanetQuadtrees.h"
 
 namespace vp {
-    // -- tags --
-    struct InPlanetSurface {};
+    struct PlanetTileLodComp {
+        std::unique_ptr<PlanetQuadtrees> quadtree;
+        PlanetLodParams params;
 
-    struct PlanetUpVector {
-        glm::vec3 up = glm::vec3(0.f, 1.f, 0.f);
+        bool debugDrawNodes = true;
+        PlanetQuadtrees::DebugMode debugMode = PlanetQuadtrees::DebugMode::Level;
+        int debugSegmentsPerEdge = 6;
     };
 }

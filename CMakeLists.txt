@@ -226,6 +226,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(fmt)
 
+# moodycamel concurrentqueue
+FetchContent_Declare(
+        concurrentqueue
+        GIT_REPOSITORY https://github.com/cameron314/concurrentqueue.git
+        GIT_TAG v1.0.5
+)
+FetchContent_MakeAvailable(concurrentqueue)
+
 set(CMAKE_CXX_FLAGS ${ORIGINAL_FLAGS})
 
 ####

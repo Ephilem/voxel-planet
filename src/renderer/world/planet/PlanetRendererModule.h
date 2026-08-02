@@ -1,23 +1,21 @@
 #pragma once
-
-#include <flecs.h>
-
-#include "core/world/world_components.h"
-#include "renderer/rendering_components.h"
 #include "utils/common/BaseModule.h"
 
 namespace vp {
-    class PlanetRenderModule : public utils::BaseModule<PlanetRenderModule> {
+    class PlanetRendererModule : public utils::BaseModule<PlanetRendererModule> {
+
     public:
-        PlanetRenderModule(flecs::world& ecs): BaseModule(ecs){}
+        PlanetRendererModule(flecs::world& ecs): BaseModule(ecs) {}
 
     private:
+        void init_renderers(flecs::world& ecs);
+
         void register_components(flecs::world& ecs);
         void register_systems(flecs::world& ecs);
         void register_pipelines(flecs::world& ecs);
         void register_submodules(flecs::world& ecs);
         void register_entities(flecs::world& ecs);
 
-        friend class BaseModule<PlanetRenderModule>;
+        friend class BaseModule;
     };
 }
