@@ -91,6 +91,26 @@ endif()
 
 include(FetchContent)
 
+function(optimize_external_targets dir)
+    get_property(_targets DIRECTORY "${dir}" PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(_t IN LISTS _targets)
+        get_target_property(_type ${_t} TYPE)
+        get_target_property(_imported ${_t} IMPORTED)
+
+        if(NOT _imported AND _type MATCHES "^(STATIC_LIBRARY|SHARED_LIBRARY|OBJECT_LIBRARY|MODULE_LIBRARY|EXECUTABLE)$")
+            target_compile_options(${_t} PRIVATE
+                    $<$<CONFIG:Debug>:$<IF:$<CXX_COMPILER_ID:MSVC>,/O2,-O2>>
+            )
+        endif()
+    endforeach()
+
+    get_property(_subs DIRECTORY "${dir}" PROPERTY SUBDIRECTORIES)
+    foreach(_s IN LISTS _subs)
+        optimize_external_targets("${_s}")
+    endforeach()
+endfunction()
+
+
 # Optional: Tracy profiler
 option(ENABLE_TRACY "Enable Tracy profiler" ON)
 
@@ -235,6 +255,13 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(concurrentqueue)
 
 set(CMAKE_CXX_FLAGS ${ORIGINAL_FLAGS})
+
+foreach(_dep tracy vk-bootstrap VulkanMemoryAllocator glfw flecs nvrhi fastnoise2 fmt)
+    string(TOLOWER "${_dep}" _lc)
+    if(DEFINED ${_lc}_SOURCE_DIR)
+        optimize_external_targets("${${_lc}_SOURCE_DIR}")
+    endif()
+endforeach()
 
 ####
 #### End Dependencies

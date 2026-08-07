@@ -16,6 +16,7 @@
 #include "core/world/planet/planet_components.h"
 #include "core/world/spatial/spatial_components.h"
 #include "renderer/rendering_components.h"
+#include "renderer/world/planet/planet_rendering_components.h"
 
 int main() {
     try {
@@ -45,10 +46,11 @@ int main() {
 
         auto earth = ecs->entity("Earth")
                 .child_of(worldGrid)
-                .set<vp::PlanetComp>({.radius = 667544.0f})
+                .set<vp::PlanetComp>({.radius = 667'544.0f})
                 .set<vp::PlanetTerrainParams>({})
                 .set<vp::Grid>({.cellSize = 10'000.0})
                 .emplace<vp::PlanetTileLodComp>()
+                .emplace<vp::PlanetTileDrawList>()
 
                 .set<vp::GlobalTransform>({})
                 .set<vp::CellCoord>({7, 0, 0})

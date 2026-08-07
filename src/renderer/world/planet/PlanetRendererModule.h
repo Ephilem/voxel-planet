@@ -1,13 +1,18 @@
 #pragma once
+#include "PlanetTileRenderer.h"
 #include "utils/common/BaseModule.h"
 
 namespace vp {
     class PlanetRendererModule : public utils::BaseModule<PlanetRendererModule> {
 
     public:
-        PlanetRendererModule(flecs::world& ecs): BaseModule(ecs) {}
+        PlanetRendererModule(flecs::world& ecs): BaseModule(ecs) {
+            init_renderers(ecs);
+        }
 
     private:
+        std::unique_ptr<PlanetTileRenderer> m_tileRenderer;
+
         void init_renderers(flecs::world& ecs);
 
         void register_components(flecs::world& ecs);

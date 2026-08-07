@@ -8,6 +8,9 @@
 #include <cmath>
 #include <utility>
 
+#include "core/TracyIntegration.h"
+#include "core/log/Logger.h"
+
 using namespace vp;
 
 constexpr float GAIN = 0.5f;
@@ -103,6 +106,7 @@ void PlanetTerrainSampler::BatchScratch::resize(int count) {
 void PlanetTerrainSampler::fbm_batch(const float *px, const float *py, const float *pz,
                                      int count, float freq, int octave,
                                      float *out, BatchScratch &scratch) const {
+    VOXEL_ZONE_N("PlanetTerrainSampler::fbm_batch");
     std::fill(out, out + count, 0.0f);
 
     const int baseSeed = m_params.seed;
@@ -139,6 +143,7 @@ void PlanetTerrainSampler::fbm_batch(const float *px, const float *py, const flo
 void PlanetTerrainSampler::ridged_batch(const float *px, const float *py, const float *pz,
                                         int count, float freq, int octave,
                                         float *out, BatchScratch &scratch) const {
+    VOXEL_ZONE_N("PlanetTerrainSampler::ridged_batch");
     std::fill(out, out + count, 0.0f);
 
     const int baseSeed = m_params.seed + RIDGED_SEED_OFFSET;
@@ -178,6 +183,11 @@ void PlanetTerrainSampler::sample_height_batch(const float *dirX, const float *d
     if (count <= 0)
         return;
 
+    VOXEL_ZONE_N("PlanetTerrainSampler::sample_height_batch");
+    // format voxel message for tracy
+    std::string msg = "PlanetTerrainSampler::sample_height_batch: count=" + std::to_string(count) + ", lod=" + std::to_string(lod);
+    VOXEL_MESSAGE(msg.c_str());
+    LOG_DEBUG("PlanetTerrainSampler", "sample_height_batch: count={}, lod={}", count, lod);
     scratch.resize(count);
 
     const int octave = octave_for_lod(lod);

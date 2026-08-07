@@ -23,6 +23,9 @@ add_library(VoxelPlanetRenderer STATIC
         debug/DebugRenderModule.h
         world/planet/PlanetRendererModule.cpp
         world/planet/PlanetRendererModule.h
+        world/planet/PlanetTileRenderer.cpp
+        world/planet/PlanetTileRenderer.h
+        world/planet/planet_rendering_components.h
 )
 
 add_library(VoxelPlanet::Renderer ALIAS VoxelPlanetRenderer)
