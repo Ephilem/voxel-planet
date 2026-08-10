@@ -6,11 +6,16 @@
 
 #include <glm/glm.hpp>
 
+#include "core/math/frustrum.h"
 #include "core/world/world_components.h"
 #include "core/world/planet/planet_types.h"
+#include "renderer/world/planet/planet_rendering_types.h"
 
 namespace vp {
     const uint32_t INVALID_NODE = 0xFFFFFFFF;
+
+    /// Four corners then the center
+    constexpr int NODE_SAMPLE_COUNT = 5;
 
     struct PlanetQuadtreeNode {
         CubemapFace face = FACE_UNKNOWN;
@@ -19,25 +24,30 @@ namespace vp {
 
         uint32_t firstChild = INVALID_NODE; // index of the first of the 4 contiguous children
 
+        /// Node bounds in planet space, swept over the height range
+        glm::vec3 boundsLo{0.f};
+        glm::vec3 boundsHi{0.f};
+
         [[nodiscard]] bool is_leaf() const { return firstChild == INVALID_NODE; }
     };
+    static_assert(sizeof(PlanetQuadtreeNode) <= 48, "PlanetQuadtreeNode grew, re-profile update()");
 
     struct PlanetLodParams {
         double planetRadius = 667544.0;
-        uint8_t maxLevel = 11;
+        uint8_t maxLevel = 10;
 
-        double splitFactor = 2.0;
+        double splitFactor = 3.0;
 
         /// Merge at splitFactor * mergeHysteresis
-        double mergeHysteresis = 1.6;
+        double mergeHysteresis = 1.2;
 
-        /// Vertical extent of a node, meters relative to sea level. Feeds both the
-        /// bounds distance and the horizon test. Later comes from the tile minH/maxH
+
+        float morphRange = 0.5;
+
         double minNodeHeight = -2000.0;
         double maxNodeHeight = 5000.0;
 
-        /// Coarse per face early out only. The real culling is per node, below the horizon
-        double faceCullAngleDeg = 120.0;
+        double faceCullAngleDeg = 90.0;
 
         uint32_t chunkSize = CHUNK_SIZE;
     };
@@ -78,6 +88,8 @@ namespace vp {
             uint32_t culledFaces = 0;
             uint32_t culledNodes = 0;
             uint32_t balanceSplits = 0; // splits forced by the 2:1 neighbour rule
+            uint32_t frustumCulledNodes = 0; // subtrees skipped when collecting the draw list
+            uint32_t collectedTiles = 0; // leaves that made it into the draw list
         };
 
         [[nodiscard]] const Stats& stats() const { return m_stats; }
@@ -96,6 +108,22 @@ namespace vp {
         void debug_draw(const glm::vec3& originRender, const PlanetLodParams& params,
                         DebugMode mode = DebugMode::Level, int segmentsPerEdge = 6) const;
 
+        /**
+         * Collect planet tiles for rendering of these tiles
+         *
+         * @param frustum in camera relative space, ie the same space as the emitted
+         *                originSpacePos. Null disables the test
+         */
+        void collect_node(uint32_t index, const PlanetLodParams &params, const glm::dvec3 &cameraPosPlanet,
+                          std::vector<PlanetTileDrawItem> &out, const Frustrum *frustum = nullptr);
+
+        /// Resets the per collect counters. update() cannot do it, since it returns early
+        /// when frozen while collection still runs every frame
+        void begin_collect() {
+            m_stats.frustumCulledNodes = 0;
+            m_stats.collectedTiles = 0;
+        }
+
     private:
         void update_node(uint32_t index, const glm::dvec3& cameraPosPlanet, const PlanetLodParams& params);
 
@@ -107,15 +135,6 @@ namespace vp {
         [[nodiscard]] bool below_horizon(uint32_t index, const glm::dvec3& cameraPosPlanet,
                                          const PlanetLodParams& params) const;
 
-        /// Force splits until no leaf has a neighbour more than one level finer
-        void enforce_balance(const PlanetLodParams& params);
-
-        /// Leaf or internal node touching edge dir (0=+u, 1=-u, 2=+v, 3=-v), across faces
-        [[nodiscard]] uint32_t find_neighbour(uint32_t index, int dir) const;
-
-        /// Deepest node containing that face cell, clamped to the existing tree
-        [[nodiscard]] uint32_t find_node(CubemapFace face, uint8_t level, int64_t x, int64_t y) const;
-
         void debug_draw_node(uint32_t index, const glm::vec3& originRender, const PlanetLodParams& params,
                              DebugMode mode, int segmentsPerEdge) const;
 
@@ -123,12 +142,24 @@ namespace vp {
         [[nodiscard]] glm::dvec3 node_point(uint32_t index, double cu, double cv,
                                             const PlanetLodParams& params) const;
 
-        void split(uint32_t index);
+        /// Fills boundsLo/boundsHi. Called once per node, on creation
+        static void init_node_bounds(PlanetQuadtreeNode& node, const PlanetLodParams& params);
+
+        /// Rebuilds every node's bounds, after a change to the radius or the height range
+        void rebuild_bounds(const PlanetLodParams& params);
+
+        void split(uint32_t index, const PlanetLodParams& params);
         void merge(uint32_t index);
 
         std::vector<PlanetQuadtreeNode> m_nodes;
         std::array<uint32_t, 6> m_roots{};
         std::queue<uint32_t> m_freeNodes; // indices of the first of 4 contiguous freed children
+
+        /// The values the cached bounds were built from. Bounds are geometry plus radius
+        /// and height range, so a live tweak of any of the three has to invalidate them
+        double m_boundsRadius = 0.0;
+        double m_boundsMinHeight = 0.0;
+        double m_boundsMaxHeight = 0.0;
 
         Stats m_stats;
         bool m_frozen = false;

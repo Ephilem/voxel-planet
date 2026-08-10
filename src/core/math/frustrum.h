@@ -3,7 +3,6 @@
 #include <array>
 
 #include "aabb.h"
-#include "frustrum.h"
 
 
 class Frustrum {
@@ -40,14 +39,17 @@ public:
             projectionViewMatrix[2][3] - projectionViewMatrix[2][1],
             projectionViewMatrix[3][3] - projectionViewMatrix[3][1]
         );
-        // Near plane
+        // Near plane. Vulkan clips depth to [0,1], not [-1,1] like OpenGL, so this is the
+        // plain z row rather than w+z. Getting it wrong culls geometry in front of the
+        // camera, and the mistake hides easily since the side planes still look right
         m_planes[4] = glm::vec4(
-            projectionViewMatrix[0][3] + projectionViewMatrix[0][2],
-            projectionViewMatrix[1][3] + projectionViewMatrix[1][2],
-            projectionViewMatrix[2][3] + projectionViewMatrix[2][2],
-            projectionViewMatrix[3][3] + projectionViewMatrix[3][2]
+            projectionViewMatrix[0][2],
+            projectionViewMatrix[1][2],
+            projectionViewMatrix[2][2],
+            projectionViewMatrix[3][2]
         );
-        // Far plane
+        // Far plane. Degenerate under an infinite far plane, where w-z reduces to zero and
+        // the normalization below leaves it as a plane that accepts everything
         m_planes[5] = glm::vec4(
             projectionViewMatrix[0][3] - projectionViewMatrix[0][2],
             projectionViewMatrix[1][3] - projectionViewMatrix[1][2],
@@ -59,6 +61,10 @@ public:
             float length = glm::length(glm::vec3(plane));
             if (length > 0.0001f) {
                 plane /= length;
+            } else {
+                // Degenerate, as the far plane is with an infinite projection. Left as a
+                // plane every point passes, so the test below simply ignores it
+                plane = glm::vec4(0.0f);
             }
         }
     }

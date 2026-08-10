@@ -9,7 +9,11 @@ namespace vp {
         std::unique_ptr<PlanetQuadtrees> quadtree;
         PlanetLodParams params;
 
-        bool debugDrawNodes = true;
+        /// Filters the draw list against the camera frustum. Toggleable so the debug view
+        /// can freeze the traversal and still fly around to inspect what was culled
+        bool frustumCulling = true;
+
+        bool debugDrawNodes = false;
         PlanetQuadtrees::DebugMode debugMode = PlanetQuadtrees::DebugMode::Level;
         int debugSegmentsPerEdge = 6;
     };

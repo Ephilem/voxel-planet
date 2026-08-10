@@ -50,7 +50,7 @@ int main() {
                 .set<vp::PlanetTerrainParams>({})
                 .set<vp::Grid>({.cellSize = 10'000.0})
                 .emplace<vp::PlanetTileLodComp>()
-                .emplace<vp::PlanetTileDrawList>()
+                .emplace<vp::PlanetTileDrawListComp>()
 
                 .set<vp::GlobalTransform>({})
                 .set<vp::CellCoord>({7, 0, 0})

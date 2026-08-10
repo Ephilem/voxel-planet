@@ -49,6 +49,10 @@ namespace vp {
 
         int octave_for_lod(int lod) const;
 
+        /// Somme des amplitudes d'un fractal de `octave` octaves, cad son facteur
+        /// de normalisation. Toujours appele avec maxOctave, cf. les batch.
+        static float fractal_bounding(int octave);
+
         void fbm_batch(const float* px, const float* py, const float* pz,
                        int count, float freq, int octave,
                        float* out, BatchScratch& scratch) const;

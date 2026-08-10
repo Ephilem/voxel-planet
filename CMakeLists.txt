@@ -116,13 +116,16 @@ option(ENABLE_TRACY "Enable Tracy profiler" ON)
 
 if(ENABLE_TRACY)
     FetchContent_Declare(
-        tracy
-        GIT_REPOSITORY https://github.com/wolfpld/tracy.git
-        GIT_TAG v0.13.1
-        GIT_SHALLOW TRUE
+            tracy
+            GIT_REPOSITORY https://github.com/wolfpld/tracy.git
+            GIT_TAG v0.14.0
+            GIT_SHALLOW TRUE
     )
     set(TRACY_ENABLE ON CACHE BOOL "" FORCE)
     set(TRACY_ON_DEMAND ON CACHE BOOL "" FORCE)
+    set(TRACY_VERBOSE OFF CACHE BOOL "" FORCE)
+    set(TRACY_TIMER_FALLBACK ON CACHE BOOL "" FORCE)
+    set(TRACY_DISALLOW_HW_TIMER ON CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(tracy)
     set(TRACY_FOUND TRUE)
     message(STATUS "Tracy profiler enabled")
@@ -256,7 +259,7 @@ FetchContent_MakeAvailable(concurrentqueue)
 
 set(CMAKE_CXX_FLAGS ${ORIGINAL_FLAGS})
 
-foreach(_dep tracy vk-bootstrap VulkanMemoryAllocator glfw flecs nvrhi fastnoise2 fmt)
+foreach(_dep tracy vk-bootstrap VulkanMemoryAllocator glfw nvrhi fastnoise2 fmt)
     string(TOLOWER "${_dep}" _lc)
     if(DEFINED ${_lc}_SOURCE_DIR)
         optimize_external_targets("${${_lc}_SOURCE_DIR}")
@@ -285,6 +288,7 @@ endif()
 add_executable(${PROJECT_NAME}
         src/main.cpp
         src/vulkan_dispatcher.cpp
+        assets/shaders/noise.glsl
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE

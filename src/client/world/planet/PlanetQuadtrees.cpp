@@ -1,7 +1,9 @@
 #include "PlanetQuadtrees.h"
 
 #include <cmath>
+#include <limits>
 
+#include "core/TracyIntegration.h"
 #include "core/debug/DebugDraw.h"
 #include "core/world/planet/planet_transform.h"
 
@@ -48,12 +50,57 @@ namespace {
     }
 }
 
+void PlanetQuadtrees::init_node_bounds(PlanetQuadtreeNode &node, const PlanetLodParams &params) {
+    const double rLo = params.planetRadius + params.minNodeHeight;
+    const double rHi = params.planetRadius + params.maxNodeHeight;
+
+    glm::dvec3 lo(std::numeric_limits<double>::max());
+    glm::dvec3 hi(std::numeric_limits<double>::lowest());
+
+    // Four corners plus the center, the latter because on the sphere the middle of the
+    // node bulges out of the plane of its corners
+    for (int i = 0; i < NODE_SAMPLE_COUNT; ++i) {
+        const double cu = i < 4 ? double(i & 1) : 0.5;
+        const double cv = i < 4 ? double(i >> 1) : 0.5;
+
+        double u, v;
+        node_uv(node, cu, cv, u, v);
+        const glm::dvec3 dir = face_uv_to_direction(node.face, u, v); // already unit length
+
+        lo = glm::min(lo, glm::min(dir * rLo, dir * rHi));
+        hi = glm::max(hi, glm::max(dir * rLo, dir * rHi));
+    }
+
+    node.boundsLo = glm::vec3(lo);
+    node.boundsHi = glm::vec3(hi);
+}
+
+void PlanetQuadtrees::rebuild_bounds(const PlanetLodParams &params) {
+    // Freed nodes are left in the pool and rebuilt too: they still hold a valid face and
+    // level, and skipping them would mean tracking which pool slots are live
+    for (PlanetQuadtreeNode &node: m_nodes) {
+        if (node.face != FACE_UNKNOWN) init_node_bounds(node, params);
+    }
+
+    m_boundsRadius = params.planetRadius;
+    m_boundsMinHeight = params.minNodeHeight;
+    m_boundsMaxHeight = params.maxNodeHeight;
+}
+
 PlanetQuadtrees::PlanetQuadtrees() {
-    m_nodes.reserve(1024);
+    m_nodes.reserve(32768);
 
     for (uint8_t face = 0; face < 6; ++face) {
         m_roots[face] = uint32_t(m_nodes.size());
-        m_nodes.push_back({CubemapFace(face), 0, 0, 0, INVALID_NODE});
+
+        PlanetQuadtreeNode root;
+        root.face = CubemapFace(face);
+        root.level = 0;
+        root.x = 0;
+        root.y = 0;
+        root.firstChild = INVALID_NODE;
+
+        m_nodes.push_back(root);
     }
 }
 
@@ -76,7 +123,7 @@ double PlanetQuadtrees::node_size(uint32_t index, const PlanetLodParams &params)
     return planet_node_size(params.planetRadius, m_nodes[index].level);
 }
 
-void PlanetQuadtrees::split(uint32_t index) {
+void PlanetQuadtrees::split(uint32_t index, const PlanetLodParams &params) {
     const PlanetQuadtreeNode parent = m_nodes[index];
 
     uint32_t first;
@@ -95,6 +142,7 @@ void PlanetQuadtrees::split(uint32_t index) {
         child.x = parent.x * 2 + (i & 1u);
         child.y = parent.y * 2 + (i >> 1u);
         child.firstChild = INVALID_NODE;
+        init_node_bounds(child, params);
     }
 
     m_nodes[index].firstChild = first;
@@ -116,8 +164,15 @@ void PlanetQuadtrees::merge(uint32_t index) {
 
 void PlanetQuadtrees::update(const glm::dvec3 &cameraPosPlanet, const PlanetLodParams &params) {
     if (m_frozen) return;
+    VOXEL_ZONE_N("PlanetQuadtrees::update");
 
     m_stats = {};
+
+    if (params.planetRadius != m_boundsRadius ||
+        params.minNodeHeight != m_boundsMinHeight ||
+        params.maxNodeHeight != m_boundsMaxHeight) {
+        rebuild_bounds(params);
+    }
 
     const double camLen = glm::length(cameraPosPlanet);
     // The camera exactly at the center has no direction, so nothing can be culled
@@ -127,6 +182,7 @@ void PlanetQuadtrees::update(const glm::dvec3 &cameraPosPlanet, const PlanetLodP
     for (uint8_t face = 0; face < 6; ++face) {
         const uint32_t rootIndex = m_roots[face];
 
+        // Six per frame, so recomputing beats carrying a cached direction in every node
         const glm::dvec3 faceDir = glm::normalize(node_center(rootIndex, params));
         if (camLen > 1e-9 && glm::dot(faceDir, camDir) < cosFaceCull) {
             merge(rootIndex);
@@ -152,13 +208,11 @@ void PlanetQuadtrees::update_node(uint32_t index, const glm::dvec3 &cameraPosPla
     const PlanetQuadtreeNode &n = m_nodes[index];
     const bool canSplit = n.level < params.maxLevel;
     const bool wantsSplit = distance < params.splitFactor * size;
-    // Merging further out than the split distance leaves a dead band where neither
-    // fires, so a camera sitting on the threshold stops flickering
     const bool wantsMerge = distance > params.splitFactor * params.mergeHysteresis * size;
 
     if (n.is_leaf()) {
         if (canSplit && wantsSplit) {
-            split(index);
+            split(index, params);
         } else {
             ++m_stats.leafCount;
             return;
@@ -177,31 +231,17 @@ void PlanetQuadtrees::update_node(uint32_t index, const glm::dvec3 &cameraPosPla
 
 double PlanetQuadtrees::node_distance(uint32_t index, const glm::dvec3 &cameraPosPlanet,
                                       const PlanetLodParams &params) const {
-    const double rLo = params.planetRadius + params.minNodeHeight;
-    const double rHi = params.planetRadius + params.maxNodeHeight;
+    const PlanetQuadtreeNode &n = m_nodes[index];
 
-    glm::dvec3 lo(std::numeric_limits<double>::max());
-    glm::dvec3 hi(std::numeric_limits<double>::lowest());
-
-    // The four corners, plus the center: on the sphere the middle of the node
-    // bulges outward from the plane of the corners, so it has to be sampled too
-    for (int i = 0; i < 5; ++i) {
-        const double cu = i < 4 ? double(i & 1) : 0.5;
-        const double cv = i < 4 ? double(i >> 1) : 0.5;
-        const glm::dvec3 dir = glm::normalize(node_point(index, cu, cv, params));
-        lo = glm::min(lo, glm::min(dir * rLo, dir * rHi));
-        hi = glm::max(hi, glm::max(dir * rLo, dir * rHi));
-    }
-
-    const glm::dvec3 d = glm::max(glm::max(lo - cameraPosPlanet, cameraPosPlanet - hi),
+    const glm::dvec3 d = glm::max(glm::max(glm::dvec3(n.boundsLo) - cameraPosPlanet,
+                                           cameraPosPlanet - glm::dvec3(n.boundsHi)),
                                   glm::dvec3(0.0));
     return glm::length(d);
 }
 
 bool PlanetQuadtrees::below_horizon(uint32_t index, const glm::dvec3 &cameraPosPlanet,
-                                     const PlanetLodParams &params) const {
-    // Cesium's occlusion test, in units of the occluding sphere. A point is hidden
-    // when it sits inside the tangent cone AND behind the plane of the horizon ring
+                                    const PlanetLodParams &params) const {
+    // Cesium's occlusion test, in units of the occluding sphere
     const double R = params.planetRadius + params.minNodeHeight;
     if (R <= 0.0) return false;
 
@@ -211,12 +251,15 @@ bool PlanetQuadtrees::below_horizon(uint32_t index, const glm::dvec3 &cameraPosP
 
     const double rHi = (params.planetRadius + params.maxNodeHeight) / R;
 
-    // The node is hidden only if all of its corners are. Testing the highest
-    // point of each corner is what keeps mountains from popping in late
+    const PlanetQuadtreeNode &n = m_nodes[index];
+
     for (int i = 0; i < 4; ++i) {
-        const glm::dvec3 t = glm::normalize(node_point(index, double(i & 1), double(i >> 1), params)) * rHi;
-        const glm::dvec3 vt = t - cv;            // camera to the corner
-        const double dot = -glm::dot(vt, cv);    // positive when heading away from the camera
+        double u, v;
+        node_uv(n, double(i & 1), double(i >> 1), u, v);
+
+        const glm::dvec3 t = face_uv_to_direction(n.face, u, v) * rHi;
+        const glm::dvec3 vt = t - cv; // camera to the corner
+        const double dot = -glm::dot(vt, cv); // positive when heading away from the camera
 
         // Behind the plane of the horizon ring, then inside the tangent cone
         if (dot <= vhSq) return false;
@@ -256,10 +299,14 @@ void PlanetQuadtrees::debug_draw_node(uint32_t index, const glm::vec3 &originRen
 
             double u0, v0, u1, v1;
             switch (edge) {
-                case 0: u0 = t0, v0 = 0.0, u1 = t1, v1 = 0.0; break; // bottom
-                case 1: u0 = 1.0, v0 = t0, u1 = 1.0, v1 = t1; break; // right
-                case 2: u0 = t0, v0 = 1.0, u1 = t1, v1 = 1.0; break; // top
-                default: u0 = 0.0, v0 = t0, u1 = 0.0, v1 = t1; break; // left
+                case 0: u0 = t0, v0 = 0.0, u1 = t1, v1 = 0.0;
+                    break; // bottom
+                case 1: u0 = 1.0, v0 = t0, u1 = 1.0, v1 = t1;
+                    break; // right
+                case 2: u0 = t0, v0 = 1.0, u1 = t1, v1 = 1.0;
+                    break; // top
+                default: u0 = 0.0, v0 = t0, u1 = 0.0, v1 = t1;
+                    break; // left
             }
 
             const glm::vec3 p0 = originRender + glm::vec3(node_point(index, u0, v0, params));
@@ -267,4 +314,48 @@ void PlanetQuadtrees::debug_draw_node(uint32_t index, const glm::vec3 &originRen
             DebugDraw::Line(p0, p1, color);
         }
     }
+}
+
+void PlanetQuadtrees::collect_node(uint32_t index, const PlanetLodParams &params, const glm::dvec3 &cameraPosPlanet,
+                                   std::vector<PlanetTileDrawItem> &out, const Frustrum *frustum) {
+    const PlanetQuadtreeNode &node = this->node(index);
+
+    if (frustum) {
+        const AABB box(glm::vec3(glm::dvec3(node.boundsLo) - cameraPosPlanet),
+                       glm::vec3(glm::dvec3(node.boundsHi) - cameraPosPlanet));
+
+        if (!frustum->intersects(box)) {
+            ++m_stats.frustumCulledNodes;
+            return;
+        }
+    }
+
+    if (!node.is_leaf()) {
+        for (uint32_t i = 0; i < 4; ++i) {
+            collect_node(node.firstChild + i, params, cameraPosPlanet, out, frustum);
+        }
+        return;
+    }
+
+    const glm::dvec3 originPlanet = node_point(index, 0.0, 0.0, params);
+
+    const double size = node_size(index, params);
+    const double distance = node_distance(index, cameraPosPlanet, params);
+
+    const double splitDist = params.splitFactor * size;
+    const double mergeDist = splitDist * params.mergeHysteresis;
+    const double morphStart = mergeDist - (mergeDist - splitDist) * params.morphRange;
+
+    const double denom = mergeDist - morphStart;
+
+    PlanetTileDrawItem item;
+    item.key = PlanetTileKey(node.face, node.level, node.x, node.y);
+    item.originSpacePos = glm::vec3(originPlanet - cameraPosPlanet);
+    item.morph = denom > 1e-9
+                     ? float(glm::clamp((distance - morphStart) / denom, 0.0, 1.0))
+                     : 0.f;
+    item.distance = float(distance);
+
+    out.push_back(item);
+    ++m_stats.collectedTiles;
 }

@@ -53,7 +53,7 @@ void DebugDrawRenderer::init_gpu() {
     auto depthStencilState = nvrhi::DepthStencilState()
             .setDepthTestEnable(true)
             .setDepthWriteEnable(true)
-            .setDepthFunc(nvrhi::ComparisonFunc::LessOrEqual);
+            .setDepthFunc(nvrhi::ComparisonFunc::GreaterOrEqual); // reverse z depth buffer
 
     auto framebufferInfo = nvrhi::FramebufferInfo()
             .addColorFormat(m_backend->get_swapchain_format())
@@ -156,7 +156,7 @@ void DebugDrawRenderer::render_points(nvrhi::CommandListHandle cmd, Camera3d &ca
     cmd->writeBuffer(m_pointBuffer, points.data(), points.size() * sizeof(DebugVertex));
 
     auto extent = m_backend->get_swapchain_extent();
-    DebugDrawPushConstants pc{camera.projectionMatrix * camera.viewMatrix, camera.farClip};
+    DebugDrawPushConstants pc{camera.projectionMatrix * camera.viewMatrix};
 
     auto state = nvrhi::GraphicsState()
             .setPipeline(m_pointPipeline)

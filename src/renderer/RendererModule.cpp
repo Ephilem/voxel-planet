@@ -51,7 +51,7 @@ void RendererModule::register_systems(flecs::world &ecs) {
                 ctx.commandList->open();
 
                 nvrhi::utils::ClearColorAttachment(ctx.commandList, renderer.backend->get_current_framebuffer(), 0, nvrhi::Color(0.0f, 0.0f, 0.0f, 1.0f));
-                nvrhi::utils::ClearDepthStencilAttachment(ctx.commandList, renderer.backend->get_current_framebuffer(), 1.0f, 0);
+                nvrhi::utils::ClearDepthStencilAttachment(ctx.commandList, renderer.backend->get_current_framebuffer(), 0.0f, 0);
 
                 nvrhi::TextureHandle currentTexture = renderer.backend->get_current_texture();
                 ctx.commandList->setTextureState(

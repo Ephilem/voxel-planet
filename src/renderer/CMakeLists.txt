@@ -26,6 +26,11 @@ add_library(VoxelPlanetRenderer STATIC
         world/planet/PlanetTileRenderer.cpp
         world/planet/PlanetTileRenderer.h
         world/planet/planet_rendering_components.h
+        world/planet/PlanetTileAtlas.cpp
+        world/planet/PlanetTileAtlas.h
+        world/planet/planet_rendering_types.h
+        world/planet/PlanetTileGenerator.cpp
+        world/planet/PlanetTileGenerator.h
 )
 
 add_library(VoxelPlanet::Renderer ALIAS VoxelPlanetRenderer)

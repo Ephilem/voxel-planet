@@ -208,14 +208,31 @@ VulkanBackend::~VulkanBackend() {
 
 void VulkanBackend::init_nvrhi() {
     vkb::PhysicalDeviceSelector selector{ instance };
-    auto physicalDevice_ret = selector
+    selector
         .set_surface(surface)
         .prefer_gpu_device_type(vkb::PreferredDeviceType::discrete)
         .set_minimum_version(1, 3)
 #ifdef TRACY_ENABLE
         .add_required_extension(VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME)
 #endif
-        .select();
+        .allow_any_gpu_device_type(false);
+
+    auto full = selector.select_devices(vkb::DeviceSelectionMode::only_fully_suitable);
+    auto all = selector.select_devices(vkb::DeviceSelectionMode::partially_and_fully_suitable);
+
+    if (all) {
+        for (auto& d : all.value())
+            LOG_DEBUG("VulkanBackend", "Candidate: {} type={}",
+                      d.properties.deviceName, (int)d.properties.deviceType);
+    }
+    if (full) {
+        for (auto& d : full.value())
+            LOG_DEBUG("VulkanBackend", "Fully suitable: {}", d.properties.deviceName);
+    } else {
+        LOG_DEBUG("VulkanBackend", "No device found: {}", full.error().message());
+    }
+
+    auto physicalDevice_ret = selector.select();
 
     if (!physicalDevice_ret) {
         throw std::runtime_error("Failed to select physical device: " + std::string(physicalDevice_ret.error().message()));

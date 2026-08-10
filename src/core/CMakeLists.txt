@@ -56,6 +56,7 @@ target_link_libraries(VoxelPlanetCore
         flecs::flecs_static
         fmt::fmt
         FastNoise2
+        concurrentqueue
     PRIVATE
         glfw
         imgui

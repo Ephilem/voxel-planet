@@ -37,10 +37,13 @@ namespace vp::systems {
         camera.aspect_ratio = static_cast<glm::float32>(rendererParameters.width) / static_cast<glm::float32>(
                                   rendererParameters.height);
 
-        camera.projectionMatrix = glm::perspective(
-            glm::radians(parameters.fov),
-            camera.aspect_ratio,
-            camera.nearClip,
-            camera.farClip);
+        const float f = 1.0f / std::tan(glm::radians(parameters.fov) * 0.5f);
+        const float aspect = float(rendererParameters.width) / float(rendererParameters.height);
+
+        camera.projectionMatrix = glm::mat4(
+            f / aspect, 0.f,  0.f,  0.f,
+            0.f,        f,    0.f,  0.f,
+            0.f,        0.f,  0.f, -1.f,
+            0.f,        0.f,  camera.nearClip, 0.f);
     }
 }

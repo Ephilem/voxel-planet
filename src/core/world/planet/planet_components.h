@@ -11,10 +11,10 @@ namespace vp {
     struct PlanetTerrainParams {
         float seaLevel = 0.f;
         float continentAmplitude = 1200.f;
-        float continentFrequency = 1.5f;
-        float mountainAmplitude = 600.f;
-        float mountainFrequency = 8.f;
-        int continentOctave = 4;
+        float continentFrequency = 2.5f;
+        float mountainAmplitude = 1200.f;
+        float mountainFrequency = 12.f;
+        int   continentOctave = 5;
         int maxOctave = 10;
         int32_t seed = 1234;
     };

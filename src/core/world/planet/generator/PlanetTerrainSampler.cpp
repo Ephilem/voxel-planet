@@ -25,6 +25,23 @@ PlanetTerrainSampler::PlanetTerrainSampler(PlanetTerrainParams params)
     : m_params(std::move(params)), m_noise(FastNoise::New<FastNoise::Simplex>()) {
 }
 
+// Normaliser par le bounding de maxOctave et non du nombre d'octaves courant :
+// sinon ajouter une octave rescale toutes les précédentes (norm passe de 1.984
+// à 1.992 entre 7 et 8 octaves, soit 0.39 %) et le terrain déjà visible se
+// déplace verticalement au LOD switch. Avec une constante la somme reste
+// strictement additive : niveau fin = niveau grossier + détail HF.
+float PlanetTerrainSampler::fractal_bounding(int octave) {
+    float amplitude = 1.0f;
+    float norm = 0.0f;
+
+    for (int i = 0; i < octave; ++i) {
+        norm += amplitude;
+        amplitude *= GAIN;
+    }
+
+    return norm;
+}
+
 // Les octaves sont sommées à la main plutôt que via FastNoise::FractalFBm :
 // SetOctaveCount() mute le node partagé (et recalcule mFractalBounding), donc
 // il est inutilisable pour un nombre d'octaves variable par appel.
@@ -33,17 +50,15 @@ float PlanetTerrainSampler::fbm(const glm::vec3 &position, float freq, int octav
 
     float sum = 0.0f;
     float amplitude = 1.0f;
-    float norm = 0.0f;
     float f = freq;
 
     for (int i = 0; i < octave; ++i) {
         sum += amplitude * m_noise->GenSingle3D(position.x * f, position.y * f, position.z * f, baseSeed + i);
-        norm += amplitude;
         amplitude *= GAIN;
         f *= LACUNARITY;
     }
 
-    return norm > 0.0f ? sum / norm : 0.0f;
+    return sum / fractal_bounding(m_params.maxOctave);
 }
 
 float PlanetTerrainSampler::ridged(const glm::vec3 &position, float freq, int octave) const {
@@ -51,18 +66,16 @@ float PlanetTerrainSampler::ridged(const glm::vec3 &position, float freq, int oc
 
     float sum = 0.0f;
     float amplitude = 1.0f;
-    float norm = 0.0f;
     float f = freq;
 
     for (int i = 0; i < octave; ++i) {
         const float n = m_noise->GenSingle3D(position.x * f, position.y * f, position.z * f, baseSeed + i);
         sum += amplitude * (1.0f - std::abs(n)); // crêtes
-        norm += amplitude;
         amplitude *= GAIN;
         f *= LACUNARITY;
     }
 
-    return norm > 0.0f ? (sum / norm) * 2.0f - 1.0f : 0.0f; // [-1, 1]
+    return (sum / fractal_bounding(m_params.maxOctave)) * 2.0f - 1.0f; // [-1, 1]
 }
 
 // Règle n°2 : band-limiting. Une octave n'est incluse que si sa longueur
@@ -111,7 +124,6 @@ void PlanetTerrainSampler::fbm_batch(const float *px, const float *py, const flo
 
     const int baseSeed = m_params.seed;
     float amplitude = 1.0f;
-    float norm = 0.0f;
     float f = freq;
 
     for (int i = 0; i < octave; ++i) {
@@ -128,16 +140,13 @@ void PlanetTerrainSampler::fbm_batch(const float *px, const float *py, const flo
         for (int k = 0; k < count; ++k)
             out[k] += amplitude * scratch.noise[k];
 
-        norm += amplitude;
         amplitude *= GAIN;
         f *= LACUNARITY;
     }
 
-    if (norm > 0.0f) {
-        const float inv = 1.0f / norm;
-        for (int k = 0; k < count; ++k)
-            out[k] *= inv;
-    }
+    const float inv = 1.0f / fractal_bounding(m_params.maxOctave);
+    for (int k = 0; k < count; ++k)
+        out[k] *= inv;
 }
 
 void PlanetTerrainSampler::ridged_batch(const float *px, const float *py, const float *pz,
@@ -148,7 +157,6 @@ void PlanetTerrainSampler::ridged_batch(const float *px, const float *py, const 
 
     const int baseSeed = m_params.seed + RIDGED_SEED_OFFSET;
     float amplitude = 1.0f;
-    float norm = 0.0f;
     float f = freq;
 
     for (int i = 0; i < octave; ++i) {
@@ -165,16 +173,13 @@ void PlanetTerrainSampler::ridged_batch(const float *px, const float *py, const 
         for (int k = 0; k < count; ++k)
             out[k] += amplitude * (1.0f - std::abs(scratch.noise[k])); // ridge
 
-        norm += amplitude;
         amplitude *= GAIN;
         f *= LACUNARITY;
     }
 
-    if (norm > 0.0f) {
-        const float inv = 1.0f / norm;
-        for (int k = 0; k < count; ++k)
-            out[k] = (out[k] * inv) * 2.0f - 1.0f; // [-1, 1]
-    }
+    const float inv = 1.0f / fractal_bounding(m_params.maxOctave);
+    for (int k = 0; k < count; ++k)
+        out[k] = (out[k] * inv) * 2.0f - 1.0f; // [-1, 1]
 }
 
 void PlanetTerrainSampler::sample_height_batch(const float *dirX, const float *dirY, const float *dirZ,
@@ -184,10 +189,6 @@ void PlanetTerrainSampler::sample_height_batch(const float *dirX, const float *d
         return;
 
     VOXEL_ZONE_N("PlanetTerrainSampler::sample_height_batch");
-    // format voxel message for tracy
-    std::string msg = "PlanetTerrainSampler::sample_height_batch: count=" + std::to_string(count) + ", lod=" + std::to_string(lod);
-    VOXEL_MESSAGE(msg.c_str());
-    LOG_DEBUG("PlanetTerrainSampler", "sample_height_batch: count={}, lod={}", count, lod);
     scratch.resize(count);
 
     const int octave = octave_for_lod(lod);

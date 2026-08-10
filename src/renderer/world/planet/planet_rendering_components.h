@@ -1,28 +1,37 @@
 #pragma once
+#include <memory>
 #include <vector>
 
-#include <glm/glm.hpp>
 
-#include "core/world/planet/planet_types.h"
+#include "PlanetTileGenerator.h"
+#include "planet_rendering_types.h"
 
 namespace vp {
-    struct alignas(16) PlanetTileDrawInstance {
-        glm::vec3 originSpacePos;
-        float extent;
-        glm::vec2 nodeFaceOrigin;
 
-        /// face (3 bits) | level (5 bits)
-        uint32_t packed;
+    class PlanetTileAtlas;
+    class PlanetTileRenderer;
 
-        /// 0 = own resolution, 1 = snapped to the parent
-        float morph;
+    /**
+     * Singleton handles on the objects owned by PlanetRendererModule.
+     *
+     * Both live in unique_ptrs the module never publishes, so debug panels on the client side have
+     * no way to read atlas residency or slot resolution. These borrow them, non-owning: they stay
+     * valid exactly as long as the module does
+     */
+    struct PlanetTileAtlasRef {
+        PlanetTileAtlas *atlas = nullptr;
+        PlanetTileRenderer *renderer = nullptr;
     };
 
-    inline uint32_t planet_tile_pack(CubemapFace face, uint8_t level) {
-        return uint32_t(face) | (uint32_t(level) << 3);
-    }
+    struct PlanetTileDrawListComp {
+        std::vector<PlanetTileDrawItem> drawItems;
+    };
 
-    struct PlanetTileDrawList {
-        std::vector<PlanetTileDrawInstance> drawInstances;
+    struct PlanetTileStreamComp {
+        std::unique_ptr<PlanetTileGenerator> generator;
+        std::vector<PlanetTileGenerator::PlanetTileResult> drainScratch;
     };
 }
+
+
+

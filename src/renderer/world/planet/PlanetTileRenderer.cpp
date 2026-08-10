@@ -1,7 +1,11 @@
 #include "PlanetTileRenderer.h"
 
+#include <algorithm>
+
+#include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
 #include "core/world/planet/planet_components.h"
+#include "core/world/planet/planet_transform.h"
 #include "core/world/spatial/spatial_components.h"
 #include "renderer/Renderer.h"
 #include "renderer/TracyVulkanIntegration.h"
@@ -15,16 +19,16 @@ void PlanetTileRenderer::generate_mesh() {
 
     for (uint32_t y = 0; y < GRID_RES - 1; ++y) {
         for (uint32_t x = 0; x < GRID_RES - 1; ++x) {
-            const uint16_t i0 = uint16_t(y * GRID_RES + x);
-            const uint16_t i1 = uint16_t(i0 + 1);
-            const uint16_t i2 = uint16_t(i0 + GRID_RES);
-            const uint16_t i3 = uint16_t(i2 + 1);
+            const uint16_t i0 = static_cast<uint16_t>(y * GRID_RES + x);
+            const uint16_t i1 = static_cast<uint16_t>(i0 + 1);
+            const uint16_t i2 = static_cast<uint16_t>(i0 + GRID_RES);
+            const uint16_t i3 = static_cast<uint16_t>(i2 + 1);
 
             indices.insert(indices.end(), {i0, i2, i1, i1, i2, i3});
         }
     }
 
-    m_indexCount = uint32_t(indices.size());
+    m_indexCount = static_cast<uint32_t>(indices.size());
 
     const auto desc = nvrhi::BufferDesc()
             .setByteSize(indices.size() * sizeof(uint16_t))
@@ -47,8 +51,8 @@ void PlanetTileRenderer::init_gpu() {
     m_instanceScratch.reserve(MAX_INSTANCES);
 
     const auto instanceDesc = nvrhi::BufferDesc()
-            .setByteSize(sizeof(PlanetTileDrawInstance) * MAX_INSTANCES)
-            .setStructStride(sizeof(PlanetTileDrawInstance))
+            .setByteSize(sizeof(GpuPlanetTileDrawInstance) * MAX_INSTANCES)
+            .setStructStride(sizeof(GpuPlanetTileDrawInstance))
             .setInitialState(nvrhi::ResourceStates::ShaderResource)
             .setKeepInitialState(true)
             .setDebugName("PlanetTileInstances");
@@ -66,15 +70,26 @@ void PlanetTileRenderer::init_gpu() {
         nvrhi::ShaderDesc().setShaderType(nvrhi::ShaderType::Pixel),
         pixelRes->get_data(), pixelRes->get_data_size());
 
+    const auto bindingOffsets = nvrhi::VulkanBindingOffsets()
+            .setShaderResourceOffset(0)
+            .setSamplerOffset(0)
+            .setConstantBufferOffset(0)
+            .setUnorderedAccessViewOffset(0);
+
     const auto layoutDesc = nvrhi::BindingLayoutDesc()
             .setVisibility(nvrhi::ShaderType::All)
             .addItem(nvrhi::BindingLayoutItem::PushConstants(0, sizeof(PlanetTilePushConstants)))
-            .addItem(nvrhi::BindingLayoutItem::StructuredBuffer_SRV(0));
+            .addItem(nvrhi::BindingLayoutItem::StructuredBuffer_SRV(0))
+            .addItem(nvrhi::BindingLayoutItem::Texture_SRV(1))
+            .addItem(nvrhi::BindingLayoutItem::Sampler(2))
+            .setBindingOffsets(bindingOffsets);
     m_bindingLayout = m_backend->device->createBindingLayout(layoutDesc);
 
     const auto setDesc = nvrhi::BindingSetDesc()
             .addItem(nvrhi::BindingSetItem::PushConstants(0, sizeof(PlanetTilePushConstants)))
-            .addItem(nvrhi::BindingSetItem::StructuredBuffer_SRV(0, m_instanceBuffer));
+            .addItem(nvrhi::BindingSetItem::StructuredBuffer_SRV(0, m_instanceBuffer))
+            .addItem(nvrhi::BindingSetItem::Texture_SRV(1, m_atlas->texture()))
+            .addItem(nvrhi::BindingSetItem::Sampler(2, m_atlas->sampler()));
     m_bindingSet = m_backend->device->createBindingSet(setDesc, m_bindingLayout);
 
     const auto rasterState = nvrhi::RasterState()
@@ -85,7 +100,7 @@ void PlanetTileRenderer::init_gpu() {
     const auto depthStencilState = nvrhi::DepthStencilState()
             .setDepthTestEnable(true)
             .setDepthWriteEnable(true)
-            .setDepthFunc(nvrhi::ComparisonFunc::LessOrEqual);
+            .setDepthFunc(nvrhi::ComparisonFunc::GreaterOrEqual); // reverse z depth buffer
 
     const auto framebufferInfo = nvrhi::FramebufferInfo()
             .addColorFormat(m_backend->get_swapchain_format())
@@ -106,32 +121,102 @@ void PlanetTileRenderer::init_gpu() {
 void PlanetTileRenderer::render_planets(nvrhi::CommandListHandle cmd, Camera3d &camera, flecs::world &ecs) {
     m_instanceScratch.clear();
     m_batches.clear();
+    m_stats = Stats{};
 
-    ecs.each([&](flecs::entity e, const PlanetTileDrawList &drawList,
-                 const PlanetComp &planet, const GlobalTransform &transform) {
-        if (drawList.drawInstances.empty()) return;
+    ecs.each([&](flecs::entity e, const PlanetTileDrawListComp &drawList,
+                 PlanetTileStreamComp &stream,
+                 const PlanetComp &planet, const PlanetTerrainParams &terrain,
+                 const GlobalTransform &transform) {
+        VOXEL_ZONE_N("PlanetTileRenderer::render_planets-Planet");
+        if (drawList.drawItems.empty()) return;
 
-        if (m_instanceScratch.size() + drawList.drawInstances.size() > MAX_INSTANCES) {
-            LOG_WARN("PlanetTileRenderer", "Instance budget reached, dropping planet '{}'", e.name().c_str());
-            return;
+        if (!stream.generator) {
+            stream.generator = std::make_unique<PlanetTileGenerator>(
+                terrain, PLANET_TILE_ATLAS_RESOLUTION, planet.radius);
         }
 
+        stream.generator->begin_frame();
+
+        stream.drainScratch.clear();
+        stream.generator->drain(stream.drainScratch, MAX_TILE_UPLOADS_PER_FRAME);
+        for (const auto &result: stream.drainScratch) {
+            m_atlas->upload(cmd, result.key, result.data);
+        }
+        m_stats.uploadsThisFrame += static_cast<uint32_t>(stream.drainScratch.size());
+
+        if (m_instanceScratch.size() + drawList.drawItems.size() > MAX_INSTANCES) {
+            LOG_WARN("PlanetTileRenderer", "Instance budget reached, dropping planet '{}'", e.name().c_str());
+            ++m_stats.droppedPlanets;
+            return;
+        }
+        ++m_stats.planetsDrawn;
+
         PlanetBatch batch;
-        batch.firstInstance = uint32_t(m_instanceScratch.size());
-        batch.instanceCount = uint32_t(drawList.drawInstances.size());
+        batch.firstInstance = static_cast<uint32_t>(m_instanceScratch.size());
+        batch.instanceCount = static_cast<uint32_t>(drawList.drawItems.size());
         batch.radius = planet.radius;
         batch.camPosPlanet = -transform.pos;
         m_batches.push_back(batch);
 
-        m_instanceScratch.insert(m_instanceScratch.end(),
-                                 drawList.drawInstances.begin(), drawList.drawInstances.end());
+        for (const PlanetTileDrawItem &item: drawList.drawItems) {
+            GpuPlanetTileDrawInstance inst{};
+            inst.originSpacePos = item.originSpacePos;
+            inst.extent = planet_tile_extent(item.key.level());
+            inst.nodeFaceOrigin = planet_tile_face_origin(item.key);
+            inst.packed = planet_tile_pack(item.key.face(), item.key.level());
+            inst.morph = item.morph;
+
+            PlanetTileAtlasKey slot = INVALID_ATLAS_SLOT;
+            const uint32_t fallbackDepth =
+                    resolve_atlas_slot(item.key, slot, inst.uvScale, inst.uvOffset);
+            inst.atlasSlot = slot;
+
+            if (slot == INVALID_ATLAS_SLOT) {
+                ++m_stats.missingSlots;
+                stream.generator->request(item.key, item.distance);
+            } else if (fallbackDepth > 0) {
+                ++m_stats.fallbackSlots;
+                m_stats.deepestFallback = std::max(m_stats.deepestFallback, fallbackDepth);
+                // The tile is drawn from an ancestor: keep asking until its own slice lands
+                stream.generator->request(item.key, item.distance);
+            } else {
+                ++m_stats.exactSlots;
+            }
+
+            m_instanceScratch.push_back(inst);
+
+#ifndef NDEBUG
+            // Guards against the key and the position drifting apart, which silently
+            // draws a tile with another one's heightmap. Debug only: it is a double
+            // precision face projection per tile per frame
+            {
+                const double ex = 2.0 / double(1u << item.key.level());
+                const double u0 = -1.0 + double(item.key.x()) * ex;
+                const double v0 = -1.0 + double(item.key.y()) * ex;
+                const glm::dvec3 expected =
+                    face_uv_to_direction(item.key.face(), u0, v0) * double(planet.radius)
+                    - glm::dvec3(-transform.pos);
+
+                const float err = glm::length(glm::vec3(expected) - item.originSpacePos);
+                if (err > 1.f) {
+                    LOG_ERROR("PlanetTileRenderer",
+                              "Key/pos mismatch L{} f{} x{} y{} err={:.1f}m",
+                              item.key.level(), int(item.key.face()), item.key.x(), item.key.y(), err);
+                }
+            }
+#endif
+        }
+
+        stream.generator->submit_pending();
     });
 
-    m_lastInstanceCount = uint32_t(m_instanceScratch.size());
+    m_atlas->finish_uploads(cmd);
+
+    m_lastInstanceCount = static_cast<uint32_t>(m_instanceScratch.size());
     if (m_instanceScratch.empty()) return;
 
     cmd->writeBuffer(m_instanceBuffer, m_instanceScratch.data(),
-                     m_instanceScratch.size() * sizeof(PlanetTileDrawInstance));
+                     m_instanceScratch.size() * sizeof(GpuPlanetTileDrawInstance));
 
     const VkExtent2D extent = m_backend->get_swapchain_extent();
 
@@ -140,7 +225,7 @@ void PlanetTileRenderer::render_planets(nvrhi::CommandListHandle cmd, Camera3d &
             .setFramebuffer(m_backend->get_current_framebuffer())
             .setViewport(nvrhi::ViewportState()
                 .addViewportAndScissorRect(nvrhi::Viewport(
-                    0.f, float(extent.width), 0.f, float(extent.height), 0.f, 1.f)))
+                    0.f, static_cast<float>(extent.width), 0.f, static_cast<float>(extent.height), 0.f, 1.f)))
             .addBindingSet(m_bindingSet)
             .setIndexBuffer({m_indexBuffer, nvrhi::Format::R16_UINT, 0});
     cmd->setGraphicsState(state);
@@ -160,4 +245,26 @@ void PlanetTileRenderer::render_planets(nvrhi::CommandListHandle cmd, Camera3d &
     }
 
     cmd->clearState();
+}
+
+uint32_t PlanetTileRenderer::resolve_atlas_slot(const PlanetTileKey &key, PlanetTileAtlasKey &outSlot, float &outScale,
+                                                glm::vec2 &outOffset) {
+    outScale = 1.f;
+    outOffset = {0.f, 0.f};
+
+    PlanetTileKey probe = key;
+    PlanetTileAtlasKey slot = m_atlas->find(probe);
+    uint32_t depth = 0;
+
+    while (slot == INVALID_ATLAS_SLOT && probe.level() > 0) {
+        outOffset = glm::vec2(probe.parent_offset_x(), probe.parent_offset_y())
+                    + outOffset * 0.5f;
+        outScale *= 0.5f;
+        probe = probe.parent();
+        slot = m_atlas->find(probe);
+        ++depth;
+    }
+
+    outSlot = slot;
+    return depth;
 }
