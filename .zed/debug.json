@@ -1,0 +1,28 @@
+// Project-local debug tasks
+//
+// For more documentation on how to configure debug tasks,
+// see: https://zed.dev/docs/debugger
+[
+  {
+    "label": "Debug VoxelPlanet",
+    "adapter": "CodeLLDB",
+    "request": "launch",
+    "program": "$ZED_WORKTREE_ROOT/build/debug/VoxelPlanet",
+    "cwd": "$ZED_WORKTREE_ROOT/build/debug",
+    "build": {
+      "command": "cmake",
+      "args": ["--build", "--preset", "debug", "--parallel"]
+    }
+  },
+  {
+    "label": "Debug VoxelPlanet (validation layers)",
+    "adapter": "CodeLLDB",
+    "request": "launch",
+    "program": "$ZED_WORKTREE_ROOT/build/debug/VoxelPlanet",
+    "cwd": "$ZED_WORKTREE_ROOT/build/debug",
+    "env": {
+      "VK_INSTANCE_LAYERS": "VK_LAYER_KHRONOS_validation",
+      "VK_LAYER_ENABLES": "VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT"
+    }
+  }
+]

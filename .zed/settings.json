@@ -1,0 +1,62 @@
+// Folder-specific settings
+//
+// For a full list of overridable settings, and general information on folder-specific settings,
+// see the documentation: https://zed.dev/docs/configuring-zed#settings-files
+{
+  "lsp": {
+    "clangd": {
+      "binary": {
+        "path": "clangd",
+        "arguments": [
+          "--compile-commands-dir=build/debug",
+          "--background-index",
+          "--background-index-priority=low",
+          "--header-insertion=never",
+          "--all-scopes-completion",
+          "--completion-style=detailed",
+          "--pch-storage=memory",
+          "--clang-tidy",
+          "-j=8",
+        ],
+      },
+    },
+    "shader-language-server": {
+      "settings": {
+        "glsl": {
+          "enabled": true,
+          "targetClient": "Vulkan1_3",
+          "spirvVersion": "SPIRV1_6",
+        },
+        "hlsl": { "enabled": false },
+        "wgsl": { "enabled": false },
+      },
+    },
+  },
+  "languages": {
+    "C++": {
+      "format_on_save": "on",
+      "tab_size": 4,
+    },
+    "C": {
+      "format_on_save": "on",
+      "tab_size": 4,
+    },
+    "CMake": {
+      "format_on_save": "off",
+      "tab_size": 4,
+    },
+    "GLSL": {
+      "format_on_save": "off",
+      "language_servers": ["shader-language-server"],
+    },
+  },
+  "file_scan_exclusions": [
+    "**/.git",
+    "**/build",
+    "**/cmake-build-*",
+    "**/CMakeFiles",
+    "**/_deps",
+    "**/.idea",
+    "**/*.tracy",
+  ],
+}

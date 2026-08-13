@@ -1,0 +1,51 @@
+[
+  {
+    "label": "CMake configure (debug)",
+    "command": "cmake",
+    "args": ["--preset", "debug"],
+    "reveal": "always"
+  },
+  {
+    "label": "Build debug",
+    "command": "cmake",
+    "args": ["--build", "--preset", "debug", "--parallel"],
+    "reveal": "always",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "Build release",
+    "command": "cmake",
+    "args": ["--build", "--preset", "release", "--parallel"],
+    "reveal": "always"
+  },
+  {
+    "label": "Run debug",
+    "command": "./VoxelPlanet",
+    "args": [],
+    "cwd": "$ZED_WORKTREE_ROOT/build/debug",
+    "reveal": "always",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "Build + Run debug",
+    "command": "cmake --build --preset debug --parallel && cd build/debug && ./VoxelPlanet",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false
+  },
+  {
+    "label": "Rebuild shaders",
+    "command": "cmake",
+    "args": ["--build", "--preset", "debug", "--target", "shaders"],
+    "reveal": "always"
+  },
+  {
+    "label": "Tracy profiler",
+    "command": "tracy-profiler",
+    "reveal": "never",
+    "use_new_terminal": true
+  }
+]

@@ -1,0 +1,16 @@
+//
+// Created by raph on 11/08/2026.
+//
+
+#ifndef VOXELPLANET_PLANETSURFACECHUNKGENERATOR_H
+#define VOXELPLANET_PLANETSURFACECHUNKGENERATOR_H
+
+namespace vp {
+
+class PlanetSurfaceChunkGenerator {
+
+};
+
+} // vp
+
+#endif //VOXELPLANET_PLANETSURFACECHUNKGENERATOR_H
