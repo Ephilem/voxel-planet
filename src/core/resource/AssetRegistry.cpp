@@ -48,7 +48,12 @@ void AssetRegistry::scan_assets(const std::filesystem::path& assetDir, const std
             std::replace(relativePathStr.begin(), relativePathStr.end(), '\\', '/');
 
             std::string assetName = build_asset_name(relativePathStr, namespaceName);
-            AssetID assetID = hash_string_runtime(assetName.c_str());
+            AssetID assetID = hash_string_runtime(assetName);
+
+            if (auto it = m_debugNames.find(assetID); it != m_debugNames.end() && it->second != assetName) {
+                LOG_ERROR("AssetRegistry", "AssetID collision {:016x}: '{}' vs '{}'",
+                          assetID, it->second, assetName);
+            }
 
             size_t fileSize = std::filesystem::file_size(filePath);
             m_registry[assetID] = AssetMetadata(relativePathStr, filePath.string(), type, fileSize);

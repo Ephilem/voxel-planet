@@ -15,8 +15,6 @@
 #include "platform/events.h"
 
 #include "core/TracyIntegration.h"
-#include "core/log/Logger.h"
-#include "core/world/world_components.h"
 
 
 #ifdef TRACY_ENABLE

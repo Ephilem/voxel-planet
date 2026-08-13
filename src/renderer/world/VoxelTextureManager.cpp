@@ -29,7 +29,7 @@ uint16_t VoxelTextureManager::request_texture_slot(const AssetID &textureID) {
     }
 
     for (uint32_t i = 0; i < m_slots.size(); ++i) {
-        if (m_slots[i].textureID == 0) {
+        if (m_slots[i].textureID == AssetID::Invalid) {
             m_textures[textureID] = i;
             m_slots[i].textureID = textureID;
             m_slots[i].uploaded = false;

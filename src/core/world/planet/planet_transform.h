@@ -4,7 +4,6 @@
 #include <glm/glm.hpp>
 
 #include "planet_types.h"
-#include "core/world/world_components.h"
 
 namespace vp {
     /**

@@ -6,7 +6,6 @@
 
 #include "physics_components.h"
 #include "core/main_components.h"
-#include "core/world/world_components.h"
 #include "core/debug/DebugDraw.h"
 #include "core/world/spatial/spatial_components.h"
 

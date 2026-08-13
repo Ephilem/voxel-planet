@@ -2,8 +2,8 @@
 #include <nvrhi/nvrhi.h>
 
 #include "core/resource/asset_id.h"
-#include "renderer/vulkan/VulkanBackend.h"
 #include "core/resource/ResourceSystem.h"
+#include "renderer/vulkan/VulkanBackend.h"
 #include <flecs.h>
 
 #define MAX_VOXEL_TEXTURE_SLOTS 1024
@@ -11,7 +11,7 @@
 struct Renderer;
 
 struct VoxelTextureSlot {
-    AssetID textureID = 0; // used to track if this slot is used
+    AssetID textureID = AssetID::Invalid; // used to track if this slot is used
     bool uploaded = false;
     nvrhi::TextureHandle handle = nullptr;
 };
@@ -22,7 +22,7 @@ struct VoxelTextureSlot {
  */
 class VoxelTextureManager {
 public:
-    VoxelTextureManager(VulkanBackend* backend, ResourceSystem *resourceSystem);
+    VoxelTextureManager(VulkanBackend* backend, ResourceSystem* resourceSystem);
     ~VoxelTextureManager();
 
     /**
@@ -32,11 +32,12 @@ public:
      * @param textureID The texture asset ID
      * @return The texture slot index
      */
-    uint16_t request_texture_slot(const AssetID &textureID);
+    uint16_t request_texture_slot(const AssetID& textureID);
 
     static void Register(flecs::world& ecs);
 
     nvrhi::BindingLayoutHandle get_binding_layout() const { return m_bindingLayout; }
+
     nvrhi::BindingSetHandle get_binding_set() const { return m_bindingSet; }
 
     void release_resources() {
@@ -61,6 +62,7 @@ private:
         nvrhi::SamplerHandle linearSampler;
         bool initialized = false;
     } m_mipmapGenerator;
+
     struct MipmapGeneratorPushConstants {
         uint32_t srcMipLevel;
         uint32_t arraySlice;

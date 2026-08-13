@@ -1,6 +1,7 @@
 #pragma once
 #include "core/world/planet/planet_types.h"
 #include <glm/glm.hpp>
+#include <vector>
 
 namespace vp {
 

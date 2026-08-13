@@ -7,7 +7,6 @@
 #include <glm/glm.hpp>
 
 #include "core/math/frustrum.h"
-#include "core/world/world_components.h"
 #include "core/world/planet/planet_types.h"
 #include "renderer/world/planet/planet_rendering_types.h"
 

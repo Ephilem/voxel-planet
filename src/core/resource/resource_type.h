@@ -36,7 +36,7 @@ public:
                    std::unique_ptr<uint8_t[]> data)
         : name(std::move(assetName)), m_data_size(dataSize), m_data(std::move(data))
     {
-        id = hash_string_runtime(name.c_str());
+        id = hash_string_runtime(name);
     }
 
     AssetID get_id() const override { return id; }
@@ -62,7 +62,7 @@ public:
                   uint8_t channels, std::unique_ptr<uint8_t[]> data)
         : m_data(std::move(data)), name(std::move(assetName)), width(w), height(h), channel_count(channels)
     {
-        id = hash_string_runtime(name.c_str());
+        id = hash_string_runtime(name);
 
         has_transparency = false;
         for (size_t i = 0; i < width * height; ++i) {
