@@ -6,13 +6,15 @@
 
 class DebugDrawRenderer : public IRenderPass {
 public:
-    DebugDrawRenderer(VulkanBackend* backend, ResourceSystem* resourceSystem) : m_backend(backend), m_resourceSystem(resourceSystem) {
+    DebugDrawRenderer(VulkanBackend* backend, ResourceSystem* resourceSystem)
+        : m_backend(backend), m_resourceSystem(resourceSystem) {
         init_gpu();
     }
 
     ~DebugDrawRenderer() override;
 
-    void render(nvrhi::CommandListHandle cmd, Camera3d &camera, VulkanBackend &backend) override;
+    void render(nvrhi::CommandListHandle cmd, Camera3d& camera, VulkanBackend& backend) override;
+
 private:
     struct DebugDrawPushConstants {
         glm::mat4 viewProj;
@@ -22,8 +24,8 @@ private:
     void destroy();
 
     // render steps
-    void render_lines(nvrhi::CommandListHandle cmd, Camera3d &camera, VulkanBackend &backend);
-    void render_points(nvrhi::CommandListHandle cmd, Camera3d &camera, VulkanBackend &backend);
+    void render_lines(nvrhi::CommandListHandle cmd, Camera3d& camera, VulkanBackend& backend);
+    void render_points(nvrhi::CommandListHandle cmd, Camera3d& camera, VulkanBackend& backend);
 
     VulkanBackend* m_backend;
     ResourceSystem* m_resourceSystem;

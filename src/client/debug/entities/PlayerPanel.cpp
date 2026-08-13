@@ -4,12 +4,12 @@
 
 #include "PlayerPanel.h"
 
-#include "imgui.h"
 #include "core/main_components.h"
 #include "core/world/spatial/spatial_components.h"
+#include "imgui.h"
 #include "renderer/rendering_components.h"
 
-void PlayerPanel::render(flecs::world &ecs) {
+void PlayerPanel::render(flecs::world& ecs) {
     ImGui::Separator();
     ImGui::InputFloat3("Position", m_teleportPos);
 

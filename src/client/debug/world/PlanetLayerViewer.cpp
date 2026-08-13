@@ -8,9 +8,9 @@
 #include <random>
 #include <string>
 
+#include "core/log/Logger.h"
 #include "PlanetDebugLayer.h"
 #include "PlanetLayerProjectionMappings.h"
-#include "core/log/Logger.h"
 #include "renderer/Renderer.h"
 
 using namespace vp;
@@ -26,7 +26,7 @@ void PlanetLayerViewer::draw_params() {
         return;
     }
 
-    PlanetTerrainParams &p = m_selectedPlanet.terrainParams;
+    PlanetTerrainParams& p = m_selectedPlanet.terrainParams;
     bool changed = false;
 
     ImGui::SeparatorText("Global");
@@ -34,12 +34,14 @@ void PlanetLayerViewer::draw_params() {
 
     ImGui::SeparatorText("Continents");
     changed |= ImGui::SliderFloat("Continent amplitude", &p.continentAmplitude, 0.f, 4000.f, "%.1f m");
-    changed |= ImGui::SliderFloat("Continent frequency", &p.continentFrequency, 0.01f, 10.f, "%.3f", ImGuiSliderFlags_Logarithmic);
+    changed |= ImGui::SliderFloat("Continent frequency", &p.continentFrequency, 0.01f, 10.f, "%.3f",
+                                  ImGuiSliderFlags_Logarithmic);
     changed |= ImGui::SliderInt("Continent octaves", &p.continentOctave, 1, p.maxOctave);
 
     ImGui::SeparatorText("Mountains");
     changed |= ImGui::SliderFloat("Mountain amplitude", &p.mountainAmplitude, 0.f, 3000.f, "%.1f m");
-    changed |= ImGui::SliderFloat("Mountain frequency", &p.mountainFrequency, 0.01f, 30.f, "%.3f", ImGuiSliderFlags_Logarithmic);
+    changed |= ImGui::SliderFloat("Mountain frequency", &p.mountainFrequency, 0.01f, 30.f, "%.3f",
+                                  ImGuiSliderFlags_Logarithmic);
 
     ImGui::SeparatorText("Noise");
     changed |= ImGui::SliderInt("Max octaves", &p.maxOctave, 1, 16);
@@ -92,7 +94,7 @@ void PlanetLayerViewer::draw_params() {
     }
 }
 
-void PlanetLayerViewer::draw_controls(flecs::world &ecs) {
+void PlanetLayerViewer::draw_controls(flecs::world& ecs) {
     std::vector<PlanetRepresentation> planets;
     collect_planets(ecs, planets);
 
@@ -101,13 +103,11 @@ void PlanetLayerViewer::draw_controls(flecs::world &ecs) {
 
     ImGui::Text("Select a planet to view its layers:");
     ImGui::SameLine();
-    const char* preview = m_selectedPlanet.entity.is_alive()
-            ? m_selectedPlanet.entity.name()
-            : "Select a planet";
+    const char* preview = m_selectedPlanet.entity.is_alive() ? m_selectedPlanet.entity.name() : "Select a planet";
 
     ImGui::SetNextItemWidth(160.0f);
     if (ImGui::BeginCombo("##planetSelect", preview)) {
-        for (const auto &planet : planets) {
+        for (const auto& planet : planets) {
             const bool isSelected = (m_selectedPlanet.entity == planet.entity);
 
             if (ImGui::Selectable(planet.entity.name().c_str(), isSelected))
@@ -121,12 +121,12 @@ void PlanetLayerViewer::draw_controls(flecs::world &ecs) {
 
     ImGui::SameLine();
 
-    const PlanetLayerProjectionMapping *selectedProj = projection_at(m_projIndex);
+    const PlanetLayerProjectionMapping* selectedProj = projection_at(m_projIndex);
 
     ImGui::SetNextItemWidth(160.0f);
     if (ImGui::BeginCombo("##projSelect", selectedProj->name())) {
         for (int i = 0; i < projection_count(); ++i) {
-            const PlanetLayerProjectionMapping *proj = projection_at(i);
+            const PlanetLayerProjectionMapping* proj = projection_at(i);
             const bool isSelected = (m_projIndex == i);
 
             if (ImGui::Selectable(proj->name(), isSelected)) {
@@ -159,7 +159,7 @@ void PlanetLayerViewer::draw_controls(flecs::world &ecs) {
 }
 
 void PlanetLayerViewer::generate_texture() {
-    const PlanetLayerProjectionMapping *proj = projection_at(m_projIndex);
+    const PlanetLayerProjectionMapping* proj = projection_at(m_projIndex);
     const PlanetLayerDebug layer = layer_at(m_layerIndex);
     if (!proj || !layer.evaluate)
         return;
@@ -176,7 +176,7 @@ void PlanetLayerViewer::generate_texture() {
 
     proj->tiles(m_resolution, m_tiles);
 
-    for (const PlanetLayerProjectionTile &tile : m_tiles) {
+    for (const PlanetLayerProjectionTile& tile : m_tiles) {
         proj->fill_tile_directions(tile, m_field);
 
         const int count = m_field.count();
@@ -191,8 +191,8 @@ void PlanetLayerViewer::generate_texture() {
             if (dstY < 0 || dstY >= m_imageSize.y)
                 continue;
 
-            const float *src = m_tileValues.data() + static_cast<size_t>(py) * tile.size.x;
-            float *dst = m_values.data() + static_cast<size_t>(dstY) * m_imageSize.x + tile.origin.x;
+            const float* src = m_tileValues.data() + static_cast<size_t>(py) * tile.size.x;
+            float* dst = m_values.data() + static_cast<size_t>(dstY) * m_imageSize.x + tile.origin.x;
 
             const int copyWidth = std::min(tile.size.x, m_imageSize.x - tile.origin.x);
             if (copyWidth > 0)
@@ -209,7 +209,7 @@ void PlanetLayerViewer::generate_texture() {
     m_textureDirty = true;
 }
 
-void PlanetLayerViewer::colorize(const PlanetLayerDebug &layer) {
+void PlanetLayerViewer::colorize(const PlanetLayerDebug& layer) {
     const size_t n = m_values.size();
     m_pixels.assign(n * 4, 0);
 
@@ -247,7 +247,7 @@ void PlanetLayerViewer::colorize(const PlanetLayerDebug &layer) {
     ImPlot::PushColormap(layer.colormap);
     for (size_t i = 0; i < n; ++i) {
         const float v = m_values[i];
-        uint8_t *px = &m_pixels[i * 4];
+        uint8_t* px = &m_pixels[i * 4];
 
         if (std::isnan(v)) {
             px[0] = px[1] = px[2] = px[3] = 0; // transparent gap
@@ -276,8 +276,8 @@ float PlanetLayerViewer::value_at(int x, int y) const {
     return m_values[static_cast<size_t>(y) * m_imageSize.x + x];
 }
 
-bool PlanetLayerViewer::plot_to_pixel(const PlanetLayerProjectionMapping &proj,
-                                      const ImPlotPoint &mouse, int &outX, int &outY) const {
+bool PlanetLayerViewer::plot_to_pixel(const PlanetLayerProjectionMapping& proj, const ImPlotPoint& mouse, int& outX,
+                                      int& outY) const {
     if (!m_imageValid)
         return false;
 
@@ -301,8 +301,7 @@ bool PlanetLayerViewer::plot_to_pixel(const PlanetLayerProjectionMapping &proj,
     return true;
 }
 
-void PlanetLayerViewer::draw_cursor_readout(const PlanetLayerProjectionMapping &proj,
-                                            const ImPlotPoint &mouse) const {
+void PlanetLayerViewer::draw_cursor_readout(const PlanetLayerProjectionMapping& proj, const ImPlotPoint& mouse) const {
     int px = 0, py = 0;
     if (!plot_to_pixel(proj, mouse, px, py))
         return;
@@ -323,7 +322,7 @@ void PlanetLayerViewer::draw_cursor_readout(const PlanetLayerProjectionMapping &
     ImGui::EndTooltip();
 }
 
-void PlanetLayerViewer::draw_map(flecs::world &ecs) {
+void PlanetLayerViewer::draw_map(flecs::world& ecs) {
     if (!m_selectedPlanet.entity.is_alive()) {
         ImGui::Text("No planet selected!");
         return;
@@ -335,13 +334,12 @@ void PlanetLayerViewer::draw_map(flecs::world &ecs) {
     }
 
     if (m_textureDirty) {
-        if (Renderer *renderer = ecs.get_mut<Renderer>()) {
-            if (VulkanBackend *backend = renderer->backend.get()) {
-                if (!m_mapTexture.upload(backend, m_pixels.data(),
-                                         static_cast<uint32_t>(m_imageSize.x),
+        if (Renderer* renderer = ecs.get_mut<Renderer>()) {
+            if (VulkanBackend* backend = renderer->backend.get()) {
+                if (!m_mapTexture.upload(backend, m_pixels.data(), static_cast<uint32_t>(m_imageSize.x),
                                          static_cast<uint32_t>(m_imageSize.y)))
-                    LOG_ERROR("PlanetLayerViewer", "Failed to upload the {}x{} layer texture",
-                              m_imageSize.x, m_imageSize.y);
+                    LOG_ERROR("PlanetLayerViewer", "Failed to upload the {}x{} layer texture", m_imageSize.x,
+                              m_imageSize.y);
             }
         }
         m_textureDirty = false;
@@ -352,7 +350,7 @@ void PlanetLayerViewer::draw_map(flecs::world &ecs) {
         return;
     }
 
-    const PlanetLayerProjectionMapping *proj = projection_at(m_projIndex);
+    const PlanetLayerProjectionMapping* proj = projection_at(m_projIndex);
     const PlanetLayerDebug layer = layer_at(m_layerIndex);
 
     double xMin, xMax, yMin, yMax;
@@ -365,8 +363,8 @@ void PlanetLayerViewer::draw_map(flecs::world &ecs) {
         const double yTop = std::max(yMin, yMax);
         const double yBottom = std::min(yMin, yMax);
 
-        ImPlot::PlotImage("##layerImage", m_mapTexture.texture_id(),
-                          ImPlotPoint(xMin, yBottom), ImPlotPoint(xMax, yTop));
+        ImPlot::PlotImage("##layerImage", m_mapTexture.texture_id(), ImPlotPoint(xMin, yBottom),
+                          ImPlotPoint(xMax, yTop));
 
         proj->draw_overlay(m_imageSize);
 
@@ -376,9 +374,8 @@ void PlanetLayerViewer::draw_map(flecs::world &ecs) {
         ImPlot::EndPlot();
     }
 
-    ImGui::TextDisabled("%s [%.1f, %.1f] %s | LOD %d | %.1f ms",
-                        layer.name, m_valueMin, m_valueMax, layer.unit,
-                        m_lod, m_lastGenerationMs);
+    ImGui::TextDisabled("%s [%.1f, %.1f] %s | LOD %d | %.1f ms", layer.name, m_valueMin, m_valueMax, layer.unit, m_lod,
+                        m_lastGenerationMs);
 }
 
 void PlanetLayerViewer::select_planet(PlanetRepresentation planet) {
@@ -386,7 +383,7 @@ void PlanetLayerViewer::select_planet(PlanetRepresentation planet) {
 
     // Reload from the entity
     if (planet.entity.is_alive()) {
-        if (const auto *live = planet.entity.get<PlanetTerrainParams>())
+        if (const auto* live = planet.entity.get<PlanetTerrainParams>())
             m_selectedPlanet.terrainParams = *live;
     }
 
@@ -399,7 +396,7 @@ void PlanetLayerViewer::apply_generation_params() {
     if (!m_selectedPlanet.entity.is_alive())
         return;
 
-    if (auto *live = m_selectedPlanet.entity.get_mut<PlanetTerrainParams>())
+    if (auto* live = m_selectedPlanet.entity.get_mut<PlanetTerrainParams>())
         *live = m_selectedPlanet.terrainParams;
 
     m_appliedParams = m_selectedPlanet.terrainParams;
@@ -407,20 +404,18 @@ void PlanetLayerViewer::apply_generation_params() {
     m_dirty = false;
 }
 
-void PlanetLayerViewer::collect_planets(flecs::world &ecs, std::vector<PlanetRepresentation> &planets) {
+void PlanetLayerViewer::collect_planets(flecs::world& ecs, std::vector<PlanetRepresentation>& planets) {
     // instance queries
     if (!m_planetQuery)
         m_planetQuery = ecs.query<const PlanetComp, const PlanetTerrainParams>();
 
-    m_planetQuery.each([&](flecs::entity planet, const PlanetComp &planetComp, const PlanetTerrainParams &terrainParams) {
-        planets.push_back(PlanetRepresentation{
-            planet,
-            planetComp,
-            terrainParams});
-    });
+    m_planetQuery.each(
+        [&](flecs::entity planet, const PlanetComp& planetComp, const PlanetTerrainParams& terrainParams) {
+            planets.push_back(PlanetRepresentation{planet, planetComp, terrainParams});
+        });
 }
 
-void PlanetLayerViewer::render(flecs::world &ecs) {
+void PlanetLayerViewer::render(flecs::world& ecs) {
     ImGui::BeginChild("##topBar", ImVec2(0, 60), ImGuiChildFlags_Border);
     draw_controls(ecs);
     ImGui::EndChild();

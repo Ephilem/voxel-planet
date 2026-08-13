@@ -11,11 +11,12 @@ struct InputModuleState;
 struct Window;
 
 struct KeyBinding {
-    int key; // GLFW key code or mouse button code
+    int key;      // GLFW key code or mouse button code
     int modifier; // GLFW modifier mask (e.g., GLFW_MOD_SHIFT)
     bool isMouse = false;
 
     KeyBinding() = default;
+
     explicit KeyBinding(int k, int mods = 0) : key(k), modifier(mods), isMouse(false) {}
 
     static KeyBinding Mouse(int btn, int mods) {
@@ -32,7 +33,6 @@ class InputStateManager {
 
     float m_mouseSensitivityX = 1.0f;
     float m_mouseSensitivityY = 1.0f;
-
 
 public:
     InputStateManager();

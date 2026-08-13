@@ -2,13 +2,13 @@
 
 #include <glm/gtc/quaternion.hpp>
 
-#include "imgui.h"
 #include "client/player/player_components.h"
-#include "renderer/rendering_components.h"
-#include "core/TracyIntegration.h"
 #include "core/physics/physics_components.h"
+#include "core/TracyIntegration.h"
 #include "core/world/spatial/spatial_components.h"
 #include "core/world/spatial/spatial_utils.h"
+#include "imgui.h"
+#include "renderer/rendering_components.h"
 
 void PlayerWorldInfo::pre_render() {
     ImGuiIO& io = ImGui::GetIO();
@@ -19,16 +19,16 @@ void PlayerWorldInfo::pre_render() {
 void PlayerWorldInfo::render(flecs::world& ecs) {
     VOXEL_ZONE_N("WorldF3Info-Display");
 
-    ecs.each([](flecs::entity e, const Camera3d& camera, const vp::Transform& transform, const RigidBody& body, const PlayerController& ctrl, const vp::CellCoord& gridCell) {
+    ecs.each([](flecs::entity e, const Camera3d& camera, const vp::Transform& transform, const RigidBody& body,
+                const PlayerController& ctrl, const vp::CellCoord& gridCell) {
         constexpr float kMetersPerWorldUnit = 1.0f;
         const glm::vec3 positionMeters = transform.pos * kMetersPerWorldUnit;
         const glm::quat orientation = glm::normalize(transform.rot);
         const glm::vec3 orientationDeg = glm::degrees(glm::eulerAngles(orientation));
 
         const vp::Grid* playerGrid = vp::get_first_ancestor_grid(e).get<vp::Grid>();
-        const glm::dvec3 inGridPosition = playerGrid
-            ? glm::dvec3(transform.pos) + (gridCell * playerGrid->cellSize)
-            : glm::dvec3(transform.pos);
+        const glm::dvec3 inGridPosition =
+            playerGrid ? glm::dvec3(transform.pos) + (gridCell * playerGrid->cellSize) : glm::dvec3(transform.pos);
 
         ImGui::Text("Position: %.0lf, %.0lf, %.0lf", inGridPosition.x, inGridPosition.y, inGridPosition.z);
         ImGui::Text("Transform: %0.3f m, %0.3f m, %0.3f m", positionMeters.x, positionMeters.y, positionMeters.z);

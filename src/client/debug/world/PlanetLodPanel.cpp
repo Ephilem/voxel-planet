@@ -5,116 +5,117 @@
 #include <cstdarg>
 #include <cstdio>
 
-#include "imgui.h"
 #include "client/world/planet/planet_client_components.h"
 #include "core/TracyIntegration.h"
 #include "core/world/planet/planet_transform.h"
+#include "imgui.h"
+#include "renderer/world/planet/planet_rendering_components.h"
 #include "renderer/world/planet/PlanetTileAtlas.h"
 #include "renderer/world/planet/PlanetTileRenderer.h"
-#include "renderer/world/planet/planet_rendering_components.h"
 
 using namespace vp;
 
 namespace {
-    constexpr float VALUE_COLUMN = 190.f;
+constexpr float VALUE_COLUMN = 190.f;
 
-    const ImVec4 COLOR_OK{0.2f, 0.9f, 0.3f, 1.f};
-    const ImVec4 COLOR_WARN{1.0f, 0.6f, 0.1f, 1.f};
-    const ImVec4 COLOR_BAD{1.0f, 0.3f, 0.25f, 1.f};
+const ImVec4 COLOR_OK{0.2f, 0.9f, 0.3f, 1.f};
+const ImVec4 COLOR_WARN{1.0f, 0.6f, 0.1f, 1.f};
+const ImVec4 COLOR_BAD{1.0f, 0.3f, 0.25f, 1.f};
 
-    void stat_row(const char *label, uint32_t value) {
-        ImGui::TextUnformatted(label);
-        ImGui::SameLine(VALUE_COLUMN);
-        ImGui::Text("%u", value);
-    }
+void stat_row(const char* label, uint32_t value) {
+    ImGui::TextUnformatted(label);
+    ImGui::SameLine(VALUE_COLUMN);
+    ImGui::Text("%u", value);
+}
 
-    /// Same as stat_row, but the value turns orange past warnAt and red past badAt
-    void stat_row_threshold(const char *label, uint32_t value, uint32_t warnAt, uint32_t badAt) {
-        ImGui::TextUnformatted(label);
-        ImGui::SameLine(VALUE_COLUMN);
-        if (value >= badAt) {
-            ImGui::TextColored(COLOR_BAD, "%u", value);
-        } else if (value >= warnAt) {
-            ImGui::TextColored(COLOR_WARN, "%u", value);
-        } else {
-            ImGui::TextColored(COLOR_OK, "%u", value);
-        }
-    }
-
-    void stat_row_fmt(const char *label, const char *fmt, ...) IM_FMTARGS(2);
-
-    void stat_row_fmt(const char *label, const char *fmt, ...) {
-        ImGui::TextUnformatted(label);
-        ImGui::SameLine(VALUE_COLUMN);
-        va_list args;
-        va_start(args, fmt);
-        ImGui::TextV(fmt, args);
-        va_end(args);
-    }
-
-    void tooltip(const char *text) {
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", text);
-    }
-
-    /// Ratio bar labelled "value / total (pct%)", clamped so a zero total stays readable
-    void ratio_bar(const char *label, uint32_t value, uint32_t total, const ImVec4 &color) {
-        const float ratio = total > 0 ? float(value) / float(total) : 0.f;
-
-        char overlay[64];
-        snprintf(overlay, sizeof(overlay), "%u / %u  (%.1f%%)", value, total, ratio * 100.f);
-
-        ImGui::TextUnformatted(label);
-        ImGui::SameLine(VALUE_COLUMN);
-        ImGui::PushStyleColor(ImGuiCol_PlotHistogram, color);
-        ImGui::ProgressBar(ratio, ImVec2(-1.f, 0.f), overlay);
-        ImGui::PopStyleColor();
-    }
-
-    /// Signed delta, coloured by direction and hidden when nothing moved
-    void delta_row(const char *label, int64_t delta) {
-        ImGui::TextUnformatted(label);
-        ImGui::SameLine(VALUE_COLUMN);
-        if (delta == 0) {
-            ImGui::TextDisabled("0");
-        } else {
-            ImGui::TextColored(delta > 0 ? COLOR_WARN : COLOR_OK, "%+lld",
-                               static_cast<long long>(delta));
-        }
-    }
-
-    /**
-     * Plots a ring buffer in chronological order.
-     *
-     * ImGui walks the array linearly, so the write cursor is handed over as an offset to keep
-     * the oldest sample on the left instead of a discontinuity wandering through the plot
-     */
-    void history_plot(const char *label, const float *values, int count, int offset,
-                      float scaleMax, const ImVec4 &color, const char *overlay, float height) {
-        ImGui::PushStyleColor(ImGuiCol_PlotLines, color);
-        ImGui::PlotLines(label, values, count, offset, overlay,
-                         0.f, scaleMax, ImVec2(-1.f, height));
-        ImGui::PopStyleColor();
-    }
-
-    float array_max(const float *values, int count) {
-        float best = 0.f;
-        for (int i = 0; i < count; ++i) best = std::max(best, values[i]);
-        return best;
+/// Same as stat_row, but the value turns orange past warnAt and red past badAt
+void stat_row_threshold(const char* label, uint32_t value, uint32_t warnAt, uint32_t badAt) {
+    ImGui::TextUnformatted(label);
+    ImGui::SameLine(VALUE_COLUMN);
+    if (value >= badAt) {
+        ImGui::TextColored(COLOR_BAD, "%u", value);
+    } else if (value >= warnAt) {
+        ImGui::TextColored(COLOR_WARN, "%u", value);
+    } else {
+        ImGui::TextColored(COLOR_OK, "%u", value);
     }
 }
 
-void PlanetLodPanel::render(flecs::world &ecs) {
+void stat_row_fmt(const char* label, const char* fmt, ...) IM_FMTARGS(2);
+
+void stat_row_fmt(const char* label, const char* fmt, ...) {
+    ImGui::TextUnformatted(label);
+    ImGui::SameLine(VALUE_COLUMN);
+    va_list args;
+    va_start(args, fmt);
+    ImGui::TextV(fmt, args);
+    va_end(args);
+}
+
+void tooltip(const char* text) {
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", text);
+}
+
+/// Ratio bar labelled "value / total (pct%)", clamped so a zero total stays readable
+void ratio_bar(const char* label, uint32_t value, uint32_t total, const ImVec4& color) {
+    const float ratio = total > 0 ? float(value) / float(total) : 0.f;
+
+    char overlay[64];
+    snprintf(overlay, sizeof(overlay), "%u / %u  (%.1f%%)", value, total, ratio * 100.f);
+
+    ImGui::TextUnformatted(label);
+    ImGui::SameLine(VALUE_COLUMN);
+    ImGui::PushStyleColor(ImGuiCol_PlotHistogram, color);
+    ImGui::ProgressBar(ratio, ImVec2(-1.f, 0.f), overlay);
+    ImGui::PopStyleColor();
+}
+
+/// Signed delta, coloured by direction and hidden when nothing moved
+void delta_row(const char* label, int64_t delta) {
+    ImGui::TextUnformatted(label);
+    ImGui::SameLine(VALUE_COLUMN);
+    if (delta == 0) {
+        ImGui::TextDisabled("0");
+    } else {
+        ImGui::TextColored(delta > 0 ? COLOR_WARN : COLOR_OK, "%+lld", static_cast<long long>(delta));
+    }
+}
+
+/**
+ * Plots a ring buffer in chronological order.
+ *
+ * ImGui walks the array linearly, so the write cursor is handed over as an offset to keep
+ * the oldest sample on the left instead of a discontinuity wandering through the plot
+ */
+void history_plot(const char* label, const float* values, int count, int offset, float scaleMax, const ImVec4& color,
+                  const char* overlay, float height) {
+    ImGui::PushStyleColor(ImGuiCol_PlotLines, color);
+    ImGui::PlotLines(label, values, count, offset, overlay, 0.f, scaleMax, ImVec2(-1.f, height));
+    ImGui::PopStyleColor();
+}
+
+float array_max(const float* values, int count) {
+    float best = 0.f;
+    for (int i = 0; i < count; ++i)
+        best = std::max(best, values[i]);
+    return best;
+}
+} // namespace
+
+void PlanetLodPanel::render(flecs::world& ecs) {
     VOXEL_ZONE_N("PlanetLodPanel-Display");
 
     bool found = false;
     uint32_t leafTotal = 0;
 
-    ecs.each([&](flecs::entity e, PlanetTileLodComp &lod) {
+    ecs.each([&](flecs::entity e, PlanetTileLodComp& lod) {
         found = true;
-        if (!lod.quadtree) return;
+        if (!lod.quadtree)
+            return;
 
-        auto &params = lod.params;
-        const auto &stats = lod.quadtree->stats();
+        auto& params = lod.params;
+        const auto& stats = lod.quadtree->stats();
         leafTotal += stats.leafCount;
 
         // ---- Visualisation -------------------------------------------------
@@ -152,22 +153,22 @@ void PlanetLodPanel::render(flecs::world &ecs) {
 
         // ---- Tuning --------------------------------------------------------
         if (ImGui::CollapsingHeader("Tuning", ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::DragScalar("Split factor", ImGuiDataType_Double, &params.splitFactor,
-                              0.02f, nullptr, nullptr, "%.2f");
+            ImGui::DragScalar("Split factor", ImGuiDataType_Double, &params.splitFactor, 0.02f, nullptr, nullptr,
+                              "%.2f");
             if (ImGui::IsItemHovered()) {
                 ImGui::SetTooltip("A node splits while distance < factor * node size.\n"
                                   "Higher means more detail and more nodes");
             }
 
-            ImGui::DragScalar("Merge hysteresis", ImGuiDataType_Double, &params.mergeHysteresis,
-                              0.01f, nullptr, nullptr, "%.2f");
+            ImGui::DragScalar("Merge hysteresis", ImGuiDataType_Double, &params.mergeHysteresis, 0.01f, nullptr,
+                              nullptr, "%.2f");
             if (ImGui::IsItemHovered()) {
                 ImGui::SetTooltip("Merge beyond splitFactor * hysteresis.\n"
                                   "1.0 makes a hovering camera split and merge every frame");
             }
 
-            ImGui::DragScalar("Face Cull Angle Deg", ImGuiDataType_Double, &params.faceCullAngleDeg,
-                              0.5f, nullptr, nullptr, "%.1f deg");
+            ImGui::DragScalar("Face Cull Angle Deg", ImGuiDataType_Double, &params.faceCullAngleDeg, 0.5f, nullptr,
+                              nullptr, "%.1f deg");
 
             int maxLevel = params.maxLevel;
             if (ImGui::SliderInt("Max level", &maxLevel, 0, 20)) {
@@ -186,8 +187,8 @@ void PlanetLodPanel::render(flecs::world &ecs) {
 
             ImGui::Text("Voxel size   ");
             ImGui::SameLine(0.f, 0.f);
-            ImGui::TextColored(aligned ? ImVec4(0.2f, 0.9f, 0.3f, 1.f) : ImVec4(1.0f, 0.6f, 0.1f, 1.f),
-                               "%.4f m", voxel);
+            ImGui::TextColored(aligned ? ImVec4(0.2f, 0.9f, 0.3f, 1.f) : ImVec4(1.0f, 0.6f, 0.1f, 1.f), "%.4f m",
+                               voxel);
             if (ImGui::IsItemHovered()) {
                 ImGui::SetTooltip("Leaf arc / %u. The tangent warp keeps this uniform\n"
                                   "across the face. Green when whole to the millimeter",
@@ -220,13 +221,13 @@ void PlanetLodPanel::render(flecs::world &ecs) {
         // asking for tiles faster than the workers retire them, and every one of those nodes is
         // drawing from an ancestor in the meantime
         if (ImGui::CollapsingHeader("Tile generation", ImGuiTreeNodeFlags_DefaultOpen)) {
-            const auto *stream = e.get<PlanetTileStreamComp>();
+            const auto* stream = e.get<PlanetTileStreamComp>();
 
             if (!stream || !stream->generator) {
                 ImGui::TextDisabled("No generator on this planet yet");
             } else {
-                const PlanetTileGenerator &gen = *stream->generator;
-                const auto &gs = gen.stats();
+                const PlanetTileGenerator& gen = *stream->generator;
+                const auto& gs = gen.stats();
 
                 stat_row("Worker threads", uint32_t(gen.worker_count()));
                 ImGui::Separator();
@@ -274,8 +275,8 @@ void PlanetLodPanel::render(flecs::world &ecs) {
     render_atlas_section(ecs);
 }
 
-void PlanetLodPanel::render_atlas_section(flecs::world &ecs) {
-    const auto *ref = ecs.get<PlanetTileAtlasRef>();
+void PlanetLodPanel::render_atlas_section(flecs::world& ecs) {
+    const auto* ref = ecs.get<PlanetTileAtlasRef>();
     if (!ref || !ref->atlas) {
         ImGui::TextDisabled("Tile atlas not published (renderer module not initialised)");
         return;
@@ -283,18 +284,16 @@ void PlanetLodPanel::render_atlas_section(flecs::world &ecs) {
 
     // ---- Atlas residency ---------------------------------------------------
     if (ImGui::CollapsingHeader("Tile atlas", ImGuiTreeNodeFlags_DefaultOpen)) {
-        const auto &as = ref->atlas->stats();
+        const auto& as = ref->atlas->stats();
 
-        ratio_bar("Residency", as.resident, as.capacity,
-                  as.resident >= as.capacity ? COLOR_BAD : COLOR_OK);
+        ratio_bar("Residency", as.resident, as.capacity, as.resident >= as.capacity ? COLOR_BAD : COLOR_OK);
         tooltip("Slices holding a tile. At 100% every new upload has to evict,\n"
                 "and a tile used this frame can no longer be evicted, so uploads\n"
                 "start failing instead");
 
-        const size_t sliceBytes = size_t(PLANET_TILE_ATLAS_RESOLUTION)
-                                  * PLANET_TILE_ATLAS_RESOLUTION * sizeof(uint16_t);
-        stat_row_fmt("VRAM resident", "%.1f MiB of %.1f MiB",
-                     double(as.resident * sliceBytes) / (1024.0 * 1024.0),
+        const size_t sliceBytes =
+            size_t(PLANET_TILE_ATLAS_RESOLUTION) * PLANET_TILE_ATLAS_RESOLUTION * sizeof(uint16_t);
+        stat_row_fmt("VRAM resident", "%.1f MiB of %.1f MiB", double(as.resident * sliceBytes) / (1024.0 * 1024.0),
                      double(as.capacity * sliceBytes) / (1024.0 * 1024.0));
 
         ImGui::Separator();
@@ -312,8 +311,7 @@ void PlanetLodPanel::render_atlas_section(flecs::world &ecs) {
             const float churn = float(as.evictions) / float(as.uploads);
             ImGui::TextUnformatted("Churn (evict/upload)");
             ImGui::SameLine(VALUE_COLUMN);
-            ImGui::TextColored(churn > 0.5f ? COLOR_BAD : churn > 0.2f ? COLOR_WARN : COLOR_OK,
-                               "%.2f", churn);
+            ImGui::TextColored(churn > 0.5f ? COLOR_BAD : churn > 0.2f ? COLOR_WARN : COLOR_OK, "%.2f", churn);
             tooltip("Evictions per upload. Above ~0.5 the atlas is thrashing:\n"
                     "raise PLANET_TILE_ATLAS_SIZE or lower the max level");
         }
@@ -322,11 +320,12 @@ void PlanetLodPanel::render_atlas_section(flecs::world &ecs) {
     // ---- Slot resolution ---------------------------------------------------
     // This is the CPU-side proof that uploads actually reach the shader: a tile can be generated,
     // uploaded and resident, and still draw from an ancestor if resolve_atlas_slot missed it
-    if (!ref->renderer) return;
+    if (!ref->renderer)
+        return;
 
     if (ImGui::CollapsingHeader("Atlas slot resolution", ImGuiTreeNodeFlags_DefaultOpen)) {
-        const auto &rs = ref->renderer->stats();
-        const auto &as = ref->atlas->stats();
+        const auto& rs = ref->renderer->stats();
+        const auto& as = ref->atlas->stats();
         const uint32_t total = rs.exactSlots + rs.fallbackSlots + rs.missingSlots;
 
         // The panel runs in PostUpdate, render_planets in OnStore, so these are last frame's
@@ -429,7 +428,8 @@ void PlanetLodPanel::render_atlas_section(flecs::world &ecs) {
         ImGui::Separator();
         ImGui::Checkbox("Pause history", &m_historyPaused);
         ImGui::SameLine();
-        if (ImGui::SmallButton("Clear history")) m_history.clear();
+        if (ImGui::SmallButton("Clear history"))
+            m_history.clear();
 
         if (m_history.filled > 0) {
             const int count = m_history.filled;
@@ -437,39 +437,33 @@ void PlanetLodPanel::render_atlas_section(flecs::world &ecs) {
 
             // One shared scale across the three resolution plots, so their relative size is
             // readable at a glance instead of each curve filling its own box
-            const float slotScale = std::max({
-                array_max(m_history.exact.data(), count),
-                array_max(m_history.fallback.data(), count),
-                array_max(m_history.missing.data(), count),
-                1.f
-            });
+            const float slotScale =
+                std::max({array_max(m_history.exact.data(), count), array_max(m_history.fallback.data(), count),
+                          array_max(m_history.missing.data(), count), 1.f});
 
             char overlay[64];
 
             snprintf(overlay, sizeof(overlay), "exact  now %u", rs.exactSlots);
-            history_plot("##histExact", m_history.exact.data(), count, offset,
-                         slotScale, COLOR_OK, overlay, 40.f);
+            history_plot("##histExact", m_history.exact.data(), count, offset, slotScale, COLOR_OK, overlay, 40.f);
 
             snprintf(overlay, sizeof(overlay), "fallback  now %u", rs.fallbackSlots);
-            history_plot("##histFallback", m_history.fallback.data(), count, offset,
-                         slotScale, COLOR_WARN, overlay, 40.f);
+            history_plot("##histFallback", m_history.fallback.data(), count, offset, slotScale, COLOR_WARN, overlay,
+                         40.f);
 
             snprintf(overlay, sizeof(overlay), "no slice  now %u", rs.missingSlots);
-            history_plot("##histMissing", m_history.missing.data(), count, offset,
-                         slotScale, COLOR_BAD, overlay, 40.f);
+            history_plot("##histMissing", m_history.missing.data(), count, offset, slotScale, COLOR_BAD, overlay, 40.f);
 
             // Drawn against the three above: spikes that line up with a topology change are the
             // tree refining, spikes that do not are the atlas losing slices on its own
-            snprintf(overlay, sizeof(overlay), "leaf delta  now %+lld",
-                     static_cast<long long>(dLeaves));
+            snprintf(overlay, sizeof(overlay), "leaf delta  now %+lld", static_cast<long long>(dLeaves));
             history_plot("##histTopology", m_history.topologyDelta.data(), count, offset,
-                         std::max(array_max(m_history.topologyDelta.data(), count), 1.f),
-                         ImVec4(0.6f, 0.6f, 0.9f, 1.f), overlay, 34.f);
+                         std::max(array_max(m_history.topologyDelta.data(), count), 1.f), ImVec4(0.6f, 0.6f, 0.9f, 1.f),
+                         overlay, 34.f);
 
             snprintf(overlay, sizeof(overlay), "uploads  now %u", rs.uploadsThisFrame);
             history_plot("##histUploads", m_history.uploads.data(), count, offset,
-                         std::max(array_max(m_history.uploads.data(), count), 1.f),
-                         ImVec4(0.5f, 0.8f, 1.0f, 1.f), overlay, 34.f);
+                         std::max(array_max(m_history.uploads.data(), count), 1.f), ImVec4(0.5f, 0.8f, 1.0f, 1.f),
+                         overlay, 34.f);
         }
 
         m_prevExact = rs.exactSlots;

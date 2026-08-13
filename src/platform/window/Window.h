@@ -1,8 +1,8 @@
 #pragma once
-#include <string>
-#include <glm/glm.hpp>
-#include <GLFW/glfw3.h>
 #include <flecs.h>
+#include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
+#include <string>
 
 struct Window {
     uint16_t width;

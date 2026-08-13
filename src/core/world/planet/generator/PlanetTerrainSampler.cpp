@@ -8,8 +8,8 @@
 #include <cmath>
 #include <utility>
 
-#include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
+#include "core/TracyIntegration.h"
 
 using namespace vp;
 
@@ -22,8 +22,7 @@ constexpr float LAND_MASK_LOW = -200.0f;
 constexpr float LAND_MASK_HIGH = 200.0f;
 
 PlanetTerrainSampler::PlanetTerrainSampler(PlanetTerrainParams params)
-    : m_params(std::move(params)), m_noise(FastNoise::New<FastNoise::Simplex>()) {
-}
+    : m_params(std::move(params)), m_noise(FastNoise::New<FastNoise::Simplex>()) {}
 
 // Normaliser par le bounding de maxOctave et non du nombre d'octaves courant :
 // sinon ajouter une octave rescale toutes les précédentes (norm passe de 1.984
@@ -45,7 +44,7 @@ float PlanetTerrainSampler::fractal_bounding(int octave) {
 // Les octaves sont sommées à la main plutôt que via FastNoise::FractalFBm :
 // SetOctaveCount() mute le node partagé (et recalcule mFractalBounding), donc
 // il est inutilisable pour un nombre d'octaves variable par appel.
-float PlanetTerrainSampler::fbm(const glm::vec3 &position, float freq, int octave) const {
+float PlanetTerrainSampler::fbm(const glm::vec3& position, float freq, int octave) const {
     const int baseSeed = m_params.seed;
 
     float sum = 0.0f;
@@ -61,7 +60,7 @@ float PlanetTerrainSampler::fbm(const glm::vec3 &position, float freq, int octav
     return sum / fractal_bounding(m_params.maxOctave);
 }
 
-float PlanetTerrainSampler::ridged(const glm::vec3 &position, float freq, int octave) const {
+float PlanetTerrainSampler::ridged(const glm::vec3& position, float freq, int octave) const {
     const int baseSeed = m_params.seed + RIDGED_SEED_OFFSET;
 
     float sum = 0.0f;
@@ -85,7 +84,7 @@ int PlanetTerrainSampler::octave_for_lod(int lod) const {
     return std::clamp(3 + lod, 1, m_params.maxOctave);
 }
 
-float PlanetTerrainSampler::sample_height(const glm::dvec3 &direction, int lod) const {
+float PlanetTerrainSampler::sample_height(const glm::dvec3& direction, int lod) const {
     const glm::vec3 d = glm::vec3(direction);
 
     const int octave = octave_for_lod(lod);
@@ -116,9 +115,8 @@ void PlanetTerrainSampler::BatchScratch::resize(int count) {
 // GenSingle3D calcule un vecteur SIMD complet puis n'en garde qu'une voie
 // (Generator.inl:337). En passant par GenPositionArray3D on remplit toutes les
 // voies : la boucle des octaves passe donc a l'exterieur, un appel par octave.
-void PlanetTerrainSampler::fbm_batch(const float *px, const float *py, const float *pz,
-                                     int count, float freq, int octave,
-                                     float *out, BatchScratch &scratch) const {
+void PlanetTerrainSampler::fbm_batch(const float* px, const float* py, const float* pz, int count, float freq,
+                                     int octave, float* out, BatchScratch& scratch) const {
     VOXEL_ZONE_N("PlanetTerrainSampler::fbm_batch");
     std::fill(out, out + count, 0.0f);
 
@@ -133,9 +131,8 @@ void PlanetTerrainSampler::fbm_batch(const float *px, const float *py, const flo
             scratch.sz[k] = pz[k] * f;
         }
 
-        m_noise->GenPositionArray3D(scratch.noise.data(), count,
-                                    scratch.sx.data(), scratch.sy.data(), scratch.sz.data(),
-                                    0.0f, 0.0f, 0.0f, baseSeed + i);
+        m_noise->GenPositionArray3D(scratch.noise.data(), count, scratch.sx.data(), scratch.sy.data(),
+                                    scratch.sz.data(), 0.0f, 0.0f, 0.0f, baseSeed + i);
 
         for (int k = 0; k < count; ++k)
             out[k] += amplitude * scratch.noise[k];
@@ -149,9 +146,8 @@ void PlanetTerrainSampler::fbm_batch(const float *px, const float *py, const flo
         out[k] *= inv;
 }
 
-void PlanetTerrainSampler::ridged_batch(const float *px, const float *py, const float *pz,
-                                        int count, float freq, int octave,
-                                        float *out, BatchScratch &scratch) const {
+void PlanetTerrainSampler::ridged_batch(const float* px, const float* py, const float* pz, int count, float freq,
+                                        int octave, float* out, BatchScratch& scratch) const {
     VOXEL_ZONE_N("PlanetTerrainSampler::ridged_batch");
     std::fill(out, out + count, 0.0f);
 
@@ -166,9 +162,8 @@ void PlanetTerrainSampler::ridged_batch(const float *px, const float *py, const 
             scratch.sz[k] = pz[k] * f;
         }
 
-        m_noise->GenPositionArray3D(scratch.noise.data(), count,
-                                    scratch.sx.data(), scratch.sy.data(), scratch.sz.data(),
-                                    0.0f, 0.0f, 0.0f, baseSeed + i);
+        m_noise->GenPositionArray3D(scratch.noise.data(), count, scratch.sx.data(), scratch.sy.data(),
+                                    scratch.sz.data(), 0.0f, 0.0f, 0.0f, baseSeed + i);
 
         for (int k = 0; k < count; ++k)
             out[k] += amplitude * (1.0f - std::abs(scratch.noise[k])); // ridge
@@ -182,9 +177,8 @@ void PlanetTerrainSampler::ridged_batch(const float *px, const float *py, const 
         out[k] = (out[k] * inv) * 2.0f - 1.0f; // [-1, 1]
 }
 
-void PlanetTerrainSampler::sample_height_batch(const float *dirX, const float *dirY, const float *dirZ,
-                                               int count, int lod,
-                                               float *outHeights, BatchScratch &scratch) const {
+void PlanetTerrainSampler::sample_height_batch(const float* dirX, const float* dirY, const float* dirZ, int count,
+                                               int lod, float* outHeights, BatchScratch& scratch) const {
     if (count <= 0)
         return;
 
@@ -195,10 +189,9 @@ void PlanetTerrainSampler::sample_height_batch(const float *dirX, const float *d
 
     // Le landMask depend du resultat des continents : impossible de tout fusionner
     // en une passe, mais deux passes batch suffisent (une par type de bruit).
-    fbm_batch(dirX, dirY, dirZ, count, m_params.continentFrequency, m_params.continentOctave,
-              scratch.continents.data(), scratch);
-    ridged_batch(dirX, dirY, dirZ, count, m_params.mountainFrequency, octave,
-                 scratch.mountains.data(), scratch);
+    fbm_batch(dirX, dirY, dirZ, count, m_params.continentFrequency, m_params.continentOctave, scratch.continents.data(),
+              scratch);
+    ridged_batch(dirX, dirY, dirZ, count, m_params.mountainFrequency, octave, scratch.mountains.data(), scratch);
 
     for (int k = 0; k < count; ++k) {
         float h = scratch.continents[k] * m_params.continentAmplitude;

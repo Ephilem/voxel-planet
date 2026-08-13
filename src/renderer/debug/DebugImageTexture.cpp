@@ -13,12 +13,9 @@ DebugImageTexture::~DebugImageTexture() {
     release();
 }
 
-DebugImageTexture::DebugImageTexture(DebugImageTexture &&other) noexcept
-    : m_texture(std::move(other.m_texture)),
-      m_sampler(std::move(other.m_sampler)),
-      m_descriptorSet(other.m_descriptorSet),
-      m_backend(other.m_backend),
-      m_width(other.m_width),
+DebugImageTexture::DebugImageTexture(DebugImageTexture&& other) noexcept
+    : m_texture(std::move(other.m_texture)), m_sampler(std::move(other.m_sampler)),
+      m_descriptorSet(other.m_descriptorSet), m_backend(other.m_backend), m_width(other.m_width),
       m_height(other.m_height) {
     other.m_descriptorSet = VK_NULL_HANDLE;
     other.m_backend = nullptr;
@@ -26,7 +23,7 @@ DebugImageTexture::DebugImageTexture(DebugImageTexture &&other) noexcept
     other.m_height = 0;
 }
 
-DebugImageTexture &DebugImageTexture::operator=(DebugImageTexture &&other) noexcept {
+DebugImageTexture& DebugImageTexture::operator=(DebugImageTexture&& other) noexcept {
     if (this != &other) {
         release();
 
@@ -48,8 +45,7 @@ DebugImageTexture &DebugImageTexture::operator=(DebugImageTexture &&other) noexc
 void DebugImageTexture::release() {
     if (m_descriptorSet != VK_NULL_HANDLE) {
         // test if the imgui abckend still exist
-        if (ImGui::GetCurrentContext() != nullptr &&
-            ImGui::GetIO().BackendRendererUserData != nullptr) {
+        if (ImGui::GetCurrentContext() != nullptr && ImGui::GetIO().BackendRendererUserData != nullptr) {
             if (m_backend && m_backend->device) {
                 m_backend->device->waitForIdle();
             }
@@ -65,8 +61,7 @@ void DebugImageTexture::release() {
     m_height = 0;
 }
 
-bool DebugImageTexture::upload(VulkanBackend *backend, const uint8_t *pixels,
-                               uint32_t width, uint32_t height) {
+bool DebugImageTexture::upload(VulkanBackend* backend, const uint8_t* pixels, uint32_t width, uint32_t height) {
     if (!backend || !backend->device || !pixels || width == 0 || height == 0) {
         return false;
     }
@@ -79,14 +74,14 @@ bool DebugImageTexture::upload(VulkanBackend *backend, const uint8_t *pixels,
         m_backend = backend;
 
         auto textureDesc = nvrhi::TextureDesc()
-                .setWidth(width)
-                .setHeight(height)
-                .setFormat(nvrhi::Format::RGBA8_UNORM)
-                .setDimension(nvrhi::TextureDimension::Texture2D)
-                .setMipLevels(1)
-                .setDebugName("DebugImageTexture")
-                .setInitialState(nvrhi::ResourceStates::ShaderResource)
-                .setKeepInitialState(true);
+                               .setWidth(width)
+                               .setHeight(height)
+                               .setFormat(nvrhi::Format::RGBA8_UNORM)
+                               .setDimension(nvrhi::TextureDimension::Texture2D)
+                               .setMipLevels(1)
+                               .setDebugName("DebugImageTexture")
+                               .setInitialState(nvrhi::ResourceStates::ShaderResource)
+                               .setKeepInitialState(true);
 
         m_texture = backend->device->createTexture(textureDesc);
         if (!m_texture) {
@@ -94,9 +89,8 @@ bool DebugImageTexture::upload(VulkanBackend *backend, const uint8_t *pixels,
             return false;
         }
 
-        auto samplerDesc = nvrhi::SamplerDesc()
-                .setAllFilters(true)
-                .setAllAddressModes(nvrhi::SamplerAddressMode::Clamp);
+        auto samplerDesc =
+            nvrhi::SamplerDesc().setAllFilters(true).setAllAddressModes(nvrhi::SamplerAddressMode::Clamp);
 
         m_sampler = backend->device->createSampler(samplerDesc);
         if (!m_sampler) {
@@ -125,13 +119,10 @@ bool DebugImageTexture::upload(VulkanBackend *backend, const uint8_t *pixels,
     backend->device->waitForIdle();
 
     if (m_descriptorSet == VK_NULL_HANDLE) {
-        const auto &desc = m_texture->getDesc();
+        const auto& desc = m_texture->getDesc();
 
-        VkImageView imageView = m_texture->getNativeView(
-            nvrhi::ObjectTypes::VK_ImageView,
-            desc.format,
-            nvrhi::TextureSubresourceSet(0, 1, 0, 1),
-            desc.dimension);
+        VkImageView imageView = m_texture->getNativeView(nvrhi::ObjectTypes::VK_ImageView, desc.format,
+                                                         nvrhi::TextureSubresourceSet(0, 1, 0, 1), desc.dimension);
 
         VkSampler vkSampler = m_sampler->getNativeObject(nvrhi::ObjectTypes::VK_Sampler);
 
@@ -140,8 +131,7 @@ bool DebugImageTexture::upload(VulkanBackend *backend, const uint8_t *pixels,
             return false;
         }
 
-        m_descriptorSet = ImGui_ImplVulkan_AddTexture(
-            vkSampler, imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        m_descriptorSet = ImGui_ImplVulkan_AddTexture(vkSampler, imageView, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
         if (m_descriptorSet == VK_NULL_HANDLE) {
             LOG_ERROR("DebugImageTexture", "ImGui_ImplVulkan_AddTexture failed");

@@ -51,16 +51,15 @@ void AssetRegistry::scan_assets(const std::filesystem::path& assetDir, const std
             AssetID assetID = hash_string_runtime(assetName);
 
             if (auto it = m_debugNames.find(assetID); it != m_debugNames.end() && it->second != assetName) {
-                LOG_ERROR("AssetRegistry", "AssetID collision {:016x}: '{}' vs '{}'",
-                          assetID, it->second, assetName);
+                LOG_ERROR("AssetRegistry", "AssetID collision {:016x}: '{}' vs '{}'", assetID, it->second, assetName);
             }
 
             size_t fileSize = std::filesystem::file_size(filePath);
             m_registry[assetID] = AssetMetadata(relativePathStr, filePath.string(), type, fileSize);
 
             m_debugNames[assetID] = assetName;
-            LOG_TRACE("AssetRegistry", "Registered asset: {} (ID: {}, Type: {}, Size: {} bytes)",
-                      assetName, assetID, static_cast<int>(type), fileSize);
+            LOG_TRACE("AssetRegistry", "Registered asset: {} (ID: {}, Type: {}, Size: {} bytes)", assetName, assetID,
+                      static_cast<int>(type), fileSize);
 
             assetCount++;
         }
@@ -71,7 +70,8 @@ void AssetRegistry::scan_assets(const std::filesystem::path& assetDir, const std
     LOG_INFO("AssetRegistry", "Registered {} assets", assetCount);
 }
 
-void AssetRegistry::register_asset(AssetID id, const std::string& path, const std::string& fullPath, ResourceType type) {
+void AssetRegistry::register_asset(AssetID id, const std::string& path, const std::string& fullPath,
+                                   ResourceType type) {
     if (m_registry.find(id) != m_registry.end()) {
         LOG_WARN("AssetRegistry", "Asset ID {} already registered, overwriting", id);
     }
@@ -124,13 +124,13 @@ std::string AssetRegistry::get_debug_name(AssetID id) const {
 }
 
 ResourceType AssetRegistry::get_type_from_extension(const std::string& extension) {
-    if (extension == ".png" || extension == ".jpg" || extension == ".jpeg" ||
-        extension == ".bmp" || extension == ".tga") {
+    if (extension == ".png" || extension == ".jpg" || extension == ".jpeg" || extension == ".bmp" ||
+        extension == ".tga") {
         return ResourceType::IMAGE;
     }
 
-    if (extension == ".spv" || extension == ".glsl" || extension == ".vert" ||
-        extension == ".frag" || extension == ".comp") {
+    if (extension == ".spv" || extension == ".glsl" || extension == ".vert" || extension == ".frag" ||
+        extension == ".comp") {
         return ResourceType::SHADER;
     }
 

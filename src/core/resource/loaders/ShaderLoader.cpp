@@ -6,7 +6,7 @@
 
 #include "core/log/Logger.h"
 
-std::shared_ptr<ShaderResource> ShaderLoader::load_typed(const std::string &name) {
+std::shared_ptr<ShaderResource> ShaderLoader::load_typed(const std::string& name) {
     // full file path
     std::string fullFilePath = "assets/shaders/" + name + ".spv";
 
@@ -26,8 +26,11 @@ std::shared_ptr<ShaderResource> ShaderLoader::load_typed(const std::string &name
     std::unique_ptr<uint8_t[]> data(new uint8_t[size]);
     size_t bytesRead = fread(data.get(), 1, size, file);
     if (bytesRead != size) {
-        LOG_FATAL("ShaderLoader", "Failed to read shader file '{}': expected {} bytes, read {} bytes", fullFilePath, size, bytesRead);
-        throw std::runtime_error("Shader resource loader failed to read file '" + fullFilePath + " the waited size is " + std::to_string(size) + " but read " + std::to_string(bytesRead) + " bytes");
+        LOG_FATAL("ShaderLoader", "Failed to read shader file '{}': expected {} bytes, read {} bytes", fullFilePath,
+                  size, bytesRead);
+        throw std::runtime_error("Shader resource loader failed to read file '" + fullFilePath +
+                                 " the waited size is " + std::to_string(size) + " but read " +
+                                 std::to_string(bytesRead) + " bytes");
     }
     fclose(file);
 

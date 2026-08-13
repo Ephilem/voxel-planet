@@ -4,5 +4,4 @@
 
 #include "PlanetSurfaceChunkGenerator.h"
 
-namespace vp {
-} // vp
+namespace vp {} // namespace vp

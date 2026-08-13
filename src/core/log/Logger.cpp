@@ -1,16 +1,13 @@
 #include "Logger.h"
 
-#include <iostream>
 #include <chrono>
 #include <iomanip>
+#include <iostream>
 
 namespace vp {
 
 // Static member initialization
-std::map<std::string, size_t> Logger::maxLengths = {
-    {"LEVEL", 5},
-    {"COMPONENT", 20}
-};
+std::map<std::string, size_t> Logger::maxLengths = {{"LEVEL", 5}, {"COMPONENT", 20}};
 
 std::map<std::string, std::unique_ptr<Logger>> Logger::loggers;
 std::map<Logger::SinkId, Logger::SinkCallback> Logger::sinks;
@@ -20,10 +17,8 @@ bool Logger::globalUseColors = true;
 bool Logger::globalShowTimestamp = true;
 
 Logger::Logger(std::string component)
-    : m_componentName(std::move(component))
-    , m_minimumLevel(globalMinLevel)
-    , m_useColors(globalUseColors)
-    , m_showTimestamp(globalShowTimestamp) {
+    : m_componentName(std::move(component)), m_minimumLevel(globalMinLevel), m_useColors(globalUseColors),
+      m_showTimestamp(globalShowTimestamp) {
     maxLengths["COMPONENT"] = std::max(maxLengths["COMPONENT"], m_componentName.size());
 }
 
@@ -78,7 +73,8 @@ void Logger::dispatchToSinks(const LogEntry& entry) {
 }
 
 void Logger::log(Level level, const std::string& message) {
-    if (level < m_minimumLevel) return;
+    if (level < m_minimumLevel)
+        return;
 
     auto now = std::chrono::system_clock::now();
 
@@ -102,8 +98,7 @@ void Logger::log(Level level, const std::string& message) {
         ss << Colors::RESET;
     }
 
-    ss << " " << Colors::CYAN
-       << std::left << std::setw(static_cast<int>(maxLengths["COMPONENT"])) << m_componentName
+    ss << " " << Colors::CYAN << std::left << std::setw(static_cast<int>(maxLengths["COMPONENT"])) << m_componentName
        << Colors::RESET;
 
     ss << " " << formatMessage(message);
@@ -115,42 +110,72 @@ void Logger::log(Level level, const std::string& message) {
     }
 }
 
-void Logger::trace(const std::string& message) { log(Level::TRACE_LEVEL, message); }
-void Logger::debug(const std::string& message) { log(Level::DEBUG_LEVEL, message); }
-void Logger::info(const std::string& message) { log(Level::INFO_LEVEL, message); }
-void Logger::warning(const std::string& message) { log(Level::WARNING_LEVEL, message); }
-void Logger::error(const std::string& message) { log(Level::ERROR_LEVEL, message); }
-void Logger::fatal(const std::string& message) { log(Level::FATAL_LEVEL, message); }
+void Logger::trace(const std::string& message) {
+    log(Level::TRACE_LEVEL, message);
+}
+
+void Logger::debug(const std::string& message) {
+    log(Level::DEBUG_LEVEL, message);
+}
+
+void Logger::info(const std::string& message) {
+    log(Level::INFO_LEVEL, message);
+}
+
+void Logger::warning(const std::string& message) {
+    log(Level::WARNING_LEVEL, message);
+}
+
+void Logger::error(const std::string& message) {
+    log(Level::ERROR_LEVEL, message);
+}
+
+void Logger::fatal(const std::string& message) {
+    log(Level::FATAL_LEVEL, message);
+}
 
 const char* Logger::levelToString(Level level) {
     switch (level) {
-        case Level::TRACE_LEVEL:   return "TRACE";
-        case Level::DEBUG_LEVEL:   return "DEBUG";
-        case Level::INFO_LEVEL:    return "INFO";
-        case Level::WARNING_LEVEL: return "WARN";
-        case Level::ERROR_LEVEL:   return "ERROR";
-        case Level::FATAL_LEVEL:   return "FATAL";
-        default:             return "?????";
+    case Level::TRACE_LEVEL:
+        return "TRACE";
+    case Level::DEBUG_LEVEL:
+        return "DEBUG";
+    case Level::INFO_LEVEL:
+        return "INFO";
+    case Level::WARNING_LEVEL:
+        return "WARN";
+    case Level::ERROR_LEVEL:
+        return "ERROR";
+    case Level::FATAL_LEVEL:
+        return "FATAL";
+    default:
+        return "?????";
     }
 }
 
 const char* Logger::levelToColor(Level level) {
     switch (level) {
-        case Level::TRACE_LEVEL:   return Colors::GRAY;
-        case Level::DEBUG_LEVEL:   return Colors::BLUE;
-        case Level::INFO_LEVEL:    return Colors::GREEN;
-        case Level::WARNING_LEVEL: return Colors::YELLOW;
-        case Level::ERROR_LEVEL:   return Colors::RED;
-        case Level::FATAL_LEVEL:   return Colors::MAGENTA;
-        default:             return Colors::RESET;
+    case Level::TRACE_LEVEL:
+        return Colors::GRAY;
+    case Level::DEBUG_LEVEL:
+        return Colors::BLUE;
+    case Level::INFO_LEVEL:
+        return Colors::GREEN;
+    case Level::WARNING_LEVEL:
+        return Colors::YELLOW;
+    case Level::ERROR_LEVEL:
+        return Colors::RED;
+    case Level::FATAL_LEVEL:
+        return Colors::MAGENTA;
+    default:
+        return Colors::RESET;
     }
 }
 
 std::string Logger::getCurrentTime() {
     auto now = std::chrono::system_clock::now();
     auto time = std::chrono::system_clock::to_time_t(now);
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-        now.time_since_epoch()) % 1000;
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
 
     std::stringstream ss;
     ss << std::put_time(std::localtime(&time), "%H:%M:%S");
@@ -176,4 +201,4 @@ std::string Logger::formatMessage(const std::string& message) {
     return formatted.str();
 }
 
-}
+} // namespace vp

@@ -7,16 +7,14 @@
 
 namespace vp::utils {
 
-template<typename T>
-auto TypeToString() {
-    auto WrapperSignature = std::string_view{ std::source_location::current().function_name() };
+template <typename T> auto TypeToString() {
+    auto WrapperSignature = std::string_view{std::source_location::current().function_name()};
     auto StartPosition = WrapperSignature.find("with T =") + 9;
     auto EndPosition = WrapperSignature.find_first_of("]", StartPosition);
     return std::string(WrapperSignature.substr(StartPosition, EndPosition - StartPosition));
 }
 
-template<typename T>
-class BaseModule {
+template <typename T> class BaseModule {
 public:
     BaseModule(flecs::world& ecs) {
         LOG_INFO("Module", "Registering module: {}", TypeToString<T>());
@@ -35,9 +33,7 @@ public:
         derived->register_entities(ecs);
     }
 
-    ~BaseModule() {
-        LOG_INFO("Module", "Unregistering module: {}", TypeToString<T>());
-    }
+    ~BaseModule() { LOG_INFO("Module", "Unregistering module: {}", TypeToString<T>()); }
 
 private:
     void register_components(flecs::world& ecs) {};
@@ -47,4 +43,4 @@ private:
     void register_entities(flecs::world& ecs) {};
 };
 
-}
+} // namespace vp::utils

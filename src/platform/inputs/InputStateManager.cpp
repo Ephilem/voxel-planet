@@ -5,8 +5,8 @@
 #include "InputStateManager.h"
 
 #include "core/log/Logger.h"
-#include "platform/PlatformState.h"
 #include "platform/inputs/InputModuleState.h"
+#include "platform/PlatformState.h"
 #include "platform/window/Window.h"
 
 InputStateManager::InputStateManager() {
@@ -33,11 +33,11 @@ InputStateManager::InputStateManager() {
     bind_action(ActionInputType::ToggleCameraView, GLFW_KEY_F5);
 }
 
-InputStateManager::~InputStateManager() {
-}
+InputStateManager::~InputStateManager() {}
 
 void InputStateManager::bind_action(ActionInputType action, int key, int modifier) {
-    // LOG_DEBUG("InputStateManager", "Binding action {} to key {} with modifier {}", static_cast<int>(action), key, modifier);
+    // LOG_DEBUG("InputStateManager", "Binding action {} to key {} with modifier {}", static_cast<int>(action), key,
+    // modifier);
     m_actionKeyBindings[action].emplace_back(key, modifier);
 }
 
@@ -53,7 +53,7 @@ void InputStateManager::clear_action_bindings(ActionInputType action) {
     m_actionKeyBindings[action].clear();
 }
 
-bool InputStateManager::is_binding_active(const KeyBinding &binding, const InputState &inputState) const {
+bool InputStateManager::is_binding_active(const KeyBinding& binding, const InputState& inputState) const {
     if (binding.isMouse) {
         return inputState.is_mouse_button_down(binding.key);
     } else {
@@ -62,7 +62,8 @@ bool InputStateManager::is_binding_active(const KeyBinding &binding, const Input
 }
 
 void InputStateManager::set_mouse_captured(GLFWwindow* window, InputState& inputState, bool captured) {
-    if (inputState.mouseCaptured == captured) return;
+    if (inputState.mouseCaptured == captured)
+        return;
 
     inputState.mouseCaptured = captured;
 
@@ -140,14 +141,15 @@ void InputStateManager::capture_input_system(InputState& inputState, PlatformSta
 }
 
 void InputStateManager::update_action_states_system(InputState& inputState, InputActionState& actionState,
-                                                     InputModuleState& moduleState, Window& win) {
+                                                    InputModuleState& moduleState, Window& win) {
     auto* inputManager = moduleState.inputManager.get();
-    if (!inputManager) return;
+    if (!inputManager)
+        return;
 
     GLFWwindow* window = win.window;
 
     // Handle transitions
-    for (KeyState & action : actionState.actions) {
+    for (KeyState& action : actionState.actions) {
         if (action == KeyState::Pressed) {
             action = KeyState::Down;
         } else if (action == KeyState::Released) {

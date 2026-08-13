@@ -1,8 +1,8 @@
 #pragma once
-#include <unordered_map>
-#include <string>
 #include <filesystem>
 #include <optional>
+#include <string>
+#include <unordered_map>
 
 #include "asset_id.h"
 #include "resource_type.h"
@@ -14,6 +14,7 @@ struct AssetMetadata {
     size_t fileSize = 0;
 
     AssetMetadata() = default;
+
     AssetMetadata(std::string p, std::string fp, ResourceType t, size_t size = 0)
         : path(std::move(p)), fullPath(std::move(fp)), type(t), fileSize(size) {}
 };
@@ -25,9 +26,8 @@ struct AssetMetadata {
  */
 class AssetRegistry {
 public:
-    AssetRegistry() {
-        scan_assets("assets");
-    }
+    AssetRegistry() { scan_assets("assets"); }
+
     ~AssetRegistry() = default;
 
     /**
@@ -44,6 +44,7 @@ public:
     std::string get_relative_path(AssetID id) const;
     std::optional<ResourceType> get_type(AssetID id) const;
     bool has_asset(AssetID id) const;
+
     size_t get_asset_count() const { return m_registry.size(); }
 
     std::string get_debug_name(AssetID id) const;

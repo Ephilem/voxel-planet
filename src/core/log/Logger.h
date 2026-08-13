@@ -1,13 +1,13 @@
 #pragma once
 
-#include <string>
-#include <sstream>
-#include <map>
-#include <memory>
-#include <vector>
-#include <functional>
 #include <chrono>
 #include <fmt/format.h>
+#include <functional>
+#include <map>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <vector>
 
 namespace vp {
 
@@ -35,14 +35,14 @@ public:
     using SinkCallback = std::function<void(const LogEntry&)>;
 
     struct Colors {
-        static constexpr const char* RED     = "\033[1;31m";
-        static constexpr const char* YELLOW  = "\033[1;33m";
-        static constexpr const char* GREEN   = "\033[1;32m";
-        static constexpr const char* BLUE    = "\033[1;34m";
+        static constexpr const char* RED = "\033[1;31m";
+        static constexpr const char* YELLOW = "\033[1;33m";
+        static constexpr const char* GREEN = "\033[1;32m";
+        static constexpr const char* BLUE = "\033[1;34m";
         static constexpr const char* MAGENTA = "\033[1;35m";
-        static constexpr const char* CYAN    = "\033[1;36m";
-        static constexpr const char* GRAY    = "\033[1;90m";
-        static constexpr const char* RESET   = "\033[0m";
+        static constexpr const char* CYAN = "\033[1;36m";
+        static constexpr const char* GRAY = "\033[1;90m";
+        static constexpr const char* RESET = "\033[0m";
     };
 
     explicit Logger(std::string component);
@@ -54,33 +54,34 @@ public:
     void error(const std::string& message);
     void fatal(const std::string& message);
 
-    template<typename... Args>
-    void trace(fmt::format_string<Args...> format, Args&&... args) {
+    template <typename... Args> void trace(fmt::format_string<Args...> format, Args&&... args) {
         trace(fmt::format(format, std::forward<Args>(args)...));
     }
-    template<typename... Args>
-    void debug(fmt::format_string<Args...> format, Args&&... args) {
+
+    template <typename... Args> void debug(fmt::format_string<Args...> format, Args&&... args) {
         debug(fmt::format(format, std::forward<Args>(args)...));
     }
-    template<typename... Args>
-    void info(fmt::format_string<Args...> format, Args&&... args) {
+
+    template <typename... Args> void info(fmt::format_string<Args...> format, Args&&... args) {
         info(fmt::format(format, std::forward<Args>(args)...));
     }
-    template<typename... Args>
-    void warning(fmt::format_string<Args...> format, Args&&... args) {
+
+    template <typename... Args> void warning(fmt::format_string<Args...> format, Args&&... args) {
         warning(fmt::format(format, std::forward<Args>(args)...));
     }
-    template<typename... Args>
-    void error(fmt::format_string<Args...> format, Args&&... args) {
+
+    template <typename... Args> void error(fmt::format_string<Args...> format, Args&&... args) {
         error(fmt::format(format, std::forward<Args>(args)...));
     }
-    template<typename... Args>
-    void fatal(fmt::format_string<Args...> format, Args&&... args) {
+
+    template <typename... Args> void fatal(fmt::format_string<Args...> format, Args&&... args) {
         fatal(fmt::format(format, std::forward<Args>(args)...));
     }
 
     void setLogLevel(Level level) { m_minimumLevel = level; }
+
     void setUseColors(bool use) { m_useColors = use; }
+
     void setShowTimestamp(bool show) { m_showTimestamp = show; }
 
     const std::string& getComponent() const { return m_componentName; }
@@ -123,14 +124,14 @@ private:
     bool m_showTimestamp;
 };
 
-}
+} // namespace vp
 
 // Macros for easy logging anywhere
 // Usage: LOG_INFO("MyComponent", "Player {} joined", playerName);
 
 #define LOG_TRACE(component, ...) ::vp::Logger::get(component).trace(__VA_ARGS__)
 #define LOG_DEBUG(component, ...) ::vp::Logger::get(component).debug(__VA_ARGS__)
-#define LOG_INFO(component, ...)  ::vp::Logger::get(component).info(__VA_ARGS__)
-#define LOG_WARN(component, ...)  ::vp::Logger::get(component).warning(__VA_ARGS__)
+#define LOG_INFO(component, ...) ::vp::Logger::get(component).info(__VA_ARGS__)
+#define LOG_WARN(component, ...) ::vp::Logger::get(component).warning(__VA_ARGS__)
 #define LOG_ERROR(component, ...) ::vp::Logger::get(component).error(__VA_ARGS__)
 #define LOG_FATAL(component, ...) ::vp::Logger::get(component).fatal(__VA_ARGS__)

@@ -5,8 +5,8 @@
 #include <imgui_impl_vulkan.h>
 #include <implot.h>
 
-#include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
+#include "core/TracyIntegration.h"
 #include "platform/PlatformState.h"
 #include "renderer/Renderer.h"
 #include "renderer/rendering_components.h"
@@ -18,23 +18,22 @@ ImGuiManager::~ImGuiManager() {
     shutdown();
 }
 
-void ImGuiManager::init(GLFWwindow *window, VulkanBackend *backend) {
-    if (m_initialized) return;
+void ImGuiManager::init(GLFWwindow* window, VulkanBackend* backend) {
+    if (m_initialized)
+        return;
     m_backend = backend;
 
-    VkDescriptorPoolSize poolSize[] = {
-        {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
-        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
-        {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
-        {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
-        {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
-        {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
-        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
-        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
-        {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
-        {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
-        {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}
-    };
+    VkDescriptorPoolSize poolSize[] = {{VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
+                                       {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
+                                       {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
+                                       {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
+                                       {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
+                                       {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
+                                       {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
+                                       {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
+                                       {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
+                                       {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
+                                       {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
 
     VkDescriptorPoolCreateInfo poolInfo = {};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -50,8 +49,8 @@ void ImGuiManager::init(GLFWwindow *window, VulkanBackend *backend) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImPlot::CreateContext();
-    ImGuiIO &io = ImGui::GetIO();
-    (void) io;
+    ImGuiIO& io = ImGui::GetIO();
+    (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
     ImGui::StyleColorsDark();
@@ -83,7 +82,8 @@ void ImGuiManager::init(GLFWwindow *window, VulkanBackend *backend) {
 }
 
 void ImGuiManager::shutdown() {
-    if (!m_initialized) return;
+    if (!m_initialized)
+        return;
 
     if (!m_backend->device->waitForIdle()) {
         throw std::runtime_error("Failed to wait device idle in ImGui shutdown!");
@@ -103,7 +103,8 @@ void ImGuiManager::shutdown() {
 }
 
 void ImGuiManager::begin_frame() {
-    if (!m_initialized) return;
+    if (!m_initialized)
+        return;
 
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
@@ -111,7 +112,8 @@ void ImGuiManager::begin_frame() {
 }
 
 void ImGuiManager::render(VkCommandBuffer commandBuffer) {
-    if (!m_initialized) return;
+    if (!m_initialized)
+        return;
 
     ImGui::Render();
 
@@ -120,19 +122,15 @@ void ImGuiManager::render(VkCommandBuffer commandBuffer) {
     // Get image view from nvrhi texture
     nvrhi::TextureHandle texture = m_backend->get_current_texture();
     const auto& desc = texture->getDesc();
-    VkImageView imageView = texture->getNativeView(
-        nvrhi::ObjectTypes::VK_ImageView,
-        desc.format,
-        nvrhi::TextureSubresourceSet(0, 1, 0, 1),
-        desc.dimension
-    );
+    VkImageView imageView = texture->getNativeView(nvrhi::ObjectTypes::VK_ImageView, desc.format,
+                                                   nvrhi::TextureSubresourceSet(0, 1, 0, 1), desc.dimension);
 
     // Dynamic rendering
     VkRenderingAttachmentInfo colorAttachment{};
     colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
     colorAttachment.imageView = imageView;
     colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;  // Keep existing content
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD; // Keep existing content
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 
     VkRenderingInfo renderingInfo{};

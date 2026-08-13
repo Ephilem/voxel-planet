@@ -6,32 +6,31 @@
 
 #include <cmath>
 
-#include "planet_client_components.h"
-#include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
+#include "core/TracyIntegration.h"
 #include "core/world/planet/planet_components.h"
 #include "core/world/planet/planet_transform.h"
 #include "core/world/spatial/spatial_components.h"
+#include "planet_client_components.h"
 #include "renderer/rendering_components.h"
 #include "renderer/world/planet/planet_rendering_components.h"
 
 using namespace vp;
 
-
-void PlanetClientModule::register_components(flecs::world &ecs) {
+void PlanetClientModule::register_components(flecs::world& ecs) {
     ecs.component<PlanetTileLodComp>();
 }
 
-void PlanetClientModule::register_systems(flecs::world &ecs) {
+void PlanetClientModule::register_systems(flecs::world& ecs) {
 
     // The camera is looked up once per frame rather than joined into the planet query:
     // the frustum is shared by every planet, and rebuilding it per planet would repeat
     // the same plane extraction
     ecs.system<PlanetTileLodComp, PlanetTileDrawListComp, const PlanetComp, const GlobalTransform>(
-                "PlanetClient-UpdateLod")
+           "PlanetClient-UpdateLod")
         .kind(flecs::PreStore)
-        .each([](flecs::entity e, PlanetTileLodComp &lod, PlanetTileDrawListComp &drawList,
-                 const PlanetComp &planet, const GlobalTransform &transform) {
+        .each([](flecs::entity e, PlanetTileLodComp& lod, PlanetTileDrawListComp& drawList, const PlanetComp& planet,
+                 const GlobalTransform& transform) {
             if (!lod.quadtree) {
                 lod.quadtree = std::make_unique<PlanetQuadtrees>();
             }
@@ -47,8 +46,9 @@ void PlanetClientModule::register_systems(flecs::world &ecs) {
             Frustrum frustum;
             bool hasFrustum = false;
             if (lod.frustumCulling) {
-                e.world().each([&](const Camera3d &camera) {
-                    if (hasFrustum) return; // first camera wins
+                e.world().each([&](const Camera3d& camera) {
+                    if (hasFrustum)
+                        return; // first camera wins
                     frustum.update(camera.projectionMatrix * camera.viewMatrix);
                     hasFrustum = true;
                 });
@@ -61,24 +61,19 @@ void PlanetClientModule::register_systems(flecs::world &ecs) {
                 drawList.drawItems.clear();
                 lod.quadtree->begin_collect();
                 for (uint8_t face = 0; face < 6; ++face) {
-                    lod.quadtree->collect_node(lod.quadtree->root(static_cast<CubemapFace>(face)),
-                                 lod.params, cameraPosPlanet, drawList.drawItems,
-                                 hasFrustum ? &frustum : nullptr);
+                    lod.quadtree->collect_node(lod.quadtree->root(static_cast<CubemapFace>(face)), lod.params,
+                                               cameraPosPlanet, drawList.drawItems, hasFrustum ? &frustum : nullptr);
                 }
             }
 
             if (lod.debugDrawNodes) {
-                lod.quadtree->debug_draw(transform.pos, lod.params, lod.debugMode,
-                                         lod.debugSegmentsPerEdge);
+                lod.quadtree->debug_draw(transform.pos, lod.params, lod.debugMode, lod.debugSegmentsPerEdge);
             }
         });
 }
 
-void PlanetClientModule::register_pipelines(flecs::world &ecs) {
-}
+void PlanetClientModule::register_pipelines(flecs::world& ecs) {}
 
-void PlanetClientModule::register_submodules(flecs::world &ecs) {
-}
+void PlanetClientModule::register_submodules(flecs::world& ecs) {}
 
-void PlanetClientModule::register_entities(flecs::world &ecs) {
-}
+void PlanetClientModule::register_entities(flecs::world& ecs) {}

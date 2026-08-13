@@ -3,4 +3,3 @@
 #include <glm/glm.hpp>
 
 struct Player {};
-

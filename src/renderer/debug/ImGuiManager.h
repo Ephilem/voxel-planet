@@ -1,8 +1,8 @@
 #pragma once
 
-#include <vulkan/vulkan.h>
-#include <GLFW/glfw3.h>
 #include <flecs.h>
+#include <GLFW/glfw3.h>
+#include <vulkan/vulkan.h>
 
 class VulkanBackend;
 

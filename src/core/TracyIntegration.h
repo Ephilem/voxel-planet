@@ -24,12 +24,10 @@ namespace tracy_integration {
 // Register Tracy systems with Flecs
 inline void Register(flecs::world& ecs) {
     // FrameMark system - runs at the very end of each frame
-    ecs.system("Tracy_FrameMark")
-        .kind(flecs::PostFrame)
-        .run([](flecs::iter& it) {
-            (void)it;
-            FrameMark;
-        });
+    ecs.system("Tracy_FrameMark").kind(flecs::PostFrame).run([](flecs::iter& it) {
+        (void)it;
+        FrameMark;
+    });
 }
 
 } // namespace tracy_integration
@@ -49,6 +47,6 @@ inline void Register(flecs::world& ecs) {
 
 namespace tracy_integration {
 inline void Register(flecs::world&) {}
-}
+} // namespace tracy_integration
 
 #endif

@@ -5,7 +5,7 @@
 namespace vp {
 class Camera3dModule : public utils::BaseModule<Camera3dModule> {
 public:
-    Camera3dModule(flecs::world& ecs): BaseModule(ecs) {}
+    Camera3dModule(flecs::world& ecs) : BaseModule(ecs) {}
 
 private:
     void register_components(flecs::world& ecs);
@@ -13,4 +13,4 @@ private:
 
     friend class BaseModule;
 };
-}
+} // namespace vp

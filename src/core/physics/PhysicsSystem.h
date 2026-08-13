@@ -7,10 +7,10 @@ public:
     PhysicsSystem() = default;
     ~PhysicsSystem() = default;
 
-    static void Register(flecs::world &ecs);
+    static void Register(flecs::world& ecs);
 
 private:
-    void init(flecs::world &ecs);
+    void init(flecs::world& ecs);
 
-    void apply_velocity(flecs::iter &it);
+    void apply_velocity(flecs::iter& it);
 };

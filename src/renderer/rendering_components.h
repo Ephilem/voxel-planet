@@ -1,16 +1,14 @@
 #pragma once
 
-#include <vector>
 #include "render_types.h"
+#include <vector>
 
 #define MAX_FRAMES_IN_FLIGHT 2
-
 
 enum class CameraViewType : uint8_t {
     FirstPerson,
     ThirdPerson,
 };
-
 
 struct Camera3dParameters {
     glm::float32 fov = 45.0f;
@@ -25,24 +23,18 @@ struct Camera3d {
 };
 
 namespace voxel_chunk_mesh_state {
-    struct WaitingForNeighbors {
-    };
+struct WaitingForNeighbors {};
 
-    struct Clean {
-    };
+struct Clean {};
 
-    struct Dirty {
-    };
+struct Dirty {};
 
-    struct Meshing {
-    };
+struct Meshing {};
 
-    struct ReadyForUpload {
-    };
-}
+struct ReadyForUpload {};
+} // namespace voxel_chunk_mesh_state
 
-struct VoxelChunkMeshState {
-};
+struct VoxelChunkMeshState {};
 
 struct VoxelChunkMesh {
     // GPU side info
@@ -64,7 +56,6 @@ struct VoxelChunkMesh {
 
     bool is_allocated() const {
         // A draw slot is the minimum requirement; face region may be absent for empty meshes.
-        return drawSlotIndex != UINT32_MAX &&
-               bufferIndex != UINT32_MAX;
+        return drawSlotIndex != UINT32_MAX && bufferIndex != UINT32_MAX;
     }
 };

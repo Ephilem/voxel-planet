@@ -23,18 +23,16 @@ constexpr CubemapFace CROSS_LAYOUT[CROSS_ROWS][CROSS_COLS] = {
 
 class EquirectangularProjection final : public PlanetLayerProjectionMapping {
 public:
-    const char *name() const override { return "Equirectangular"; }
+    const char* name() const override { return "Equirectangular"; }
 
-    glm::ivec2 image_size(int resolution) const override {
-        return {resolution * 4, resolution * 2};
-    }
+    glm::ivec2 image_size(int resolution) const override { return {resolution * 4, resolution * 2}; }
 
-    void tiles(int resolution, std::vector<PlanetLayerProjectionTile> &out) const override {
+    void tiles(int resolution, std::vector<PlanetLayerProjectionTile>& out) const override {
         out.clear();
         out.push_back({{0, 0}, image_size(resolution), FACE_UNKNOWN});
     }
 
-    void fill_tile_directions(const PlanetLayerProjectionTile &tile, PlanetDirectionField &out) const override {
+    void fill_tile_directions(const PlanetLayerProjectionTile& tile, PlanetDirectionField& out) const override {
         out.resize(tile.size.x, tile.size.y);
 
         for (int py = 0; py < tile.size.y; ++py) {
@@ -53,7 +51,7 @@ public:
         }
     }
 
-    std::string describe_pixel(int x, int y, const glm::ivec2 &imageSize) const override {
+    std::string describe_pixel(int x, int y, const glm::ivec2& imageSize) const override {
         if (imageSize.x <= 0 || imageSize.y <= 0)
             return "-";
 
@@ -61,32 +59,30 @@ public:
         const double lon = ((x + 0.5) / imageSize.x - 0.5) * 360.0;
 
         char buffer[64];
-        std::snprintf(buffer, sizeof(buffer), "%.2f%c  %.2f%c",
-                      std::abs(lat), lat >= 0.0 ? 'N' : 'S',
-                      std::abs(lon), lon >= 0.0 ? 'E' : 'W');
+        std::snprintf(buffer, sizeof(buffer), "%.2f%c  %.2f%c", std::abs(lat), lat >= 0.0 ? 'N' : 'S', std::abs(lon),
+                      lon >= 0.0 ? 'E' : 'W');
         return buffer;
     }
 
-    void plot_bounds(const glm::ivec2 &, double &xMin, double &xMax, double &yMin, double &yMax) const override {
+    void plot_bounds(const glm::ivec2&, double& xMin, double& xMax, double& yMin, double& yMax) const override {
         xMin = -180.0;
         xMax = 180.0;
         yMin = -90.0;
         yMax = 90.0;
     }
 
-    const char *x_axis_label() const override { return "Longitude"; }
-    const char *y_axis_label() const override { return "Latitude"; }
+    const char* x_axis_label() const override { return "Longitude"; }
+
+    const char* y_axis_label() const override { return "Latitude"; }
 };
 
 class CubeCrossProjection final : public PlanetLayerProjectionMapping {
 public:
-    const char *name() const override { return "Cube cross"; }
+    const char* name() const override { return "Cube cross"; }
 
-    glm::ivec2 image_size(int resolution) const override {
-        return {resolution * CROSS_COLS, resolution * CROSS_ROWS};
-    }
+    glm::ivec2 image_size(int resolution) const override { return {resolution * CROSS_COLS, resolution * CROSS_ROWS}; }
 
-    void tiles(int resolution, std::vector<PlanetLayerProjectionTile> &out) const override {
+    void tiles(int resolution, std::vector<PlanetLayerProjectionTile>& out) const override {
         out.clear();
         for (int row = 0; row < CROSS_ROWS; ++row) {
             for (int col = 0; col < CROSS_COLS; ++col) {
@@ -94,16 +90,13 @@ public:
                 if (face == FACE_UNKNOWN)
                     continue;
 
-                out.push_back(PlanetLayerProjectionTile{
-                    {col * resolution, row * resolution},
-                    {resolution, resolution},
-                    face
-                });
+                out.push_back(
+                    PlanetLayerProjectionTile{{col * resolution, row * resolution}, {resolution, resolution}, face});
             }
         }
     }
 
-    void fill_tile_directions(const PlanetLayerProjectionTile &tile, PlanetDirectionField &out) const override {
+    void fill_tile_directions(const PlanetLayerProjectionTile& tile, PlanetDirectionField& out) const override {
         out.resize(tile.size.x, tile.size.y);
 
         for (int py = 0; py < tile.size.y; ++py) {
@@ -121,7 +114,7 @@ public:
         }
     }
 
-    std::string describe_pixel(int x, int y, const glm::ivec2 &imageSize) const override {
+    std::string describe_pixel(int x, int y, const glm::ivec2& imageSize) const override {
         const int faceSize = imageSize.x / CROSS_COLS;
         if (faceSize <= 0)
             return "-";
@@ -143,15 +136,15 @@ public:
         return buffer;
     }
 
-    void plot_bounds(const glm::ivec2 &imageSize, double &xMin, double &xMax,
-                     double &yMin, double &yMax) const override {
+    void plot_bounds(const glm::ivec2& imageSize, double& xMin, double& xMax, double& yMin,
+                     double& yMax) const override {
         xMin = 0.0;
         xMax = imageSize.x;
         yMin = imageSize.y;
         yMax = 0.0;
     }
 
-    void draw_overlay(const glm::ivec2 &imageSize) const override {
+    void draw_overlay(const glm::ivec2& imageSize) const override {
         const int faceSize = imageSize.x / CROSS_COLS;
         if (faceSize <= 0)
             return;
@@ -183,16 +176,21 @@ public:
 static const EquirectangularProjection EQUIRECT;
 static const CubeCrossProjection CUBE_CROSS;
 
-const PlanetLayerProjectionMapping &vp::equirectangular_projection() { return EQUIRECT; }
-const PlanetLayerProjectionMapping &vp::cube_cross_projection() { return CUBE_CROSS; }
+const PlanetLayerProjectionMapping& vp::equirectangular_projection() {
+    return EQUIRECT;
+}
 
-static const PlanetLayerProjectionMapping* PROJECTIONS[] = {
-    &EQUIRECT,
-    &CUBE_CROSS
-};
+const PlanetLayerProjectionMapping& vp::cube_cross_projection() {
+    return CUBE_CROSS;
+}
 
-int vp::projection_count() { return 2; }
-const PlanetLayerProjectionMapping *vp::projection_at(int index) {
+static const PlanetLayerProjectionMapping* PROJECTIONS[] = {&EQUIRECT, &CUBE_CROSS};
+
+int vp::projection_count() {
+    return 2;
+}
+
+const PlanetLayerProjectionMapping* vp::projection_at(int index) {
     if (index < 0 || index >= projection_count())
         return nullptr;
     return PROJECTIONS[index];

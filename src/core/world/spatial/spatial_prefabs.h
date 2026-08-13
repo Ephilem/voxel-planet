@@ -1,4 +1,3 @@
 #pragma once
 
-namespace vp::prefabs {
-}
+namespace vp::prefabs {}

@@ -1,6 +1,6 @@
 #pragma once
-#include <string>
 #include <glm/fwd.hpp>
+#include <string>
 
 #include "asset_id.h"
 
@@ -15,13 +15,11 @@ enum class ResourceType {
 
 class IResource {
 public:
-
     virtual ~IResource() = default;
 
     virtual AssetID get_id() const = 0;
     virtual const std::string& get_name() const = 0;
     virtual size_t get_data_size() const = 0;
-
 };
 
 class ShaderResource : public IResource {
@@ -32,15 +30,15 @@ public:
     AssetID id;
     std::string name;
 
-    ShaderResource(std::string assetName, size_t dataSize,
-                   std::unique_ptr<uint8_t[]> data)
-        : name(std::move(assetName)), m_data_size(dataSize), m_data(std::move(data))
-    {
+    ShaderResource(std::string assetName, size_t dataSize, std::unique_ptr<uint8_t[]> data)
+        : name(std::move(assetName)), m_data_size(dataSize), m_data(std::move(data)) {
         id = hash_string_runtime(name);
     }
 
     AssetID get_id() const override { return id; }
+
     const std::string& get_name() const override { return name; }
+
     size_t get_data_size() const override { return m_data_size; }
 
     uint8_t* get_data() const { return m_data.get(); }
@@ -58,10 +56,8 @@ public:
     uint8_t channel_count;
     bool has_transparency;
 
-    ImageResource(std::string assetName, uint32_t w, uint32_t h,
-                  uint8_t channels, std::unique_ptr<uint8_t[]> data)
-        : m_data(std::move(data)), name(std::move(assetName)), width(w), height(h), channel_count(channels)
-    {
+    ImageResource(std::string assetName, uint32_t w, uint32_t h, uint8_t channels, std::unique_ptr<uint8_t[]> data)
+        : m_data(std::move(data)), name(std::move(assetName)), width(w), height(h), channel_count(channels) {
         id = hash_string_runtime(name);
 
         has_transparency = false;
@@ -74,7 +70,9 @@ public:
     }
 
     AssetID get_id() const override { return id; }
+
     const std::string& get_name() const override { return name; }
+
     size_t get_data_size() const override { return width * height * channel_count; }
 
     uint8_t* get_data() const { return m_data.get(); }

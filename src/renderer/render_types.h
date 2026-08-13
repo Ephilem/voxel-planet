@@ -14,10 +14,10 @@ struct TerrainFace3d {
     //   +Y face  -> y = voxelY * 16 + blockHeight  (exact top-face position)
     //   side faces -> y = voxelY * 16 + nbH         (base + neighbor height offset)
     //   -Y face  -> y = voxelY * 16
-    uint32_t x : 5{};
-    uint32_t z : 5{};
-    uint32_t y : 9{};
-    uint32_t faceIndex : 3{};
+    uint32_t x : 5 {};
+    uint32_t z : 5 {};
+    uint32_t y : 9 {};
+    uint32_t faceIndex : 3 {};
     uint32_t padding : 10 = 0;
 
     // packed2 layout: width:9 | height:9 | textureSlot:14
@@ -29,7 +29,7 @@ struct TerrainFace3d {
     //   partial block (blkH < 15) -> stored = blkH - nbH
     //   full / merged blocks      -> stored = mergedVoxels * 16 - 1
     // Max value: 511 -> 512/16 = 32 voxels (full chunk side)
-    uint32_t width : 9{};
-    uint32_t height : 9{};
-    uint32_t textureSlot : 14{};
+    uint32_t width : 9 {};
+    uint32_t height : 9 {};
+    uint32_t textureSlot : 14 {};
 };

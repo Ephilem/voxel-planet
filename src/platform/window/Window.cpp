@@ -4,12 +4,11 @@
 #include <stdexcept>
 
 #include "core/log/Logger.h"
-#include "platform/PlatformState.h"
 #include "platform/events.h"
 #include "platform/inputs/input_state.h"
+#include "platform/PlatformState.h"
 
-Window::Window(uint16_t w, uint16_t h, const std::string& t)
-    : width(w), height(h), title(t) {
+Window::Window(uint16_t w, uint16_t h, const std::string& t) : width(w), height(h), title(t) {
     glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
     if (!glfwInit()) {
         throw std::runtime_error("Failed to initialize GLFW");
@@ -45,29 +44,20 @@ glm::ivec2 Window::getFramebufferSize() const {
     return {width, height};
 }
 
-void Window::setupCallbacks(flecs::world &ecs) {
+void Window::setupCallbacks(flecs::world& ecs) {
     glfwSetWindowUserPointer(window, ecs.c_ptr());
 
-    glfwSetFramebufferSizeCallback(window,
-    [](GLFWwindow* win, int width, int height) {
-            auto* world_c = static_cast<ecs_world_t*>(glfwGetWindowUserPointer(win));
-            flecs::world world(world_c);
-            auto platformStateEntity = world.entity<PlatformState>();
+    glfwSetFramebufferSizeCallback(window, [](GLFWwindow* win, int width, int height) {
+        auto* world_c = static_cast<ecs_world_t*>(glfwGetWindowUserPointer(win));
+        flecs::world world(world_c);
+        auto platformStateEntity = world.entity<PlatformState>();
 
-            WindowResizeEvent evt {
-                .width = static_cast<uint32_t>(width),
-                .height = static_cast<uint32_t>(height)
-            };
+        WindowResizeEvent evt{.width = static_cast<uint32_t>(width), .height = static_cast<uint32_t>(height)};
 
-            world.event<WindowResizeEvent>()
-            .id<PlatformState>()
-            .entity(platformStateEntity)
-            .ctx(evt)
-            .emit();
-        });
+        world.event<WindowResizeEvent>().id<PlatformState>().entity(platformStateEntity).ctx(evt).emit();
+    });
 
-    glfwSetScrollCallback(window,
-    [](GLFWwindow* win, double xoffset, double yoffset) {
+    glfwSetScrollCallback(window, [](GLFWwindow* win, double xoffset, double yoffset) {
         auto* world_c = static_cast<ecs_world_t*>(glfwGetWindowUserPointer(win));
         flecs::world world(world_c);
         auto* inputState = world.get_mut<InputState>();

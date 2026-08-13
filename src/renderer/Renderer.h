@@ -2,8 +2,8 @@
 #include <memory>
 #include <vector>
 
-#include "IRenderPass.h"
 #include "debug/ImGuiManager.h"
+#include "IRenderPass.h"
 #include "nvrhi/nvrhi.h"
 #include "vulkan/VulkanBackend.h"
 
@@ -21,4 +21,3 @@ struct Renderer {
 
     FrameContext frameContext = {};
 };
-

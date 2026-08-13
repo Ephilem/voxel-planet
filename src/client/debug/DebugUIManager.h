@@ -3,8 +3,8 @@
 #include <memory>
 #include <vector>
 
-#include "IDebugPanel.h"
 #include "core/log/Logger.h"
+#include "IDebugPanel.h"
 
 class DebugUIManager {
 public:
@@ -14,8 +14,7 @@ public:
     DebugUIManager(const DebugUIManager&) = delete;
     DebugUIManager& operator=(const DebugUIManager&) = delete;
 
-    template<typename T, typename... Args>
-    void add_panel(Args&&... args) {
+    template <typename T, typename... Args> void add_panel(Args&&... args) {
         LOG_TRACE("DebugUIManager", "Adding panel: {}", typeid(T).name());
         m_panels.push_back(std::make_unique<T>(std::forward<Args>(args)...));
     }

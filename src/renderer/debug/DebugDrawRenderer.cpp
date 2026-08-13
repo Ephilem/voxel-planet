@@ -12,23 +12,24 @@ DebugDrawRenderer::~DebugDrawRenderer() {
     destroy();
 }
 
-void DebugDrawRenderer::render(nvrhi::CommandListHandle cmd, Camera3d &camera, VulkanBackend &backend) {
+void DebugDrawRenderer::render(nvrhi::CommandListHandle cmd, Camera3d& camera, VulkanBackend& backend) {
     render_lines(cmd, camera, backend);
     render_points(cmd, camera, backend);
 }
 
 void DebugDrawRenderer::init_gpu() {
-    std::shared_ptr<ShaderResource> vertexRes = m_resourceSystem->load<ShaderResource>("debug_draw.vert", ResourceType::SHADER);
-    std::shared_ptr<ShaderResource> pixelRes = m_resourceSystem->load<ShaderResource>("debug_draw.frag", ResourceType::SHADER);
+    std::shared_ptr<ShaderResource> vertexRes =
+        m_resourceSystem->load<ShaderResource>("debug_draw.vert", ResourceType::SHADER);
+    std::shared_ptr<ShaderResource> pixelRes =
+        m_resourceSystem->load<ShaderResource>("debug_draw.frag", ResourceType::SHADER);
 
-    auto vertexShader = m_backend->device->createShader(
-        nvrhi::ShaderDesc().setShaderType(nvrhi::ShaderType::Vertex),
-        vertexRes->get_data(), vertexRes->get_data_size());
-    auto pixelShader = m_backend->device->createShader(
-        nvrhi::ShaderDesc().setShaderType(nvrhi::ShaderType::Pixel),
-        pixelRes->get_data(), pixelRes->get_data_size());
+    auto vertexShader = m_backend->device->createShader(nvrhi::ShaderDesc().setShaderType(nvrhi::ShaderType::Vertex),
+                                                        vertexRes->get_data(), vertexRes->get_data_size());
+    auto pixelShader = m_backend->device->createShader(nvrhi::ShaderDesc().setShaderType(nvrhi::ShaderType::Pixel),
+                                                       pixelRes->get_data(), pixelRes->get_data_size());
 
-    auto pushConstantLayoutDesc = nvrhi::BindingLayoutDesc()
+    auto pushConstantLayoutDesc =
+        nvrhi::BindingLayoutDesc()
             .setVisibility(nvrhi::ShaderType::Vertex)
             .addItem(nvrhi::BindingLayoutItem::PushConstants(0, sizeof(DebugDrawPushConstants)));
     m_pushConstantLayout = m_backend->device->createBindingLayout(pushConstantLayoutDesc);
@@ -36,94 +37,88 @@ void DebugDrawRenderer::init_gpu() {
     /////////////////////// LINES PIPELINE ///////////////////////
     // lines vertex buffer
     auto lineBufferDesc = nvrhi::BufferDesc()
-            .setByteSize(1024 * 1024 * 100)
-            .setDebugName("DebugDrawLines")
-            .setIsVertexBuffer(true)
-            .setInitialState(nvrhi::ResourceStates::VertexBuffer)
-            .setKeepInitialState(true);
+                              .setByteSize(1024 * 1024 * 100)
+                              .setDebugName("DebugDrawLines")
+                              .setIsVertexBuffer(true)
+                              .setInitialState(nvrhi::ResourceStates::VertexBuffer)
+                              .setKeepInitialState(true);
     m_lineBuffer = m_backend->device->createBuffer(lineBufferDesc);
 
     // Rasterizer
     auto rasterizerState = nvrhi::RasterState()
-            .setCullMode(nvrhi::RasterCullMode::None)
-            .setFillMode(nvrhi::RasterFillMode::Solid)
-            .setDepthClipEnable(true);
+                               .setCullMode(nvrhi::RasterCullMode::None)
+                               .setFillMode(nvrhi::RasterFillMode::Solid)
+                               .setDepthClipEnable(true);
 
     // Depth Stencil
-    auto depthStencilState = nvrhi::DepthStencilState()
-            .setDepthTestEnable(true)
-            .setDepthWriteEnable(true)
-            .setDepthFunc(nvrhi::ComparisonFunc::GreaterOrEqual); // reverse z depth buffer
+    auto depthStencilState = nvrhi::DepthStencilState().setDepthTestEnable(true).setDepthWriteEnable(true).setDepthFunc(
+        nvrhi::ComparisonFunc::GreaterOrEqual); // reverse z depth buffer
 
     auto framebufferInfo = nvrhi::FramebufferInfo()
-            .addColorFormat(m_backend->get_swapchain_format())
-            .setDepthFormat(m_backend->get_depth_format());
+                               .addColorFormat(m_backend->get_swapchain_format())
+                               .setDepthFormat(m_backend->get_depth_format());
 
     nvrhi::VertexAttributeDesc vertexDecs[2] = {
         nvrhi::VertexAttributeDesc()
-        .setName("POSITION")
-        .setFormat(nvrhi::Format::RGB32_FLOAT)
-        .setOffset(offsetof(DebugVertex, position))
-        .setBufferIndex(0)
-        .setElementStride(sizeof(DebugVertex)),
+            .setName("POSITION")
+            .setFormat(nvrhi::Format::RGB32_FLOAT)
+            .setOffset(offsetof(DebugVertex, position))
+            .setBufferIndex(0)
+            .setElementStride(sizeof(DebugVertex)),
         nvrhi::VertexAttributeDesc()
-        .setName("COLOR")
-        .setFormat(nvrhi::Format::RGBA32_FLOAT)
-        .setOffset(offsetof(DebugVertex, color))
-        .setBufferIndex(0)
-        .setElementStride(sizeof(DebugVertex)),
+            .setName("COLOR")
+            .setFormat(nvrhi::Format::RGBA32_FLOAT)
+            .setOffset(offsetof(DebugVertex, color))
+            .setBufferIndex(0)
+            .setElementStride(sizeof(DebugVertex)),
     };
-    m_lineInputLayout = m_backend->device->createInputLayout(
-        vertexDecs, 2,
-        vertexShader
-    );
+    m_lineInputLayout = m_backend->device->createInputLayout(vertexDecs, 2, vertexShader);
 
     auto pipelineDesc = nvrhi::GraphicsPipelineDesc()
-            .setVertexShader(vertexShader)
-            .setPixelShader(pixelShader)
-            .setInputLayout(m_lineInputLayout)
-            .setPrimType(nvrhi::PrimitiveType::LineList)
-            .setRenderState({
-                .depthStencilState = depthStencilState,
-                .rasterState = rasterizerState,
-            })
-            .addBindingLayout(m_pushConstantLayout);
+                            .setVertexShader(vertexShader)
+                            .setPixelShader(pixelShader)
+                            .setInputLayout(m_lineInputLayout)
+                            .setPrimType(nvrhi::PrimitiveType::LineList)
+                            .setRenderState({
+                                .depthStencilState = depthStencilState,
+                                .rasterState = rasterizerState,
+                            })
+                            .addBindingLayout(m_pushConstantLayout);
     m_linePipeline = m_backend->device->createGraphicsPipeline(pipelineDesc, framebufferInfo);
 
     /////////////////////// POINTS PIPELINE ///////////////////////
     auto pointBufferDesc = nvrhi::BufferDesc()
-            .setByteSize(1024 * 1024)
-            .setDebugName("DebugDrawPoints")
-            .setIsVertexBuffer(true)
-            .setInitialState(nvrhi::ResourceStates::VertexBuffer)
-            .setKeepInitialState(true);
+                               .setByteSize(1024 * 1024)
+                               .setDebugName("DebugDrawPoints")
+                               .setIsVertexBuffer(true)
+                               .setInitialState(nvrhi::ResourceStates::VertexBuffer)
+                               .setKeepInitialState(true);
     m_pointBuffer = m_backend->device->createBuffer(pointBufferDesc);
 
-    // std::shared_ptr<ShaderResource> pointVertRes = m_resourceSystem->load<ShaderResource>("debug_draw.vert", ResourceType::SHADER);
-    // auto pointVertexShader = m_backend->device->createShader(
-        // nvrhi::ShaderDesc().setShaderType(nvrhi::ShaderType::Vertex),
-        // pointVertRes->get_data(), pointVertRes->get_data_size());
+    // std::shared_ptr<ShaderResource> pointVertRes = m_resourceSystem->load<ShaderResource>("debug_draw.vert",
+    // ResourceType::SHADER); auto pointVertexShader = m_backend->device->createShader(
+    // nvrhi::ShaderDesc().setShaderType(nvrhi::ShaderType::Vertex),
+    // pointVertRes->get_data(), pointVertRes->get_data_size());
 
     auto pointPipelineDesc = nvrhi::GraphicsPipelineDesc()
-            .setVertexShader(vertexShader)
-            .setPixelShader(pixelShader)
-            .setInputLayout(m_lineInputLayout)
-            .setPrimType(nvrhi::PrimitiveType::PointList)
-            .setRenderState({
-                .depthStencilState = depthStencilState,
-                .rasterState = rasterizerState,
-            })
-            .addBindingLayout(m_pushConstantLayout);
+                                 .setVertexShader(vertexShader)
+                                 .setPixelShader(pixelShader)
+                                 .setInputLayout(m_lineInputLayout)
+                                 .setPrimType(nvrhi::PrimitiveType::PointList)
+                                 .setRenderState({
+                                     .depthStencilState = depthStencilState,
+                                     .rasterState = rasterizerState,
+                                 })
+                                 .addBindingLayout(m_pushConstantLayout);
     m_pointPipeline = m_backend->device->createGraphicsPipeline(pointPipelineDesc, framebufferInfo);
-
 }
 
-void DebugDrawRenderer::destroy() {
-}
+void DebugDrawRenderer::destroy() {}
 
-void DebugDrawRenderer::render_lines(nvrhi::CommandListHandle cmd, Camera3d &camera, VulkanBackend &backend) {
-    auto &lines = vp::DebugDraw::GetLines();
-    if (lines.empty()) return;
+void DebugDrawRenderer::render_lines(nvrhi::CommandListHandle cmd, Camera3d& camera, VulkanBackend& backend) {
+    auto& lines = vp::DebugDraw::GetLines();
+    if (lines.empty())
+        return;
 
     // upload CPU -> GPU
     cmd->writeBuffer(m_lineBuffer, lines.data(), lines.size() * sizeof(DebugVertex));
@@ -133,11 +128,11 @@ void DebugDrawRenderer::render_lines(nvrhi::CommandListHandle cmd, Camera3d &cam
     DebugDrawPushConstants pc{camera.projectionMatrix * camera.viewMatrix};
 
     auto state = nvrhi::GraphicsState()
-            .setPipeline(m_linePipeline)
-            .setFramebuffer(m_backend->get_current_framebuffer())
-            .setViewport(nvrhi::ViewportState()
-                .addViewportAndScissorRect(nvrhi::Viewport(0.f, extent.width, 0.f,  extent.height, 0.f, 1.f)))
-            .addVertexBuffer({m_lineBuffer, 0, 0});
+                     .setPipeline(m_linePipeline)
+                     .setFramebuffer(m_backend->get_current_framebuffer())
+                     .setViewport(nvrhi::ViewportState().addViewportAndScissorRect(
+                         nvrhi::Viewport(0.f, extent.width, 0.f, extent.height, 0.f, 1.f)))
+                     .addVertexBuffer({m_lineBuffer, 0, 0});
     cmd->setGraphicsState(state);
 
     cmd->setPushConstants(&pc, sizeof(pc));
@@ -149,9 +144,10 @@ void DebugDrawRenderer::render_lines(nvrhi::CommandListHandle cmd, Camera3d &cam
     cmd->clearState();
 }
 
-void DebugDrawRenderer::render_points(nvrhi::CommandListHandle cmd, Camera3d &camera, VulkanBackend &backend) {
-    auto &points = DebugDraw::GetPoints();
-    if (points.empty()) return;
+void DebugDrawRenderer::render_points(nvrhi::CommandListHandle cmd, Camera3d& camera, VulkanBackend& backend) {
+    auto& points = DebugDraw::GetPoints();
+    if (points.empty())
+        return;
 
     cmd->writeBuffer(m_pointBuffer, points.data(), points.size() * sizeof(DebugVertex));
 
@@ -159,11 +155,11 @@ void DebugDrawRenderer::render_points(nvrhi::CommandListHandle cmd, Camera3d &ca
     DebugDrawPushConstants pc{camera.projectionMatrix * camera.viewMatrix};
 
     auto state = nvrhi::GraphicsState()
-            .setPipeline(m_pointPipeline)
-            .setFramebuffer(m_backend->get_current_framebuffer())
-            .setViewport(nvrhi::ViewportState()
-                .addViewportAndScissorRect(nvrhi::Viewport(0.f, extent.width, 0.f,  extent.height, 0.f, 1.f)))
-            .addVertexBuffer({m_pointBuffer, 0, 0});
+                     .setPipeline(m_pointPipeline)
+                     .setFramebuffer(m_backend->get_current_framebuffer())
+                     .setViewport(nvrhi::ViewportState().addViewportAndScissorRect(
+                         nvrhi::Viewport(0.f, extent.width, 0.f, extent.height, 0.f, 1.f)))
+                     .addVertexBuffer({m_pointBuffer, 0, 0});
     cmd->setGraphicsState(state);
 
     cmd->setPushConstants(&pc, sizeof(pc));

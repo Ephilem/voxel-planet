@@ -16,6 +16,7 @@ public:
     void render(flecs::world& ecs) override;
 
     const std::string name() const override { return "Planet LOD"; }
+
     const std::string category() const override { return "World"; }
 
 private:
@@ -51,7 +52,8 @@ private:
             uploads[cursor] = u;
             topologyDelta[cursor] = d;
             cursor = (cursor + 1) % CAPACITY;
-            if (filled < CAPACITY) ++filled;
+            if (filled < CAPACITY)
+                ++filled;
         }
 
         void clear() {

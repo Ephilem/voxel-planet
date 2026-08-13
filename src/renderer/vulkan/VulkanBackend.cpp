@@ -1,74 +1,63 @@
 #include "VulkanBackend.h"
 
 #include <algorithm>
-#include <iostream>
-#include <VkBootstrap.h>
-#include "GLFW/glfw3.h"
 #include <stdexcept>
-#include <vulkan/vulkan.hpp>
+#include <VkBootstrap.h>
 
-#include "core/TracyIntegration.h"
 #include "core/log/Logger.h"
+#include "core/TracyIntegration.h"
 #include "renderer/rendering_components.h"
 
 #define VMA_IMPLEMENTATION
 #include <vk_mem_alloc.h>
 
-VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(
-    VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
-    VkDebugUtilsMessageTypeFlagsEXT message_types,
-    const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
-    void* _) {
+VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
+                                                 VkDebugUtilsMessageTypeFlagsEXT message_types,
+                                                 const VkDebugUtilsMessengerCallbackDataEXT* callback_data, void* _) {
     switch (message_severity) {
-        default:
-        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-            // printf("%s\n", callback_data->pMessage);
-            LOG_ERROR("VulkanValidation", "{}", callback_data->pMessage);
-            break;
-        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-            // printf("{}\n", callback_data->pMessage);
-            LOG_WARN("VulkanValidation", "{}", callback_data->pMessage);
-            break;
-        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-            // printf("{}\n", callback_data->pMessage);
-            LOG_DEBUG("VulkanValidation", "{}", callback_data->pMessage);
-            break;
-        case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
-            // printf("{}\n", callback_data->pMessage);
-            LOG_TRACE("VulkanValidation", "{}", callback_data->pMessage);
-            break;
+    default:
+    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
+        LOG_ERROR("VulkanValidation", "{}", callback_data->pMessage);
+        break;
+    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
+        LOG_WARN("VulkanValidation", "{}", callback_data->pMessage);
+        break;
+    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
+        LOG_DEBUG("VulkanValidation", "{}", callback_data->pMessage);
+        break;
+    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
+        LOG_TRACE("VulkanValidation", "{}", callback_data->pMessage);
+        break;
     }
     return VK_FALSE;
 }
 
-
-class DefaultMessageCallback : public nvrhi::IMessageCallback
-{
+class DefaultMessageCallback : public nvrhi::IMessageCallback {
 public:
     static DefaultMessageCallback& GetInstance();
 
     void message(nvrhi::MessageSeverity severity, const char* messageText) override {
         switch (severity) {
-            case nvrhi::MessageSeverity::Fatal:
-                LOG_FATAL("NVRHI", "{}", messageText);
-                break;
-            case nvrhi::MessageSeverity::Error:
-                LOG_ERROR("NVRHI", "{}", messageText);
-                break;
-            case nvrhi::MessageSeverity::Warning:
-                LOG_WARN("NVRHI", "{}", messageText);
-                break;
-            case nvrhi::MessageSeverity::Info:
-                LOG_INFO("NVRHI", "{}", messageText);
-                break;
-            default:
-                LOG_TRACE("NVRHI", "{}", messageText);
-                break;
+        case nvrhi::MessageSeverity::Fatal:
+            LOG_FATAL("NVRHI", "{}", messageText);
+            break;
+        case nvrhi::MessageSeverity::Error:
+            LOG_ERROR("NVRHI", "{}", messageText);
+            break;
+        case nvrhi::MessageSeverity::Warning:
+            LOG_WARN("NVRHI", "{}", messageText);
+            break;
+        case nvrhi::MessageSeverity::Info:
+            LOG_INFO("NVRHI", "{}", messageText);
+            break;
+        default:
+            LOG_TRACE("NVRHI", "{}", messageText);
+            break;
         }
     }
 };
 
-VulkanBackend::VulkanBackend(GLFWwindow *window, RenderParameters renderParameters) {
+VulkanBackend::VulkanBackend(GLFWwindow* window, RenderParameters renderParameters) {
     this->renderParameters = renderParameters;
 
     VULKAN_HPP_DEFAULT_DISPATCHER.init(glfwGetInstanceProcAddress);
@@ -76,10 +65,10 @@ VulkanBackend::VulkanBackend(GLFWwindow *window, RenderParameters renderParamete
     // Create Vulkan instance
     vkb::InstanceBuilder builder;
     auto inst_ret = builder.set_app_name("VoxelPlanet")
-        .request_validation_layers(true)
-        .require_api_version(1, 3)
-        .set_debug_callback(vk_debug_callback)
-        .build();
+                        .request_validation_layers(true)
+                        .require_api_version(1, 3)
+                        .set_debug_callback(vk_debug_callback)
+                        .build();
 
     if (!inst_ret) {
         throw std::runtime_error("Failed to create Vulkan instance: " + std::string(inst_ret.error().message()));
@@ -127,21 +116,14 @@ VulkanBackend::VulkanBackend(GLFWwindow *window, RenderParameters renderParamete
     vkAllocateCommandBuffers(vkDevice.device, &allocInfo, &initCmd);
 
     auto pfnGetPhysicalDeviceCalibrateableTimeDomains =
-          (PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT)
-          vkGetInstanceProcAddr(instance.instance, "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT");
+        (PFN_vkGetPhysicalDeviceCalibrateableTimeDomainsEXT)vkGetInstanceProcAddr(
+            instance.instance, "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT");
 
     auto pfnGetCalibratedTimestamps =
-        (PFN_vkGetCalibratedTimestampsEXT)
-        vkGetDeviceProcAddr(vkDevice.device, "vkGetCalibratedTimestampsEXT");
+        (PFN_vkGetCalibratedTimestampsEXT)vkGetDeviceProcAddr(vkDevice.device, "vkGetCalibratedTimestampsEXT");
 
-    tracyVkCtx = TracyVkContextCalibrated(
-        vkDevice.physical_device,
-        vkDevice.device,
-        graphicsQueue,
-        initCmd,
-        pfnGetPhysicalDeviceCalibrateableTimeDomains,
-        pfnGetCalibratedTimestamps
-    );
+    tracyVkCtx = TracyVkContextCalibrated(vkDevice.physical_device, vkDevice.device, graphicsQueue, initCmd,
+                                          pfnGetPhysicalDeviceCalibrateableTimeDomains, pfnGetCalibratedTimestamps);
 
     vkFreeCommandBuffers(vkDevice.device, initPool, 1, &initCmd);
     vkDestroyCommandPool(vkDevice.device, initPool, nullptr);
@@ -164,8 +146,7 @@ VulkanBackend::~VulkanBackend() {
 
 #ifdef TRACY_ENABLE
     if (tracyVkCtx) {
-        TracyVkDestroy(tracyVkCtx)
-        tracyVkCtx = nullptr;
+        TracyVkDestroy(tracyVkCtx) tracyVkCtx = nullptr;
     }
 #endif
 
@@ -173,7 +154,7 @@ VulkanBackend::~VulkanBackend() {
         device->waitForIdle();
     }
 
-    for (auto& cmdList: m_commandLists) {
+    for (auto& cmdList : m_commandLists) {
         cmdList.Reset();
     }
     m_commandLists.clear();
@@ -207,9 +188,8 @@ VulkanBackend::~VulkanBackend() {
 }
 
 void VulkanBackend::init_nvrhi() {
-    vkb::PhysicalDeviceSelector selector{ instance };
-    selector
-        .set_surface(surface)
+    vkb::PhysicalDeviceSelector selector{instance};
+    selector.set_surface(surface)
         .prefer_gpu_device_type(vkb::PreferredDeviceType::discrete)
         .set_minimum_version(1, 3)
 #ifdef TRACY_ENABLE
@@ -222,8 +202,7 @@ void VulkanBackend::init_nvrhi() {
 
     if (all) {
         for (auto& d : all.value())
-            LOG_DEBUG("VulkanBackend", "Candidate: {} type={}",
-                      d.properties.deviceName, (int)d.properties.deviceType);
+            LOG_DEBUG("VulkanBackend", "Candidate: {} type={}", d.properties.deviceName, (int)d.properties.deviceType);
     }
     if (full) {
         for (auto& d : full.value())
@@ -235,7 +214,8 @@ void VulkanBackend::init_nvrhi() {
     auto physicalDevice_ret = selector.select();
 
     if (!physicalDevice_ret) {
-        throw std::runtime_error("Failed to select physical device: " + std::string(physicalDevice_ret.error().message()));
+        throw std::runtime_error("Failed to select physical device: " +
+                                 std::string(physicalDevice_ret.error().message()));
     }
 
     vkb::PhysicalDevice physicalDevice = physicalDevice_ret.value();
@@ -258,13 +238,12 @@ void VulkanBackend::init_nvrhi() {
     features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     features.features.multiDrawIndirect = VK_TRUE;
 
-    vkb::DeviceBuilder deviceBuilder{ physicalDevice };
-    auto device_ret = deviceBuilder
-        .add_pNext(&dynamicRenderingFeatures)
-        .add_pNext(&synchronization2Features)
-        .add_pNext(&vulkan12Features)
-        .add_pNext(&features)
-        .build();
+    vkb::DeviceBuilder deviceBuilder{physicalDevice};
+    auto device_ret = deviceBuilder.add_pNext(&dynamicRenderingFeatures)
+                          .add_pNext(&synchronization2Features)
+                          .add_pNext(&vulkan12Features)
+                          .add_pNext(&features)
+                          .build();
 
     if (!device_ret) {
         throw std::runtime_error("Failed to create logical device: " + std::string(device_ret.error().message()));
@@ -305,14 +284,13 @@ void VulkanBackend::init_nvrhi() {
 
 void VulkanBackend::create_swapchain() {
     VOXEL_ZONE_N("Create Swapchain");
-    vkb::SwapchainBuilder builder{ vkDevice.physical_device, vkDevice.device, surface };
-    auto swapchain_ret = builder
-        .set_desired_format({ VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR })
-        .add_fallback_format({ VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR })
-        .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
-        .set_desired_extent(renderParameters.width, renderParameters.height)
-        .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
-        .build();
+    vkb::SwapchainBuilder builder{vkDevice.physical_device, vkDevice.device, surface};
+    auto swapchain_ret = builder.set_desired_format({VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR})
+                             .add_fallback_format({VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR})
+                             .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
+                             .set_desired_extent(renderParameters.width, renderParameters.height)
+                             .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
+                             .build();
 
     if (!swapchain_ret) {
         throw std::runtime_error("Failed to create swapchain");
@@ -324,32 +302,30 @@ void VulkanBackend::create_swapchain() {
 
     // Create framebuffer and depth buffers
     switch (swapchainFormat) {
-        case VK_FORMAT_B8G8R8A8_UNORM:
-        case VK_FORMAT_B8G8R8A8_SRGB:
-            m_swapchainFormat = nvrhi::Format::BGRA8_UNORM;
-            break;
-        default:
-            m_swapchainFormat = nvrhi::Format::RGBA8_UNORM;
-            break;
+    case VK_FORMAT_B8G8R8A8_UNORM:
+    case VK_FORMAT_B8G8R8A8_SRGB:
+        m_swapchainFormat = nvrhi::Format::BGRA8_UNORM;
+        break;
+    default:
+        m_swapchainFormat = nvrhi::Format::RGBA8_UNORM;
+        break;
     }
 
     m_swapchainTextures.clear();
     m_swapchainTextures.reserve(images->size());
     for (size_t i = 0; i < images->size(); ++i) {
         auto textureDesc = nvrhi::TextureDesc()
-            .setDimension(nvrhi::TextureDimension::Texture2D)
-            .setWidth(m_swapchain.extent.width)
-            .setHeight(m_swapchain.extent.height)
-            .setFormat(m_swapchainFormat)
-            .setIsRenderTarget(true)
-            .setInitialState(nvrhi::ResourceStates::Present)
-            .setKeepInitialState(true)
-            .setDebugName("Swapchain Texture");
+                               .setDimension(nvrhi::TextureDimension::Texture2D)
+                               .setWidth(m_swapchain.extent.width)
+                               .setHeight(m_swapchain.extent.height)
+                               .setFormat(m_swapchainFormat)
+                               .setIsRenderTarget(true)
+                               .setInitialState(nvrhi::ResourceStates::Present)
+                               .setKeepInitialState(true)
+                               .setDebugName("Swapchain Texture");
 
-        nvrhi::TextureHandle texture = device->createHandleForNativeTexture(
-            nvrhi::ObjectTypes::VK_Image,
-            nvrhi::Object(images->at(i)),
-            textureDesc);
+        nvrhi::TextureHandle texture = device->createHandleForNativeTexture(nvrhi::ObjectTypes::VK_Image,
+                                                                            nvrhi::Object(images->at(i)), textureDesc);
 
         m_swapchainTextures.push_back(texture);
     }
@@ -360,19 +336,17 @@ void VulkanBackend::create_swapchain() {
     if (!(props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)) {
         depthVkFormat = VK_FORMAT_D32_SFLOAT_S8_UINT;
     }
-    m_depthFormat = (depthVkFormat == VK_FORMAT_D24_UNORM_S8_UINT)
-        ? nvrhi::Format::D24S8
-        : nvrhi::Format::D32S8;
+    m_depthFormat = (depthVkFormat == VK_FORMAT_D24_UNORM_S8_UINT) ? nvrhi::Format::D24S8 : nvrhi::Format::D32S8;
 
     auto depthDesc = nvrhi::TextureDesc()
-        .setDimension(nvrhi::TextureDimension::Texture2D)
-        .setFormat(m_depthFormat)
-        .setWidth(m_swapchain.extent.width)
-        .setHeight(m_swapchain.extent.height)
-        .setIsRenderTarget(true)
-        .setInitialState(nvrhi::ResourceStates::DepthWrite)
-        .setKeepInitialState(true)
-        .setDebugName("Depth Texture");
+                         .setDimension(nvrhi::TextureDimension::Texture2D)
+                         .setFormat(m_depthFormat)
+                         .setWidth(m_swapchain.extent.width)
+                         .setHeight(m_swapchain.extent.height)
+                         .setIsRenderTarget(true)
+                         .setInitialState(nvrhi::ResourceStates::DepthWrite)
+                         .setKeepInitialState(true)
+                         .setDebugName("Depth Texture");
 
     depthBuffer = device->createTexture(depthDesc);
 
@@ -380,9 +354,7 @@ void VulkanBackend::create_swapchain() {
     m_swapchainFramebuffers.clear();
     m_swapchainFramebuffers.reserve(images->size());
     for (const auto& colorTexture : m_swapchainTextures) {
-        auto fbDesc = nvrhi::FramebufferDesc()
-            .addColorAttachment(colorTexture)
-            .setDepthAttachment(depthBuffer);
+        auto fbDesc = nvrhi::FramebufferDesc().addColorAttachment(colorTexture).setDepthAttachment(depthBuffer);
 
         m_swapchainFramebuffers.push_back(device->createFramebuffer(fbDesc));
     }
@@ -420,7 +392,6 @@ void VulkanBackend::recreate_swapchain() {
     create_swapchain();
 }
 
-
 void VulkanBackend::init_syncs() {
     // Create a present semaphore for each swapchain image
     size_t const numPresentSemaphore = m_swapchain.image_count;
@@ -449,15 +420,14 @@ void VulkanBackend::init_syncs() {
     }
 }
 
-bool VulkanBackend::begin_frame(nvrhi::CommandListHandle &out_currentCommandList) {
+bool VulkanBackend::begin_frame(nvrhi::CommandListHandle& out_currentCommandList) {
     const auto& semaphore = m_acquireImageSemaphores[m_acquiredSemaphoreIndex];
 
     // Check if resize has finished (no resize events for 150ms)
     if (m_isResizing) {
         VOXEL_MESSAGE("Manage Resizing");
         auto now = std::chrono::steady_clock::now();
-        auto timeSinceResize = std::chrono::duration_cast<std::chrono::milliseconds>(
-            now - m_lastResizeTime).count();
+        auto timeSinceResize = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastResizeTime).count();
 
         if (timeSinceResize > 150) {
             m_isResizing = false;
@@ -481,12 +451,7 @@ bool VulkanBackend::begin_frame(nvrhi::CommandListHandle &out_currentCommandList
     int const maxAttempts = 3;
     for (int attempt = 0; attempt < maxAttempts; ++attempt) {
         VOXEL_ZONE_N("Try Acquire Next Image");
-        result = vkAcquireNextImageKHR(vkDevice,
-            m_swapchain,
-            UINT64_MAX,
-            semaphore,
-            VK_NULL_HANDLE,
-            &m_imageIndex);
+        result = vkAcquireNextImageKHR(vkDevice, m_swapchain, UINT64_MAX, semaphore, VK_NULL_HANDLE, &m_imageIndex);
 
         if ((result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) && attempt < maxAttempts) {
             VkSurfaceCapabilitiesKHR surfaceCaps;
@@ -497,8 +462,7 @@ bool VulkanBackend::begin_frame(nvrhi::CommandListHandle &out_currentCommandList
 
             LOG_WARN("VulkanBackend", "Ouch, recreating swapchain");
             recreate_swapchain();
-        }
-        else
+        } else
             break;
     }
 
@@ -520,10 +484,10 @@ bool VulkanBackend::begin_frame(nvrhi::CommandListHandle &out_currentCommandList
     }
     out_currentCommandList = m_commandLists[m_commandListIndex];
 
-
     if (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR) {
         // Schedule the wait. The actual wait operation will be submitted when the app executes any command list!
-        // In the swap chain acquire flow, this line tells NVRHI: "Before executing any commands on the Graphics queue, wait for this semaphore to be signaled."
+        // In the swap chain acquire flow, this line tells NVRHI: "Before executing any commands on the Graphics queue,
+        // wait for this semaphore to be signaled."
         VOXEL_ZONE_N("Wait for the image semaphore");
         device->queueWaitForSemaphore(nvrhi::CommandQueue::Graphics, semaphore, 0);
         return true;
@@ -547,7 +511,9 @@ bool VulkanBackend::present() {
 
     {
         VOXEL_ZONE_N("Execute empty command list");
-        // Execute an empty command list to ensure the signal happens after all previous work. This is needed on some platforms (e.g. Linux with NVIDIA drivers) where queueSignalSemaphore doesn't wait for previously submitted work, even if the semaphore was scheduled with a wait in acquire next image.
+        // Execute an empty command list to ensure the signal happens after all previous work. This is needed on some
+        // platforms (e.g. Linux with NVIDIA drivers) where queueSignalSemaphore doesn't wait for previously submitted
+        // work, even if the semaphore was scheduled with a wait in acquire next image.
         device->executeCommandLists(nullptr, 0);
     }
 
@@ -580,8 +546,7 @@ bool VulkanBackend::present() {
     if (!m_queryPool.empty()) {
         query = m_queryPool.back();
         m_queryPool.pop_back();
-    }
-    else {
+    } else {
         query = device->createEventQuery();
     }
 
@@ -596,7 +561,7 @@ bool VulkanBackend::present() {
         VOXEL_ZONE_N("Run garbage collection");
         device->runGarbageCollection();
     }
-    
+
     m_commandListIndex = (m_commandListIndex + 1) % MAX_FRAMES_IN_FLIGHT;
 
     return true;
@@ -623,6 +588,7 @@ void VulkanBackend::handle_resize(uint32_t width, uint32_t height) {
 }
 
 nvrhi::FramebufferHandle VulkanBackend::get_swapchain_framebuffer(uint32_t index) const {
-    if (index >= m_swapchainFramebuffers.size()) return VK_NULL_HANDLE;
+    if (index >= m_swapchainFramebuffers.size())
+        return VK_NULL_HANDLE;
     return m_swapchainFramebuffers[index];
 }

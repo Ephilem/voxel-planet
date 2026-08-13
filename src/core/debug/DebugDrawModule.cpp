@@ -10,11 +10,9 @@ void DebugDrawModule::register_components(flecs::world& ecs) {
 }
 
 void DebugDrawModule::register_systems(flecs::world& ecs) {
-    ecs.system("DebugDrawModule-ClearBuffers")
-        .kind(flecs::OnLoad)
-        .run([](flecs::iter& it) {
-            auto* buf = it.world().get_mut<DebugDrawBuffer>();
-            buf->lines.clear();
-            buf->points.clear();
-        });
+    ecs.system("DebugDrawModule-ClearBuffers").kind(flecs::OnLoad).run([](flecs::iter& it) {
+        auto* buf = it.world().get_mut<DebugDrawBuffer>();
+        buf->lines.clear();
+        buf->points.clear();
+    });
 }

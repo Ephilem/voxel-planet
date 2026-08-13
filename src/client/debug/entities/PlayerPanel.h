@@ -7,6 +7,7 @@ public:
     void render(flecs::world& ecs) override;
 
     const std::string name() const override { return "Player"; }
+
     const std::string category() const override { return "Entities"; }
 
 private:

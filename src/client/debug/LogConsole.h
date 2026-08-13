@@ -1,10 +1,10 @@
 #pragma once
 
-#include "IDebugPanel.h"
 #include "core/log/Logger.h"
-#include <vector>
-#include <string>
+#include "IDebugPanel.h"
 #include <mutex>
+#include <string>
+#include <vector>
 
 class LogConsole : public IDebugPanel {
 public:
@@ -12,11 +12,15 @@ public:
     ~LogConsole() override;
 
     void render(flecs::world& ecs) override;
+
     const std::string name() const override { return "Console"; }
+
     const std::string category() const override { return "Logging"; }
 
     void clear();
+
     void set_max_entries(size_t max) { m_maxEntries = max; }
+
     void set_auto_scroll(bool enable) { m_autoScroll = enable; }
 
 private:

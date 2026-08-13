@@ -1,12 +1,11 @@
 #include "DebugUIManager.h"
 
+#include "core/TracyIntegration.h"
 #include "imgui.h"
 #include "platform/inputs/input_state.h"
-#include "core/TracyIntegration.h"
 #include <unordered_map>
 
 #include "renderer/Renderer.h"
-
 
 void DebugUIManager::tick(flecs::world& ecs) {
     render_menu_bar();
@@ -17,13 +16,11 @@ void DebugUIManager::Register(flecs::world& ecs) {
     ecs.set<DebugUIManager>(DebugUIManager{});
     auto* debugUI = ecs.get_mut<DebugUIManager>();
 
-    ecs.system("DebugUISystem")
-        .kind(flecs::PostUpdate)
-        .run([debugUI](flecs::iter& it) {
-            VOXEL_ZONE_N("DebugUISystem-Tick");
-            auto world = it.world();
-            debugUI->tick(world);
-        });
+    ecs.system("DebugUISystem").kind(flecs::PostUpdate).run([debugUI](flecs::iter& it) {
+        VOXEL_ZONE_N("DebugUISystem-Tick");
+        auto world = it.world();
+        debugUI->tick(world);
+    });
 
     ecs.system<Renderer, InputActionState>("OpenDebugMenuBarSystem")
         .kind(flecs::OnUpdate)
@@ -37,8 +34,10 @@ void DebugUIManager::Register(flecs::world& ecs) {
 }
 
 void DebugUIManager::render_menu_bar() {
-    if (!m_menuBarVisible) return;
-    if (!ImGui::BeginMainMenuBar()) return;
+    if (!m_menuBarVisible)
+        return;
+    if (!ImGui::BeginMainMenuBar())
+        return;
 
     std::unordered_map<std::string, std::vector<IDebugPanel*>> by_category;
     for (auto& p : m_panels)
@@ -57,7 +56,8 @@ void DebugUIManager::render_menu_bar() {
 
 void DebugUIManager::render_panels(flecs::world& ecs) {
     for (auto& panel : m_panels) {
-        if (!panel->is_visible) continue;
+        if (!panel->is_visible)
+            continue;
 
         panel->pre_render();
 
