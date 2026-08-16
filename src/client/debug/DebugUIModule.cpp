@@ -4,6 +4,7 @@
 #include "entities/PlayerPanel.h"
 #include "LogConsole.h"
 #include "performance/FpsCounter.h"
+#include "world/PlanetChunkGenPanel.h"
 #include "world/PlanetLayerViewer.h"
 #include "world/PlanetLodPanel.h"
 #include "world/PlayerWorldInfo.h"
@@ -24,4 +25,5 @@ void DebugUIModule::register_systems(flecs::world& ecs) {
     debugUI->add_panel<PlayerPanel>();
     debugUI->add_panel<PlanetLayerViewer>();
     debugUI->add_panel<PlanetLodPanel>();
+    debugUI->add_panel<PlanetChunkGenPanel>();
 }

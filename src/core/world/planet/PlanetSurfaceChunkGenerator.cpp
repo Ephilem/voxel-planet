@@ -23,7 +23,7 @@ PlanetSurfaceChunkGenerator::PlanetSurfaceChunkGenerator(PlanetTerrainParams par
         m_workers.emplace_back([this](std::stop_token stop) { worker_loop(std::move(stop)); });
     }
 
-    LOG_DEBUG("PlanetTileGenerator", "Started {} worker threads", m_workers.size());
+    LOG_DEBUG("PlanetSurfaceChunkGenerator", "Started {} worker threads", m_workers.size());
 }
 
 PlanetSurfaceChunkGenerator::~PlanetSurfaceChunkGenerator() {
@@ -35,7 +35,7 @@ PlanetSurfaceChunkGenerator::~PlanetSurfaceChunkGenerator() {
         worker.join();
     m_workers.clear();
 
-    LOG_DEBUG("PlanetTileGenerator", "Stopped {} worker threads", count);
+    LOG_DEBUG("PlanetSurfaceChunkGenerator", "Stopped {} worker threads", count);
 }
 
 void PlanetSurfaceChunkGenerator::request(const PlanetSurfaceChunkKey& key, float priority) {

@@ -29,6 +29,9 @@ struct PlanetTerrainParams {
 struct PlanetChunkLoader {
     uint8_t loadingDistance = 4;
     uint8_t unloadingDistance = 5;
+    uint8_t altitudeDistance = 2;
+
+    PlanetSurfaceChunkKey lastCenter;
 };
 
 struct PlanetVoxelRegistry {

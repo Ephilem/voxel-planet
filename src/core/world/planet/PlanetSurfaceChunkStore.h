@@ -22,6 +22,12 @@ public:
 
     [[nodiscard]] size_t size() const { return m_chunks.size(); }
 
+    template <class Pred> size_t erase_if(Pred&& pred) {
+        m_lastChunk = nullptr;
+        m_lastKey = {};
+        return std::erase_if(m_chunks, [&](const auto& kv) { return pred(kv.first); });
+    }
+
     void clear();
 
 private:

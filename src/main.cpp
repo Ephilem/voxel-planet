@@ -68,6 +68,8 @@ int main() {
             .set<vp::GlobalTransform>({})
             .set<vp::Transform>({.pos = {0.f, 667544.f + 1000.f, 0.f}})
 
+            .set<vp::PlanetChunkLoader>({.loadingDistance = 4, .unloadingDistance = 5, .altitudeDistance = 2})
+
             .child_of(earth);
 
         ecs->system<const vp::Grid>("GridOrigin").kind(flecs::PreStore).each([](flecs::entity e, const vp::Grid& grid) {
