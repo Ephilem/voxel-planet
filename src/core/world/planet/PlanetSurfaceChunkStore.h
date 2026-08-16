@@ -1,9 +1,10 @@
 #pragma once
+
+#include "core/world/planet/planet_types.h"
+
 #include <memory>
 #include <optional>
 #include <unordered_map>
-
-#include "renderer/world/planet/planet_rendering_types.h"
 
 namespace vp {
 class PlanetSurfaceChunkStore {
@@ -26,7 +27,7 @@ public:
 private:
     std::unordered_map<PlanetSurfaceChunkKey, std::shared_ptr<PlanetSurfaceVoxelChunk>> m_chunks;
 
-    mutable PlanetSurfaceChunkKey m_lastKey{};
+    mutable PlanetSurfaceChunkKey m_lastKey;
     mutable const PlanetSurfaceVoxelChunk* m_lastChunk = nullptr;
 };
 } // namespace vp

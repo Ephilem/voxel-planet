@@ -31,11 +31,11 @@ void PlanetRendererModule::register_components(flecs::world& ecs) {
 void PlanetRendererModule::register_pipelines(flecs::world& ecs) {}
 
 void PlanetRendererModule::register_systems(flecs::world& ecs) {
-    ecs.observer<const PlanetTileLodComp, const PlanetTerrainParams, const PlanetComp>(
+    ecs.observer<const PlanetTileLodComp, const PlanetTerrainParams, const Planet>(
            "PlanetRendererModule-SetupStreamer")
         .event(flecs::OnAdd)
         .each([](flecs::entity e, const PlanetTileLodComp& lod, const PlanetTerrainParams& terrainParams,
-                 const PlanetComp& comp) {
+                 const Planet& comp) {
             auto* streamer = e.get<PlanetTileStreamComp>();
             if (!streamer) {
                 auto generator =

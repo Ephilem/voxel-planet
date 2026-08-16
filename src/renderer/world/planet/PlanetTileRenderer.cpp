@@ -121,7 +121,7 @@ void PlanetTileRenderer::render_planets(nvrhi::CommandListHandle cmd, Camera3d& 
     m_stats = Stats{};
 
     ecs.each([&](flecs::entity e, const PlanetTileDrawListComp& drawList, PlanetTileStreamComp& stream,
-                 const PlanetComp& planet, const PlanetTerrainParams& terrain, const GlobalTransform& transform) {
+                 const Planet& planet, const PlanetTerrainParams& terrain, const GlobalTransform& transform) {
         VOXEL_ZONE_N("PlanetTileRenderer::render_planets-Planet");
         if (drawList.drawItems.empty())
             return;

@@ -13,19 +13,19 @@
 namespace vp {
 class PlanetSurfaceChunkGenerator {
 public:
-    PlanetSurfaceChunkGenerator(PlanetTerrainParams params, double planetRadius, uint8_t maxLevel,
-                                unsigned workerCount = 0);
+    PlanetSurfaceChunkGenerator(PlanetTerrainParams params, double planetRadius,
+                                flecs::ref<const PlanetVoxelRegistry> registry, unsigned workerCount = 0);
     ~PlanetSurfaceChunkGenerator();
 
     PlanetSurfaceChunkGenerator(const PlanetSurfaceChunkGenerator&) = delete;
     PlanetSurfaceChunkGenerator& operator=(const PlanetSurfaceChunkGenerator&) = delete;
 
-    struct Result {
+    struct PlanetSurfaceChunkGenerationResult {
         PlanetSurfaceChunkKey key;
         std::shared_ptr<PlanetSurfaceVoxelChunk> chunk; // nullptr = empty
     };
 
-    void request(const PlanetSurfaceChunkKey& key, float priority = 0.f);
+    void request(const PlanetSurfaceChunkKey& key, float priority = 0.F);
 
     /**
      * Each by frame, submit a limited number of pending requests to the worker threads
@@ -33,7 +33,7 @@ public:
      */
     void submit_pending(uint32_t maxSubmit = 32);
 
-    uint32_t drain(std::vector<Result>& out, uint32_t maxDrain = 16);
+    uint32_t drain(std::vector<PlanetSurfaceChunkGenerationResult>& out, uint32_t maxDrain = 16);
 
     void begin_frame();
 
@@ -60,10 +60,11 @@ private:
 
     PlanetTerrainParams m_params;
     double m_planetRadius;
-    uint8_t m_maxLevel;
+    mutable flecs::ref<const PlanetVoxelRegistry>
+        m_registry; // flecs::ref because it can be reallocated. flecs::ref prevent that problem
 
     moodycamel::BlockingConcurrentQueue<PlanetSurfaceChunkKey> m_requestQueue;
-    moodycamel::ConcurrentQueue<Result> m_resultQueue;
+    moodycamel::ConcurrentQueue<PlanetSurfaceChunkGenerationResult> m_resultQueue;
 
     struct Pending {
         PlanetSurfaceChunkKey key;

@@ -26,10 +26,9 @@ void PlanetClientModule::register_systems(flecs::world& ecs) {
     // The camera is looked up once per frame rather than joined into the planet query:
     // the frustum is shared by every planet, and rebuilding it per planet would repeat
     // the same plane extraction
-    ecs.system<PlanetTileLodComp, PlanetTileDrawListComp, const PlanetComp, const GlobalTransform>(
-           "PlanetClient-UpdateLod")
+    ecs.system<PlanetTileLodComp, PlanetTileDrawListComp, const Planet, const GlobalTransform>("PlanetClient-UpdateLod")
         .kind(flecs::PreStore)
-        .each([](flecs::entity e, PlanetTileLodComp& lod, PlanetTileDrawListComp& drawList, const PlanetComp& planet,
+        .each([](flecs::entity e, PlanetTileLodComp& lod, PlanetTileDrawListComp& drawList, const Planet& planet,
                  const GlobalTransform& transform) {
             if (!lod.quadtree) {
                 lod.quadtree = std::make_unique<PlanetQuadtrees>();

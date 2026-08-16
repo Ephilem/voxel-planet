@@ -14,6 +14,8 @@ void PlanetSurfaceChunkStore::store(const PlanetSurfaceChunkKey& key, std::share
 bool PlanetSurfaceChunkStore::remove(const PlanetSurfaceChunkKey& key) {
     if (m_chunks.contains(key)) {
         m_chunks.erase(key);
+        m_lastChunk = nullptr;
+        m_lastKey = {};
         return true;
     }
     return false;
@@ -58,8 +60,8 @@ std::optional<PlanetSurfaceChunkBlockInfo> PlanetSurfaceChunkStore::voxel_at(Cub
                                                                              glm::ivec3 voxelPos) const {
     PlanetSurfaceChunkKey key(face, level, voxelPos);
     if (const PlanetSurfaceVoxelChunk* chunk = find(key)) {
-        glm::ivec3 localPos = glm::ivec3{voxelPos.x - key.x * CHUNK_SIZE, voxelPos.y - key.y * CHUNK_SIZE,
-                                         voxelPos.z - key.alt * CHUNK_SIZE};
+        glm::ivec3 localPos = glm::ivec3{voxelPos.x - (key.x * CHUNK_SIZE), voxelPos.y - (key.y * CHUNK_SIZE),
+                                         voxelPos.z - (key.alt * CHUNK_SIZE)};
         return chunk->at(localPos);
     }
     return std::optional<PlanetSurfaceChunkBlockInfo>{};

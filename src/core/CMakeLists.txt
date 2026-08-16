@@ -16,7 +16,6 @@ add_library(VoxelPlanetCore STATIC
     resource/ResourceSystem.h
     resource/loaders/ShaderLoader.cpp
     resource/loaders/ShaderLoader.h
-    world/world_components.h
         debug/DebugDrawModule.cpp
         debug/DebugDrawModule.h
         main_components.h
@@ -40,6 +39,10 @@ add_library(VoxelPlanetCore STATIC
         world/planet/generator/PlanetTerrainSampler.h
         world/planet/planet_types.h
         world/planet/planet_transform.h
+        world/planet/PlanetSurfaceChunkStore.cpp
+        world/planet/PlanetSurfaceChunkStore.h
+        world/planet/PlanetSurfaceChunkGenerator.cpp
+        world/planet/PlanetSurfaceChunkGenerator.h
 )
 
 add_library(VoxelPlanet::Core ALIAS VoxelPlanetCore)

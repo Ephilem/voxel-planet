@@ -407,12 +407,11 @@ void PlanetLayerViewer::apply_generation_params() {
 void PlanetLayerViewer::collect_planets(flecs::world& ecs, std::vector<PlanetRepresentation>& planets) {
     // instance queries
     if (!m_planetQuery)
-        m_planetQuery = ecs.query<const PlanetComp, const PlanetTerrainParams>();
+        m_planetQuery = ecs.query<const Planet, const PlanetTerrainParams>();
 
-    m_planetQuery.each(
-        [&](flecs::entity planet, const PlanetComp& planetComp, const PlanetTerrainParams& terrainParams) {
-            planets.push_back(PlanetRepresentation{planet, planetComp, terrainParams});
-        });
+    m_planetQuery.each([&](flecs::entity planet, const Planet& planetComp, const PlanetTerrainParams& terrainParams) {
+        planets.push_back(PlanetRepresentation{planet, planetComp, terrainParams});
+    });
 }
 
 void PlanetLayerViewer::render(flecs::world& ecs) {

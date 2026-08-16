@@ -8,7 +8,10 @@
 #include "planet_types.h"
 
 namespace vp {
-struct PlanetComp {
+
+struct PlanetSurfaceChunkGenerator;
+
+struct Planet {
     float radius = 667544.0f;
 };
 
@@ -23,7 +26,13 @@ struct PlanetTerrainParams {
     int32_t seed = 1234;
 };
 
-struct PlanetVoxelRegistryComp {
+struct PlanetChunkLoader {
+    uint8_t loadingDistance = 4;
+    uint8_t unloadingDistance = 5;
+};
+
+struct PlanetVoxelRegistry {
+
     std::vector<BlockDefinition> blocks;
     std::unordered_map<AssetID, BlockID> byAsset;
 
@@ -54,6 +63,10 @@ struct PlanetVoxelRegistryComp {
     [[nodiscard]] bool is_opaque(BlockID id) const { return block(id).opaque; }
 
     [[nodiscard]] size_t size() const { return blocks.size(); }
+};
+
+struct PlanetSurfaceChunkGeneratorComp {
+    std::unique_ptr<PlanetSurfaceChunkGenerator> generator;
 };
 
 } // namespace vp

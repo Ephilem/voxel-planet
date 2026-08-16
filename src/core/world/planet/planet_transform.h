@@ -140,4 +140,32 @@ inline bool planet_is_voxel_aligned(double radius, uint8_t maxLevel, uint32_t ch
     const double voxel = planet_voxel_size(radius, maxLevel, chunkSize);
     return std::abs(voxel - std::round(voxel)) < 1e-3;
 }
+
+inline double planet_chunk_voxel_size(uint8_t level) {
+    return PLANET_VOXEL_SIZE_LOD0 * double(1U << level);
+}
+
+inline double planet_voxels_per_face_side(double radius, uint8_t level) {
+    return planet_face_size(radius) / planet_chunk_voxel_size(level);
+}
+
+inline PlanetVoxelCoord planet_pos_to_voxel(const glm::dvec3& posPlanet, double radius, uint8_t level) {
+    const double r = glm::length(posPlanet);
+    PlanetVoxelCoord out;
+    if (r < 1e-9)
+        return out;
+
+    double u;
+    double v;
+    direction_to_face_uv(posPlanet / r, out.face, u, v);
+
+    const double N = planet_voxels_per_face_side(radius, level);
+    const double voxelSize = planet_chunk_voxel_size(level);
+
+    out.voxel.x = int64_t(std::floor(((u * 0.5) + 0.5) * N));
+    out.voxel.y = int64_t(std::floor(((v * 0.5) + 0.5) * N));
+    out.voxel.z = int64_t(std::floor((r - radius) / voxelSize));
+    return out;
+}
+
 } // namespace vp

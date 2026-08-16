@@ -25,7 +25,7 @@ public:
 private:
     struct PlanetRepresentation {
         flecs::entity entity;
-        PlanetComp planetComp;
+        Planet planetComp;
         PlanetTerrainParams terrainParams;
     };
 
@@ -51,7 +51,7 @@ private:
     PlanetRepresentation m_selectedPlanet = {};
 
     // query cache
-    flecs::query<const PlanetComp, const PlanetTerrainParams> m_planetQuery = {};
+    flecs::query<const Planet, const PlanetTerrainParams> m_planetQuery = {};
 
     bool m_dirty = false;
     DebugImageTexture m_mapTexture;

@@ -14,7 +14,6 @@
 #include "core/physics/physics_components.h"
 #include "core/world/planet/planet_components.h"
 #include "core/world/spatial/spatial_components.h"
-#include "core/world/world_components.h"
 #include "renderer/rendering_components.h"
 #include "renderer/world/planet/planet_rendering_components.h"
 
@@ -43,7 +42,7 @@ int main() {
 
         auto earth = ecs->entity("Earth")
                          .child_of(worldGrid)
-                         .set<vp::PlanetComp>({.radius = 667'544.0f})
+                         .set<vp::Planet>({.radius = 667'544.0f})
                          .set<vp::PlanetTerrainParams>({})
                          .set<vp::Grid>({.cellSize = 10'000.0})
                          .emplace<vp::PlanetTileLodComp>()
@@ -69,9 +68,24 @@ int main() {
             .set<vp::GlobalTransform>({})
             .set<vp::Transform>({.pos = {0.f, 667544.f + 1000.f, 0.f}})
 
-            .set<ChunkLoader>({.loadRadius = 3, .unloadRadius = 5})
-
             .child_of(earth);
+
+        ecs->system<const vp::Grid>("GridOrigin").kind(flecs::PreStore).each([](flecs::entity e, const vp::Grid& grid) {
+            glm::vec3 pos;
+
+            if (const auto* gt = e.get<vp::GlobalTransform>()) {
+                pos = gt->pos;
+            } else {
+                const glm::dvec3 originRender =
+                    -(glm::dvec3(grid.localOrigin.cell) * grid.cellSize + glm::dvec3(grid.localOrigin.translation));
+                pos = glm::vec3(glm::normalize(originRender) * 100.0);
+            }
+            static constexpr glm::vec4 COLORS[] = {{1.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f, 1.0f},
+                                                   {0.0f, 0.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 0.0f, 1.0f},
+                                                   {1.0f, 0.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 1.0f, 1.0f}};
+
+            vp::DebugDraw::Point(pos, COLORS[e.id() % 6]);
+        });
 
         ecs->system<const vp::Grid>("GridOrigin").kind(flecs::PreStore).each([](flecs::entity e, const vp::Grid& grid) {
             glm::vec3 pos;
