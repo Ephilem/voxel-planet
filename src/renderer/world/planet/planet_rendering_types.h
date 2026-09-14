@@ -108,6 +108,26 @@ struct PlanetTileDrawItem {
     /// carried over so the streamer can prioritize without recomputing it
     float distance = 0.f;
 };
+
+struct alignas(16) PlanetSurfaceChunkVertex {
+    uint8_t x;
+    uint8_t y;
+    uint8_t z;
+
+    // packed data
+    uint32_t textureSlot : 16;
+    uint32_t _pad0 : 16;
+};
+
+struct alignas(16) PlanetSurfaceChunkInstance {
+    glm::ivec3 chunkFacePos;
+};
+
+struct PlanetSurfaceChunkMesh {
+    std::vector<PlanetSurfaceChunkVertex> vertices;
+    uint32_t generation;
+};
+
 } // namespace vp
 
 // TO use PlanetTileKey as an hash

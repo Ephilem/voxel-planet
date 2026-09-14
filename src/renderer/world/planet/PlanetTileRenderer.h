@@ -69,7 +69,7 @@ private:
 
     void init_gpu();
     void generate_mesh();
-    /// @return Number of levels walked up before a resident slice was found, 0 on an exact hit
+    /// return Number of levels walked up before a resident slice was found, 0 on an exact hit
     uint32_t resolve_atlas_slot(const PlanetTileKey& key, PlanetTileAtlasKey& outSlot, float& outScale,
                                 glm::vec2& outOffset);
 
