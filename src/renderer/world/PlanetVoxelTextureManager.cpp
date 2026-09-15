@@ -2,7 +2,7 @@
 // Created by raph on 13/12/2025.
 //
 
-#include "VoxelTextureManager.h"
+#include "PlanetVoxelTextureManager.h"
 
 #include "core/GameState.h"
 #include "core/log/Logger.h"
@@ -11,18 +11,57 @@
 #include "renderer/TracyVulkanIntegration.h"
 #include <nvrhi/vulkan.h>
 
-VoxelTextureManager::VoxelTextureManager(VulkanBackend* backend, ResourceSystem* resourceSystem) {
+namespace vp {
+PlanetVoxelTextureManager::PlanetVoxelTextureManager(VulkanBackend* backend, ResourceSystem* resourceSystem) {
     m_backend = backend;
     m_resourceSystem = resourceSystem;
 
-    init();
+    init_gpu();
 }
 
-VoxelTextureManager::~VoxelTextureManager() {
-    release_resources();
+PlanetVoxelTextureManager::~PlanetVoxelTextureManager() {
+    m_textureArray = nullptr;
+    m_bindingLayout = nullptr;
+    m_bindingSet = nullptr;
+    m_sampler = nullptr;
+
+    // Mipmap generator
+    m_mipmapGenerator.computeShader = nullptr;
+    m_mipmapGenerator.pipeline = nullptr;
+    m_mipmapGenerator.bindingLayout = nullptr;
+    m_mipmapGenerator.linearSampler = nullptr;
+    m_mipmapGenerator.initialized = false;
 }
 
-uint16_t VoxelTextureManager::request_texture_slot(const AssetID& textureID) {
+void PlanetVoxelTextureManager::register_textures(std::span<const AssetID> textures) {
+    for (const auto& textureID : textures) {
+        if (textureID == AssetID::Invalid || m_slotByTexture.contains(textureID)) {
+            continue;
+        }
+
+        if (m_slotByTexture.size() >= MAX_VOXEL_TEXTURE_SLOTS) {
+            LOG_WARN("VoxelTextureManager", "Max texture slots reached, cannot register texture {}", textureID);
+            continue;
+        }
+
+        m_slotByTexture[textureID] = static_cast<uint32_t>(m_slotByTexture.size());
+        m_slots.push_back(textureID);
+    }
+}
+
+PlanetVoxelTextureManager::TextureSlot PlanetVoxelTextureManager::slot_of(const AssetID textureID) {
+    auto it = m_slotByTexture.find(textureID);
+    if (it != m_slotByTexture.end()) {
+        return static_cast<uint16_t>(it->second);
+    }
+
+    LOG_WARN("VoxelTextureManager", "Texture ID {} not registered, returning slot 0", textureID);
+    return 0;
+}
+
+void PlanetVoxelTextureManager::upload_pending(
+
+/* uint16_t PlanetVoxelTextureManager::request_texture_slot(const AssetID& textureID) {
     auto it = m_textures.find(textureID);
     if (it != m_textures.end()) {
         return it->second;
@@ -41,25 +80,9 @@ uint16_t VoxelTextureManager::request_texture_slot(const AssetID& textureID) {
 
     LOG_WARN("VoxelTextureManager", "No available texture slots, returning slot 0");
     return 0;
-}
+} */
 
-void VoxelTextureManager::Register(flecs::world& ecs) {
-    auto* backend = ecs.get_mut<Renderer>()->backend.get();
-    auto* gameState = ecs.get_mut<GameState>();
-
-    ecs.emplace<VoxelTextureManager>(backend, gameState->resourceSystem.get());
-    auto* textureManager = ecs.get_mut<VoxelTextureManager>();
-
-    ecs.system<Renderer>("UploadVoxelTexturesSystem")
-        .kind(flecs::PreStore)
-        .each([textureManager](flecs::entity e, Renderer& renderer) {
-            auto* gameState = e.world().get<GameState>();
-            VOXEL_ZONE_N("VoxelTextureManager-UploadPendingTextures");
-            textureManager->upload_pending_textures_system(renderer, gameState->resourceSystem.get());
-        });
-}
-
-void VoxelTextureManager::init() {
+void PlanetVoxelTextureManager::init_gpu() {
     m_slots.resize(MAX_VOXEL_TEXTURE_SLOTS);
 
     auto textureDesc = nvrhi::TextureDesc()
@@ -109,7 +132,7 @@ void VoxelTextureManager::init() {
     init_mipmap_generator();
 }
 
-void VoxelTextureManager::init_mipmap_generator() {
+void PlanetVoxelTextureManager::init_mipmap_generator() {
     auto samplerDesc = nvrhi::SamplerDesc().setAllFilters(true).setAllAddressModes(nvrhi::SamplerAddressMode::Clamp);
     m_mipmapGenerator.linearSampler = m_backend->device->createSampler(samplerDesc);
 
@@ -140,7 +163,7 @@ void VoxelTextureManager::init_mipmap_generator() {
     m_mipmapGenerator.initialized = true;
 }
 
-void VoxelTextureManager::generate_mipmaps(nvrhi::CommandListHandle cmd, uint32_t textureSlot) {
+void PlanetVoxelTextureManager::generate_mipmaps(nvrhi::CommandListHandle cmd, uint32_t textureSlot) {
     if (!m_mipmapGenerator.initialized) {
         LOG_ERROR("VoxelTextureManager", "Mipmap generator not initialized");
         return;
@@ -200,7 +223,7 @@ void VoxelTextureManager::generate_mipmaps(nvrhi::CommandListHandle cmd, uint32_
     //                      nvrhi::ResourceStates::ShaderResource);
 }
 
-void VoxelTextureManager::upload_pending_textures_system(Renderer& renderer, ResourceSystem* resourceSys) {
+void PlanetVoxelTextureManager::upload_pending(Renderer& renderer, ResourceSystem* resourceSys) {
     if (m_toUploadList.empty())
         return;
 
@@ -212,8 +235,8 @@ void VoxelTextureManager::upload_pending_textures_system(Renderer& renderer, Res
 
     for (const AssetID assetId : m_toUploadList) {
         std::string assetIdStr = resourceSys->get_asset_registry()->get_debug_name(assetId);
-        auto it = m_textures.find(assetId);
-        if (it == m_textures.end()) {
+        auto it = m_slotByTexture.find(assetId);
+        if (it == m_slotByTexture.end()) {
             LOG_ERROR("VoxelTextureManager", "Texture ID {} not found in textures map during upload", assetIdStr);
             continue;
         }
@@ -261,3 +284,4 @@ void VoxelTextureManager::upload_pending_textures_system(Renderer& renderer, Res
 
     m_toUploadList.clear();
 }
+} // namespace vp

@@ -46,6 +46,10 @@ void PlanetModule::register_systems(flecs::world& ecs) {
             e.emplace<PlanetSurfaceChunkStore>();
         });
 
+    ecs.system<PlanetSurfaceChunkStore>("PlanetModule-ResetChangeList")
+        .kind(flecs::PreUpdate)
+        .each([](PlanetSurfaceChunkStore& store) { store.clear_changed_chunks(); });
+
     ecs.system<PlanetSurfaceChunkGeneratorComp>("PlanetModule-BeginChunkFrame")
         .kind(flecs::PreUpdate)
         .each([](PlanetSurfaceChunkGeneratorComp& gen) {

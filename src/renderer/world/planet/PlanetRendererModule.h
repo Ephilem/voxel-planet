@@ -1,6 +1,7 @@
 #pragma once
 #include "PlanetTileAtlas.h"
 #include "PlanetTileRenderer.h"
+#include "renderer/world/planet/PlanetSurfaceChunkRenderer.h"
 #include "utils/common/BaseModule.h"
 
 namespace vp {
@@ -10,6 +11,7 @@ public:
     PlanetRendererModule(flecs::world& ecs) : BaseModule(ecs) { init_renderers(ecs); }
 
 private:
+    std::unique_ptr<PlanetSurfaceChunkRenderer> m_surfaceChunkRenderer;
     std::unique_ptr<PlanetTileRenderer> m_tileRenderer;
     std::unique_ptr<PlanetTileAtlas> m_tileAtlas;
 

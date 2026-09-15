@@ -6,9 +6,12 @@
 
 namespace vp {
 void PlanetSurfaceChunkStore::store(const PlanetSurfaceChunkKey& key, std::shared_ptr<PlanetSurfaceVoxelChunk> chunk) {
+    auto exist = m_chunks.find(key);
     m_chunks[key] = std::move(chunk);
     m_lastChunk = nullptr;
     m_lastKey = {};
+
+    m_changedChunks[key] = exist == m_chunks.end() ? ChunkChangeKind::Added : ChunkChangeKind::Updated;
 }
 
 bool PlanetSurfaceChunkStore::remove(const PlanetSurfaceChunkKey& key) {
@@ -16,6 +19,7 @@ bool PlanetSurfaceChunkStore::remove(const PlanetSurfaceChunkKey& key) {
         m_chunks.erase(key);
         m_lastChunk = nullptr;
         m_lastKey = {};
+        m_changedChunks[key] = ChunkChangeKind::Removed;
         return true;
     }
     return false;
