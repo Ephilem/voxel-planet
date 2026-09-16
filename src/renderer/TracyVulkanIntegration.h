@@ -1,6 +1,9 @@
 #pragma once
 
 #ifdef TRACY_ENABLE
+
+#include <vulkan/vulkan.h>
+
 #include <nvrhi/nvrhi.h>
 #include <tracy/TracyVulkan.hpp>
 

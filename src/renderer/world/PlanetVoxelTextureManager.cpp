@@ -4,17 +4,15 @@
 
 #include "PlanetVoxelTextureManager.h"
 
-#include "core/GameState.h"
 #include "core/log/Logger.h"
-#include "core/TracyIntegration.h"
-#include "renderer/Renderer.h"
-#include "renderer/TracyVulkanIntegration.h"
 #include <nvrhi/vulkan.h>
 
 namespace vp {
 PlanetVoxelTextureManager::PlanetVoxelTextureManager(VulkanBackend* backend, ResourceSystem* resourceSystem) {
     m_backend = backend;
     m_resourceSystem = resourceSystem;
+
+    m_slots.resize(MAX_VOXEL_TEXTURE_SLOTS, AssetID::Invalid);
 
     init_gpu();
 }
@@ -33,61 +31,10 @@ PlanetVoxelTextureManager::~PlanetVoxelTextureManager() {
     m_mipmapGenerator.initialized = false;
 }
 
-void PlanetVoxelTextureManager::register_textures(std::span<const AssetID> textures) {
-    for (const auto& textureID : textures) {
-        if (textureID == AssetID::Invalid || m_slotByTexture.contains(textureID)) {
-            continue;
-        }
-
-        if (m_slotByTexture.size() >= MAX_VOXEL_TEXTURE_SLOTS) {
-            LOG_WARN("VoxelTextureManager", "Max texture slots reached, cannot register texture {}", textureID);
-            continue;
-        }
-
-        m_slotByTexture[textureID] = static_cast<uint32_t>(m_slotByTexture.size());
-        m_slots.push_back(textureID);
-    }
-}
-
-PlanetVoxelTextureManager::TextureSlot PlanetVoxelTextureManager::slot_of(const AssetID textureID) {
-    auto it = m_slotByTexture.find(textureID);
-    if (it != m_slotByTexture.end()) {
-        return static_cast<uint16_t>(it->second);
-    }
-
-    LOG_WARN("VoxelTextureManager", "Texture ID {} not registered, returning slot 0", textureID);
-    return 0;
-}
-
-void PlanetVoxelTextureManager::upload_pending(
-
-/* uint16_t PlanetVoxelTextureManager::request_texture_slot(const AssetID& textureID) {
-    auto it = m_textures.find(textureID);
-    if (it != m_textures.end()) {
-        return it->second;
-    }
-
-    for (uint32_t i = 0; i < m_slots.size(); ++i) {
-        if (m_slots[i].textureID == AssetID::Invalid) {
-            m_textures[textureID] = i;
-            m_slots[i].textureID = textureID;
-            m_slots[i].uploaded = false;
-            m_toUploadList.push_back(textureID);
-            LOG_DEBUG("VoxelTextureManager", "Assigned texture ID {} to slot {}", textureID, i);
-            return i;
-        }
-    }
-
-    LOG_WARN("VoxelTextureManager", "No available texture slots, returning slot 0");
-    return 0;
-} */
-
 void PlanetVoxelTextureManager::init_gpu() {
-    m_slots.resize(MAX_VOXEL_TEXTURE_SLOTS);
-
     auto textureDesc = nvrhi::TextureDesc()
-                           .setWidth(32)
-                           .setHeight(32)
+                           .setWidth(VOXEL_TEXTURE_SIZE)
+                           .setHeight(VOXEL_TEXTURE_SIZE)
                            .setArraySize(MAX_VOXEL_TEXTURE_SLOTS)
                            .setMipLevels(6)
                            .setFormat(nvrhi::Format::RGBA8_UNORM)
@@ -130,6 +77,12 @@ void PlanetVoxelTextureManager::init_gpu() {
     m_bindingSet = m_backend->device->createBindingSet(bindingSetDesc, m_bindingLayout);
 
     init_mipmap_generator();
+
+    auto cmd = m_backend->device->createCommandList();
+    cmd->open();
+    upload_fallback_texture(cmd);
+    cmd->close();
+    m_backend->device->executeCommandList(cmd);
 }
 
 void PlanetVoxelTextureManager::init_mipmap_generator() {
@@ -163,7 +116,114 @@ void PlanetVoxelTextureManager::init_mipmap_generator() {
     m_mipmapGenerator.initialized = true;
 }
 
-void PlanetVoxelTextureManager::generate_mipmaps(nvrhi::CommandListHandle cmd, uint32_t textureSlot) {
+void PlanetVoxelTextureManager::upload_fallback_texture(nvrhi::ICommandList* cmd) {
+    const auto checkerboard = generate_checkerboard_texture();
+
+    auto subresource = nvrhi::TextureSubresourceSet()
+                           .setBaseMipLevel(0)
+                           .setNumMipLevels(1)
+                           .setBaseArraySlice(VOXEL_TEXTURE_FALLBACK_SLOT)
+                           .setNumArraySlices(1);
+    cmd->setTextureState(m_textureArray, subresource, nvrhi::ResourceStates::CopyDest);
+
+    // rowPitch = VOXEL_TEXTURE_SIZE pixels * 4 bytes per pixel (RGBA8)
+    cmd->writeTexture(m_textureArray, VOXEL_TEXTURE_FALLBACK_SLOT, 0, checkerboard.data(), VOXEL_TEXTURE_SIZE * 4);
+
+    generate_mipmaps(cmd, VOXEL_TEXTURE_FALLBACK_SLOT);
+
+    cmd->setTextureState(m_textureArray, subresource, nvrhi::ResourceStates::ShaderResource);
+}
+
+void PlanetVoxelTextureManager::register_textures(std::span<const AssetID> textures) {
+    for (const auto& textureID : textures) {
+        if (textureID == AssetID::Invalid) {
+            continue;
+        }
+
+        if (m_slotByTexture.contains(textureID)) {
+            m_toUploadList.push_back(textureID);
+            LOG_DEBUG("VoxelTextureManager", "Texture ID {} already registered, marking for reupload", textureID);
+            continue;
+        }
+
+        if (m_nextFreeSlot >= MAX_VOXEL_TEXTURE_SLOTS) {
+            LOG_WARN("VoxelTextureManager", "Max texture slots reached, texture {} will use the fallback", textureID);
+            m_slotByTexture[textureID] = VOXEL_TEXTURE_FALLBACK_SLOT;
+            continue;
+        }
+
+        const TextureSlot newSlot = static_cast<TextureSlot>(m_nextFreeSlot++);
+        m_slotByTexture[textureID] = newSlot;
+        m_slots[newSlot] = textureID;
+        m_toUploadList.push_back(textureID);
+        LOG_TRACE("VoxelTextureManager", "Registered texture ID {} to slot {}", textureID, newSlot);
+    }
+}
+
+PlanetVoxelTextureManager::TextureSlot PlanetVoxelTextureManager::slot_of(const AssetID textureID) {
+    auto it = m_slotByTexture.find(textureID);
+    if (it != m_slotByTexture.end()) {
+        return static_cast<uint16_t>(it->second);
+    }
+
+    LOG_WARN("VoxelTextureManager", "Texture ID {} not registered, returning fallback slot", textureID);
+    return VOXEL_TEXTURE_FALLBACK_SLOT;
+}
+
+void PlanetVoxelTextureManager::upload_pending(nvrhi::ICommandList* cmd) {
+    if (m_toUploadList.empty()) {
+        return;
+    }
+
+    auto level0Subresource =
+        nvrhi::TextureSubresourceSet().setBaseMipLevel(0).setNumMipLevels(1).setBaseArraySlice(0).setNumArraySlices(
+            MAX_VOXEL_TEXTURE_SLOTS);
+    cmd->setTextureState(m_textureArray, level0Subresource, nvrhi::ResourceStates::CopyDest);
+
+    for (auto textureID : m_toUploadList) {
+        auto it = m_slotByTexture.find(textureID);
+        if (it == m_slotByTexture.end()) {
+            LOG_ERROR("VoxelTextureManager", "Texture ID {} not found in slot map during upload", textureID);
+            continue;
+        }
+        const uint32_t slotIndex = it->second;
+
+        std::shared_ptr<ImageResource> textureRes;
+        try {
+            textureRes = m_resourceSystem->load<ImageResource>(textureID);
+        } catch (const std::exception& e) {
+            LOG_ERROR("VoxelTextureManager", "Failed to load texture ID {}: {}. Falling back to checkerboard",
+                      textureID, e.what());
+            it->second = VOXEL_TEXTURE_FALLBACK_SLOT;
+            m_slots[slotIndex] = AssetID::Invalid;
+            continue;
+        }
+
+        // The rowPitch below assumes exactly VOXEL_TEXTURE_SIZE pixels per row, so anything
+        // else would be read with the wrong stride rather than merely look wrong.
+        if (textureRes->width != VOXEL_TEXTURE_SIZE || textureRes->height != VOXEL_TEXTURE_SIZE) {
+            LOG_ERROR("VoxelTextureManager",
+                      "Texture ID {} must be exactly {}x{}, got {}x{}. Falling back to checkerboard", textureID,
+                      VOXEL_TEXTURE_SIZE, VOXEL_TEXTURE_SIZE, textureRes->width, textureRes->height);
+            it->second = VOXEL_TEXTURE_FALLBACK_SLOT;
+            m_slots[slotIndex] = AssetID::Invalid;
+            continue;
+        }
+
+        // rowPitch = VOXEL_TEXTURE_SIZE pixels * 4 bytes per pixel (RGBA8)
+        cmd->writeTexture(m_textureArray, slotIndex, 0, textureRes->get_data(), VOXEL_TEXTURE_SIZE * 4);
+
+        generate_mipmaps(cmd, slotIndex);
+
+        LOG_TRACE("VoxelTextureManager", "Uploaded texture ID {} to slot {}", textureID, slotIndex);
+    }
+
+    m_toUploadList.clear();
+
+    cmd->setTextureState(m_textureArray, level0Subresource, nvrhi::ResourceStates::ShaderResource);
+}
+
+void PlanetVoxelTextureManager::generate_mipmaps(nvrhi::ICommandList* cmd, TextureSlot textureSlot) {
     if (!m_mipmapGenerator.initialized) {
         LOG_ERROR("VoxelTextureManager", "Mipmap generator not initialized");
         return;
@@ -171,10 +231,8 @@ void PlanetVoxelTextureManager::generate_mipmaps(nvrhi::CommandListHandle cmd, u
 
     // for each level
     for (uint32_t mipLevel = 1; mipLevel < 6; mipLevel++) {
-        uint32_t srcWidth = 32 >> (mipLevel - 1);
-        uint32_t srcHeight = 32 >> (mipLevel - 1);
-        uint32_t dstWidth = 32 >> mipLevel;
-        uint32_t dstHeight = 32 >> mipLevel;
+        uint32_t dstWidth = VOXEL_TEXTURE_SIZE >> mipLevel;
+        uint32_t dstHeight = VOXEL_TEXTURE_SIZE >> mipLevel;
 
         auto srcSubresource = nvrhi::TextureSubresourceSet()
                                   .setBaseMipLevel(mipLevel - 1)
@@ -212,76 +270,21 @@ void PlanetVoxelTextureManager::generate_mipmaps(nvrhi::CommandListHandle cmd, u
         uint32_t groupsY = (dstHeight + 7) / 8;
         cmd->dispatch(groupsX, groupsY, 1);
     }
-
-    // auto sliceSubresource = nvrhi::TextureSubresourceSet()
-    //     .setBaseMipLevel(0)
-    //     .setNumMipLevels(6)
-    //     .setBaseArraySlice(textureSlot)
-    //     .setNumArraySlices(1);
-    //
-    // cmd->setTextureState(m_textureArray, sliceSubresource,
-    //                      nvrhi::ResourceStates::ShaderResource);
 }
 
-void PlanetVoxelTextureManager::upload_pending(Renderer& renderer, ResourceSystem* resourceSys) {
-    if (m_toUploadList.empty())
-        return;
+std::array<uint32_t, VOXEL_TEXTURE_SIZE * VOXEL_TEXTURE_SIZE>
+PlanetVoxelTextureManager::generate_checkerboard_texture() {
+    constexpr uint32_t magenta = 0xFFFF00FF;
+    constexpr uint32_t black = 0xFF000000;
 
-    auto& cmd = renderer.frameContext.commandList;
-
-    cmd->setTextureState(m_textureArray, nvrhi::AllSubresources, nvrhi::ResourceStates::CopyDest);
-
-    constexpr size_t rowPitch = 32 * 4; // RGBA8: width * 4 bytes
-
-    for (const AssetID assetId : m_toUploadList) {
-        std::string assetIdStr = resourceSys->get_asset_registry()->get_debug_name(assetId);
-        auto it = m_slotByTexture.find(assetId);
-        if (it == m_slotByTexture.end()) {
-            LOG_ERROR("VoxelTextureManager", "Texture ID {} not found in textures map during upload", assetIdStr);
-            continue;
+    std::array<uint32_t, VOXEL_TEXTURE_SIZE * VOXEL_TEXTURE_SIZE> data{};
+    for (uint32_t y = 0; y < VOXEL_TEXTURE_SIZE; y++) {
+        for (uint32_t x = 0; x < VOXEL_TEXTURE_SIZE; x++) {
+            const bool isLit = ((x / 4) % 2) == ((y / 4) % 2);
+            data[(y * VOXEL_TEXTURE_SIZE) + x] = isLit ? magenta : black;
         }
-        uint32_t slotIndex = it->second;
-
-        std::shared_ptr<ImageResource> textureRes;
-        try {
-            textureRes = resourceSys->load<ImageResource>(assetId);
-        } catch (const std::exception& e) {
-            LOG_ERROR("VoxelTextureManager", "Failed to load texture ID {}: {}", assetIdStr, e.what());
-            continue;
-        }
-
-        if (textureRes->width < 32 || textureRes->height < 32) {
-            LOG_WARN("VoxelTextureManager", "Texture ID {} has invalid size ({}x{}), expected 32x32", assetIdStr,
-                     textureRes->width, textureRes->height);
-            continue;
-        }
-
-        // transition to copydest for uploading mip level 0
-        auto level0Subresource = nvrhi::TextureSubresourceSet()
-                                     .setBaseMipLevel(0)
-                                     .setNumMipLevels(1)
-                                     .setBaseArraySlice(slotIndex)
-                                     .setNumArraySlices(1);
-        cmd->setTextureState(m_textureArray, level0Subresource, nvrhi::ResourceStates::CopyDest);
-
-        // upload mip level 0
-        constexpr size_t rowPitch = 32 * 4;
-        {
-            VOXEL_VK_NVRHI_ZONE(renderer.backend->tracyVkCtx, cmd, "Upload texture");
-            cmd->writeTexture(m_textureArray, slotIndex, 0, textureRes->get_data(), rowPitch);
-        }
-        LOG_DEBUG("VoxelTextureManager", "Uploaded texture {} to slot {}", assetIdStr, slotIndex);
-        {
-            VOXEL_VK_NVRHI_ZONE(renderer.backend->tracyVkCtx, cmd, "Generate Mipmaps");
-            generate_mipmaps(cmd, slotIndex);
-        }
-
-        LOG_DEBUG("VoxelTextureManager", "Generated mipmaps for slot {}", slotIndex);
-
-        m_slots[slotIndex].uploaded = true;
     }
-    cmd->setTextureState(m_textureArray, nvrhi::AllSubresources, nvrhi::ResourceStates::ShaderResource);
-
-    m_toUploadList.clear();
+    return data;
 }
+
 } // namespace vp

@@ -9,10 +9,7 @@ add_library(VoxelPlanetRenderer STATIC
         debug/ImGuiManager.cpp
         debug/DebugImageTexture.h
         debug/DebugImageTexture.cpp
-        render_types.h
         IRenderPass.h
-        world/VoxelTextureManager.cpp
-        world/VoxelTextureManager.h
         TracyVulkanIntegration.h
         debug/DebugDrawRenderer.cpp
         debug/DebugDrawRenderer.h
@@ -21,6 +18,8 @@ add_library(VoxelPlanetRenderer STATIC
         camera/camera3d_systems.h
         debug/DebugRenderModule.cpp
         debug/DebugRenderModule.h
+        world/PlanetVoxelTextureManager.cpp
+        world/PlanetVoxelTextureManager.h
         world/planet/PlanetRendererModule.cpp
         world/planet/PlanetRendererModule.h
         world/planet/PlanetTileRenderer.cpp
