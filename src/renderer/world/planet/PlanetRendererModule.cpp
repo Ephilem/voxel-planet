@@ -86,4 +86,13 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
 
 void PlanetRendererModule::register_submodules(flecs::world& ecs) {}
 
-void PlanetRendererModule::register_entities(flecs::world& ecs) {}
+void PlanetRendererModule::register_entities(flecs::world& ecs) {
+    std::vector<AssetID> texturesUsed;
+    const auto* registry = ecs.get<PlanetVoxelRegistry>();
+
+    for (auto& block : registry->get_all()) {
+        texturesUsed.push_back(block.texture);
+    }
+
+    m_voxelTextureManager->register_textures(texturesUsed);
+}

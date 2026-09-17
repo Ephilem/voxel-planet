@@ -22,7 +22,7 @@ public:
     PlanetSurfaceChunkMesher& operator=(const PlanetSurfaceChunkMesher&) = delete;
 
     void enqueue(const PlanetSurfaceChunkKey& key, const std::shared_ptr<PlanetSurfaceVoxelChunk>& chunk);
-    bool poll_results(std::vector<MeshingResult>& outResults, uint32_t maxResults = 32);
+    uint32_t drain(std::vector<MeshingResult>& outResults, uint32_t maxResults = 32);
 
 private:
     struct MeshingTask {
@@ -35,7 +35,7 @@ private:
     moodycamel::BlockingConcurrentQueue<MeshingTask> m_taskQueue;
     moodycamel::ConcurrentQueue<MeshingResult> m_resultQueue;
 
-    void worker_loop(int threadIndex, std::stop_token stopToken);
+    void worker_loop(std::stop_token stopToken);
 
     void mesh_chunk(const PlanetSurfaceChunkKey& key, const std::shared_ptr<PlanetSurfaceVoxelChunk>& chunk,
                     std::shared_ptr<PlanetSurfaceChunkMesh>& outMesh);

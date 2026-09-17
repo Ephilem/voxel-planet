@@ -31,7 +31,7 @@ public:
 
     /**
      * Allocate, and mark to upload the textures to the GPU. The textures will be uploaded on the next call to
-     * upload_pending().
+     * upload_pending()
      *
      * If the texture is already registered, the texture will be marked to be reuploaded
      */
@@ -66,7 +66,7 @@ private:
 
     static std::array<uint32_t, VOXEL_TEXTURE_SIZE * VOXEL_TEXTURE_SIZE> generate_checkerboard_texture();
 
-    /// Uploads the checkerboard into VOXEL_TEXTURE_FALLBACK_SLOT. Called once from init_gpu().
+    // Uploads the checkerboard into VOXEL_TEXTURE_FALLBACK_SLOT. Called once from init_gpu()
     void upload_fallback_texture(nvrhi::ICommandList* cmd);
 
     void generate_mipmaps(nvrhi::ICommandList* cmd, TextureSlot textureSlot);
@@ -76,7 +76,7 @@ private:
 
     uint32_t m_nextFreeSlot = VOXEL_TEXTURE_FALLBACK_SLOT + 1; // slot 0 is reserved for the fallback
 
-    std::vector<AssetID> m_toUploadList; // List of texture data to upload
+    std::vector<AssetID> m_toUploadList; // list of texture data to upload
 
     // GPU resources
     nvrhi::TextureHandle m_textureArray;

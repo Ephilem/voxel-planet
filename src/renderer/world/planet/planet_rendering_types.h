@@ -116,7 +116,7 @@ struct alignas(16) PlanetSurfaceChunkVertex {
 
     // packed data
     uint32_t textureSlot : 16;
-    uint32_t _pad0 : 16;
+    uint32_t _pad0 : 16 = 0;
 };
 
 struct alignas(16) PlanetSurfaceChunkInstance {
