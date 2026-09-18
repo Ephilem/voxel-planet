@@ -8,7 +8,10 @@ namespace vp {
 
 class PlatformModule : public utils::BaseModule<PlatformModule> {
 public:
-    PlatformModule(flecs::world& ecs) : BaseModule(ecs) { init(ecs); }
+    PlatformModule(flecs::world& ecs) : BaseModule(ecs) {
+        register_all(ecs);
+        init(ecs);
+    }
 
 private:
     void init(flecs::world& ecs);

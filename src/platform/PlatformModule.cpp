@@ -12,7 +12,8 @@
 using namespace vp;
 
 void PlatformModule::init(flecs::world& ecs) {
-    ecs.get_mut<PlatformState>()->window->setupCallbacks(ecs);
+    auto* platformState = ecs.get_mut<PlatformState>();
+    platformState->window->setupCallbacks(ecs);
 }
 
 void PlatformModule::register_components(flecs::world& ecs) {

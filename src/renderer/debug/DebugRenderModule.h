@@ -8,7 +8,10 @@
 namespace vp {
 class DebugRenderModule : public utils::BaseModule<DebugRenderModule> {
 public:
-    DebugRenderModule(flecs::world& ecs) : BaseModule(ecs) { init_renderers(ecs); }
+    DebugRenderModule(flecs::world& ecs) : BaseModule(ecs) {
+        init_renderers(ecs);
+        register_all(ecs);
+    }
 
 private:
     std::unique_ptr<ImGuiManager> m_imgui;

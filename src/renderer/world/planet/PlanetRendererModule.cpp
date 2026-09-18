@@ -82,6 +82,20 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
             flecs::world ecs = e.world();
             m_tileRenderer->render_planets(renderer.frameContext.commandList, camera, ecs);
         });
+
+    ecs.system<const Renderer>("PlanetRendererModule-UploadTextures")
+        .term_at(0)
+        .singleton()
+        .kind(flecs::PreStore)
+        .run([this](flecs::iter& it) {
+            while (it.next()) {
+                auto renderer = it.field<const Renderer>(0);
+                if (!renderer->frameContext.frameActive) {
+                    return;
+                }
+                m_voxelTextureManager->upload_pending(renderer->frameContext.commandList);
+            }
+        });
 }
 
 void PlanetRendererModule::register_submodules(flecs::world& ecs) {}

@@ -9,7 +9,10 @@ namespace vp {
 class PlanetRendererModule : public utils::BaseModule<PlanetRendererModule> {
 
 public:
-    PlanetRendererModule(flecs::world& ecs) : BaseModule(ecs) { init_renderers(ecs); }
+    PlanetRendererModule(flecs::world& ecs) : BaseModule(ecs) {
+        init_renderers(ecs);
+        register_all(ecs);
+    }
 
 private:
     std::unique_ptr<PlanetSurfaceChunkRenderer> m_surfaceChunkRenderer;

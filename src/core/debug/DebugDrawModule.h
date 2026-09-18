@@ -21,7 +21,7 @@ struct DebugDrawBuffer {
 
 class DebugDrawModule : public utils::BaseModule<DebugDrawModule> {
 public:
-    DebugDrawModule(flecs::world& ecs) : BaseModule(ecs) {}
+    DebugDrawModule(flecs::world& ecs) : BaseModule(ecs) { register_all(ecs); }
 
 private:
     static DebugDrawBuffer* s_buffer;

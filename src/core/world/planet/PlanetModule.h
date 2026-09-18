@@ -7,7 +7,7 @@ namespace vp {
 
 class PlanetModule : public utils::BaseModule<PlanetModule> {
 public:
-    PlanetModule(flecs::world& ecs) : BaseModule<PlanetModule>(ecs) {}
+    PlanetModule(flecs::world& ecs) : BaseModule<PlanetModule>(ecs) { register_all(ecs); }
 
 private:
     void register_components(flecs::world& ecs);

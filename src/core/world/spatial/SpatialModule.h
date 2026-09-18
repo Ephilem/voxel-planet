@@ -7,7 +7,7 @@
 namespace vp {
 class SpatialModule : public utils::BaseModule<SpatialModule> {
 public:
-    SpatialModule(flecs::world& ecs) : BaseModule(ecs) {}
+    SpatialModule(flecs::world& ecs) : BaseModule(ecs) { register_all(ecs); }
 
 private:
     void register_components(flecs::world& ecs);

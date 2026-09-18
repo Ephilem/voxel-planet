@@ -5,7 +5,7 @@
 namespace vp {
 class DebugUIModule : public utils::BaseModule<DebugUIModule> {
 public:
-    DebugUIModule(flecs::world& ecs) : BaseModule(ecs) {}
+    DebugUIModule(flecs::world& ecs) : BaseModule(ecs) { register_all(ecs); }
 
 private:
     void register_components(flecs::world& ecs);

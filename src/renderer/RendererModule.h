@@ -7,7 +7,7 @@
 namespace vp {
 class RendererModule : public utils::BaseModule<RendererModule> {
 public:
-    RendererModule(flecs::world& ecs) : BaseModule(ecs) {}
+    RendererModule(flecs::world& ecs) : BaseModule(ecs) { register_all(ecs); }
 
 private:
     void register_components(flecs::world& ecs);

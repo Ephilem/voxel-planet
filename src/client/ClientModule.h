@@ -7,7 +7,7 @@
 namespace vp {
 class ClientModule : public utils::BaseModule<ClientModule> {
 public:
-    ClientModule(flecs::world& ecs) : BaseModule(ecs) {}
+    ClientModule(flecs::world& ecs) : BaseModule(ecs) { register_all(ecs); }
 
 private:
     void register_components(flecs::world& ecs);

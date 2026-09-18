@@ -6,7 +6,7 @@
 namespace vp {
 class CoreModule : public utils::BaseModule<CoreModule> {
 public:
-    CoreModule(flecs::world& ecs) : BaseModule(ecs) {}
+    CoreModule(flecs::world& ecs) : BaseModule(ecs) { register_all(ecs); }
 
     // static constexpr const char* module_path() { return "vp::Core"; }
 

@@ -7,7 +7,7 @@ namespace vp {
 
 class InputModule : public utils::BaseModule<InputModule> {
 public:
-    InputModule(flecs::world& ecs) : BaseModule(ecs) {}
+    InputModule(flecs::world& ecs) : BaseModule(ecs) { register_all(ecs); }
 
 private:
     void register_components(flecs::world& ecs);

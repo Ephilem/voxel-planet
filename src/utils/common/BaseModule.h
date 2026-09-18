@@ -24,18 +24,36 @@ public:
         } else {
             ecs.module<T>();
         }
+    }
 
+    ~BaseModule() {
+        if (!m_registered) {
+            LOG_ERROR("Module", "Module {} never called register_all(), it is inert", TypeToString<T>());
+        }
+        LOG_INFO("Module", "Unregistering module: {}", TypeToString<T>());
+    }
+
+protected:
+    /**
+     * Runs the registration callbacks on the derived module.
+     *
+     * Must be called at the END of the derived constructor: the derived members are only
+     * constructed after this base, so calling the callbacks from here would touch
+     * uninitialized memory.
+     */
+    void register_all(flecs::world& ecs) {
         T* derived = static_cast<T*>(this);
         derived->register_components(ecs);
         derived->register_pipelines(ecs);
         derived->register_systems(ecs);
         derived->register_submodules(ecs);
         derived->register_entities(ecs);
+        m_registered = true;
     }
 
-    ~BaseModule() { LOG_INFO("Module", "Unregistering module: {}", TypeToString<T>()); }
-
 private:
+    bool m_registered = false;
+
     void register_components(flecs::world& ecs) {};
     void register_systems(flecs::world& ecs) {};
     void register_pipelines(flecs::world& ecs) {};

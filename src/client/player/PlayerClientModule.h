@@ -6,7 +6,7 @@
 namespace vp {
 class PlayerClientModule : public utils::BaseModule<PlayerClientModule> {
 public:
-    PlayerClientModule(flecs::world& ecs) : BaseModule(ecs) {}
+    PlayerClientModule(flecs::world& ecs) : BaseModule(ecs) { register_all(ecs); }
 
 private:
     void register_components(flecs::world& ecs);
