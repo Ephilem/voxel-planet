@@ -23,6 +23,9 @@ void PlanetRendererModule::init_renderers(flecs::world& ecs) {
     m_voxelTextureManager =
         std::make_unique<PlanetVoxelTextureManager>(renderer->backend.get(), gameState->resourceSystem.get());
 
+    m_surfaceChunkRenderer =
+        std::make_unique<PlanetSurfaceChunkRenderer>(renderer->backend.get(), gameState->resourceSystem.get());
+
     ecs.set<PlanetTileAtlasRef>({.atlas = m_tileAtlas.get(), .renderer = m_tileRenderer.get()});
 }
 

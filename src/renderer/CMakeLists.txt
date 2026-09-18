@@ -20,6 +20,10 @@ add_library(VoxelPlanetRenderer STATIC
         debug/DebugRenderModule.h
         world/PlanetVoxelTextureManager.cpp
         world/PlanetVoxelTextureManager.h
+        world/planet/PlanetSurfaceChunkBuffer.cpp
+        world/planet/PlanetSurfaceChunkBuffer.h
+        world/planet/PlanetSurfaceChunkRenderer.cpp
+        world/planet/PlanetSurfaceChunkRenderer.h
         world/planet/PlanetRendererModule.cpp
         world/planet/PlanetRendererModule.h
         world/planet/PlanetTileRenderer.cpp

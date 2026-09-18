@@ -26,12 +26,7 @@ public:
         }
     }
 
-    ~BaseModule() {
-        if (!m_registered) {
-            LOG_ERROR("Module", "Module {} never called register_all(), it is inert", TypeToString<T>());
-        }
-        LOG_INFO("Module", "Unregistering module: {}", TypeToString<T>());
-    }
+    ~BaseModule() { LOG_INFO("Module", "Unregistering module: {}", TypeToString<T>()); }
 
 protected:
     /**
@@ -48,12 +43,9 @@ protected:
         derived->register_systems(ecs);
         derived->register_submodules(ecs);
         derived->register_entities(ecs);
-        m_registered = true;
     }
 
 private:
-    bool m_registered = false;
-
     void register_components(flecs::world& ecs) {};
     void register_systems(flecs::world& ecs) {};
     void register_pipelines(flecs::world& ecs) {};
