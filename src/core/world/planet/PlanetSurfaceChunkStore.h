@@ -16,7 +16,7 @@ public:
     void store(const PlanetSurfaceChunkKey& key, std::shared_ptr<PlanetSurfaceVoxelChunk> chunk);
     bool remove(const PlanetSurfaceChunkKey& key);
 
-    [[nodiscard]] const PlanetSurfaceVoxelChunk* find(const PlanetSurfaceChunkKey& key) const;
+    [[nodiscard]] std::shared_ptr<PlanetSurfaceVoxelChunk> find(const PlanetSurfaceChunkKey& key) const;
     [[nodiscard]] bool contains(const PlanetSurfaceChunkKey& key) const;
 
     [[nodiscard]] std::optional<PlanetSurfaceChunkBlockInfo> voxel_at(CubemapFace face, uint8_t level,
@@ -55,6 +55,6 @@ private:
     std::unordered_map<PlanetSurfaceChunkKey, ChunkChangeKind> m_changedChunks; // map of changed chunk at this frame
 
     mutable PlanetSurfaceChunkKey m_lastKey;
-    mutable const PlanetSurfaceVoxelChunk* m_lastChunk = nullptr;
+    mutable std::shared_ptr<PlanetSurfaceVoxelChunk> m_lastChunk;
 };
 } // namespace vp

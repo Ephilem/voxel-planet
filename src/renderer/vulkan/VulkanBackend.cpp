@@ -237,6 +237,7 @@ void VulkanBackend::init_nvrhi() {
     VkPhysicalDeviceFeatures2 features{};
     features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     features.features.multiDrawIndirect = VK_TRUE;
+    features.features.drawIndirectFirstInstance = VK_TRUE;
 
     vkb::DeviceBuilder deviceBuilder{physicalDevice};
     auto device_ret = deviceBuilder.add_pNext(&dynamicRenderingFeatures)

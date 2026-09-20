@@ -24,6 +24,8 @@ add_library(VoxelPlanetRenderer STATIC
         world/planet/PlanetSurfaceChunkBuffer.h
         world/planet/PlanetSurfaceChunkRenderer.cpp
         world/planet/PlanetSurfaceChunkRenderer.h
+        world/planet/PlanetSurfaceChunkMesher.cpp
+        world/planet/PlanetSurfaceChunkMesher.h
         world/planet/PlanetRendererModule.cpp
         world/planet/PlanetRendererModule.h
         world/planet/PlanetTileRenderer.cpp

@@ -33,7 +33,7 @@ public:
     /**
      * Stores the mesh of a chunk, or replaces it when the chunk is already resident
      */
-    ChunkBufferSlot allocate(std::shared_ptr<PlanetSurfaceChunkMesh> chunkMesh, const PlanetSurfaceChunkKey& chunkKey);
+    ChunkBufferSlot allocate(std::shared_ptr<const PlanetSurfaceChunkMesh> chunkMesh, const PlanetSurfaceChunkKey& chunkKey);
 
     void release(const PlanetSurfaceChunkKey& chunkKey);
 
@@ -70,7 +70,7 @@ private:
         uint32_t capacity = 0;
         uint32_t vertexCount = 0;
 
-        std::shared_ptr<PlanetSurfaceChunkMesh> pending; // not null = to upload
+        std::shared_ptr<const PlanetSurfaceChunkMesh> pending; // not null = to upload
     };
 
     void init_gpu();

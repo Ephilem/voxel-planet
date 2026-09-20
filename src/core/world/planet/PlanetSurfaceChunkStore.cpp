@@ -6,12 +6,13 @@
 
 namespace vp {
 void PlanetSurfaceChunkStore::store(const PlanetSurfaceChunkKey& key, std::shared_ptr<PlanetSurfaceVoxelChunk> chunk) {
-    auto exist = m_chunks.find(key);
+    // Captured before the insert: it may rehash, which invalidates an iterator kept across it
+    const bool existed = m_chunks.contains(key);
     m_chunks[key] = std::move(chunk);
     m_lastChunk = nullptr;
     m_lastKey = {};
 
-    m_changedChunks[key] = exist == m_chunks.end() ? ChunkChangeKind::Added : ChunkChangeKind::Updated;
+    m_changedChunks[key] = existed ? ChunkChangeKind::Updated : ChunkChangeKind::Added;
 }
 
 bool PlanetSurfaceChunkStore::remove(const PlanetSurfaceChunkKey& key) {
@@ -25,23 +26,17 @@ bool PlanetSurfaceChunkStore::remove(const PlanetSurfaceChunkKey& key) {
     return false;
 }
 
-const PlanetSurfaceVoxelChunk* PlanetSurfaceChunkStore::find(const PlanetSurfaceChunkKey& key) const {
+std::shared_ptr<PlanetSurfaceVoxelChunk> PlanetSurfaceChunkStore::find(const PlanetSurfaceChunkKey& key) const {
     // fast find
     if (m_lastKey == key) {
         return m_lastChunk;
     }
 
-    const PlanetSurfaceVoxelChunk* chunk;
-    if (auto it = m_chunks.find(key); it != m_chunks.end()) {
-        chunk = it->second.get();
-    } else {
-        chunk = nullptr;
-    }
-
-    m_lastChunk = chunk;
+    const auto it = m_chunks.find(key);
+    m_lastChunk = it == m_chunks.end() ? nullptr : it->second;
     m_lastKey = key;
 
-    return chunk;
+    return m_lastChunk;
 }
 
 bool PlanetSurfaceChunkStore::contains(const PlanetSurfaceChunkKey& key) const {
@@ -52,7 +47,7 @@ bool PlanetSurfaceChunkStore::contains(const PlanetSurfaceChunkKey& key) const {
     bool found = m_chunks.contains(key);
     if (found) {
         m_lastKey = key;
-        m_lastChunk = m_chunks.at(key).get();
+        m_lastChunk = m_chunks.at(key);
     } else {
         m_lastKey = {};
         m_lastChunk = nullptr;
@@ -63,7 +58,7 @@ bool PlanetSurfaceChunkStore::contains(const PlanetSurfaceChunkKey& key) const {
 std::optional<PlanetSurfaceChunkBlockInfo> PlanetSurfaceChunkStore::voxel_at(CubemapFace face, uint8_t level,
                                                                              glm::ivec3 voxelPos) const {
     PlanetSurfaceChunkKey key(face, level, voxelPos);
-    if (const PlanetSurfaceVoxelChunk* chunk = find(key)) {
+    if (const auto chunk = find(key)) {
         glm::ivec3 localPos = glm::ivec3{voxelPos.x - (key.x * CHUNK_SIZE), voxelPos.y - (key.y * CHUNK_SIZE),
                                          voxelPos.z - (key.alt * CHUNK_SIZE)};
         return chunk->at(localPos);
@@ -71,5 +66,13 @@ std::optional<PlanetSurfaceChunkBlockInfo> PlanetSurfaceChunkStore::voxel_at(Cub
     return std::optional<PlanetSurfaceChunkBlockInfo>{};
 }
 
-void PlanetSurfaceChunkStore::clear() {}
+void PlanetSurfaceChunkStore::clear() {
+    for (const auto& [key, chunk] : m_chunks) {
+        m_changedChunks[key] = ChunkChangeKind::Removed;
+    }
+
+    m_chunks.clear();
+    m_lastChunk = nullptr;
+    m_lastKey = {};
+}
 } // namespace vp

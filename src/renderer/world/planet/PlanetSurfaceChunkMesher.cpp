@@ -1,4 +1,5 @@
 #include "PlanetSurfaceChunkMesher.h"
+#include "core/log/Logger.h"
 
 #include <algorithm>
 
@@ -25,8 +26,13 @@ PlanetSurfaceChunkMesher::~PlanetSurfaceChunkMesher() {
 }
 
 void PlanetSurfaceChunkMesher::enqueue(const PlanetSurfaceChunkKey& key,
-                                       const std::shared_ptr<PlanetSurfaceVoxelChunk>& chunk) {
-    m_taskQueue.enqueue({.key = key, .chunk = chunk});
+                                       const std::shared_ptr<PlanetSurfaceVoxelChunk>& chunk, uint32_t generation) {
+    // early out for chunk without voxel data
+    if (!chunk->is_allocated()) {
+        return;
+    }
+
+    m_taskQueue.enqueue({.key = key, .chunk = chunk, .generation = generation});
 }
 
 uint32_t PlanetSurfaceChunkMesher::drain(std::vector<MeshingResult>& outResults, uint32_t maxResults) {
@@ -50,9 +56,17 @@ void PlanetSurfaceChunkMesher::worker_loop(std::stop_token stopToken) {
             continue;
         }
 
+        if (task.chunk == nullptr) {
+            LOG_WARN("MesherWorker", "Chunk {} has invalid chunk data (null pointer)", task.key);
+            continue;
+        }
+
+        std::shared_ptr<PlanetSurfaceChunkMesh> mesh;
+        mesh->generation = task.generation;
         MeshingResult result;
         result.key = task.key;
-        mesh_chunk(task.key, task.chunk, result.mesh);
+        mesh_chunk(task.key, task.chunk, mesh);
+        result.mesh = mesh;
         m_resultQueue.enqueue(std::move(result));
     }
 }
@@ -110,6 +124,7 @@ void PlanetSurfaceChunkMesher::mesh_chunk(const PlanetSurfaceChunkKey& key,
                             .x = uint8_t(p.x),
                             .y = uint8_t(p.y),
                             .z = uint8_t(p.z),
+                            .face = f,
                             .textureSlot = slot,
                         };
                     }

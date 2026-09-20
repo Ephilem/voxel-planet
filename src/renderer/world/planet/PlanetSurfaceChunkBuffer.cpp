@@ -58,7 +58,7 @@ void PlanetSurfaceChunkBuffer::init_gpu() {
 }
 
 PlanetSurfaceChunkBuffer::ChunkBufferSlot
-PlanetSurfaceChunkBuffer::allocate(std::shared_ptr<PlanetSurfaceChunkMesh> chunkMesh,
+PlanetSurfaceChunkBuffer::allocate(std::shared_ptr<const PlanetSurfaceChunkMesh> chunkMesh,
                                    const PlanetSurfaceChunkKey& chunkKey) {
     if (!chunkKey.valid() || !chunkMesh) {
         return INVALID_CHUNK_BUFFER_SLOT;
@@ -178,7 +178,9 @@ void PlanetSurfaceChunkBuffer::upload_pending_chunks(nvrhi::ICommandList* cmd) {
                          uint64_t(alloc.firstVertex) * sizeof(PlanetSurfaceChunkVertex));
 
         PlanetSurfaceChunkInstance instance{};
-        instance.chunkFacePos = {key.x, key.y, key.alt};
+        instance.chunkCoord = {key.x, key.y, key.alt};
+        instance.face = key.face;
+        instance.level = key.level;
         cmd->writeBuffer(m_chunkInstanceBuffer, &instance, sizeof(instance),
                          uint64_t(alloc.instance) * sizeof(PlanetSurfaceChunkInstance));
 

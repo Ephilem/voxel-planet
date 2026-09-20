@@ -198,6 +198,8 @@ struct PlanetSurfaceVoxelChunk {
     }
 
     PlanetSurfaceChunkBlockInfo at(glm::ivec3 localPos) const { return at(localPos.x, localPos.y, localPos.z); }
+
+    [[nodiscard]] bool is_allocated() const { return voxels != nullptr; }
 };
 
 } // namespace vp
@@ -213,3 +215,15 @@ template <> struct std::hash<vp::PlanetSurfaceChunkKey> {
         return h;
     }
 };
+
+FMT_BEGIN_NAMESPACE
+
+template <> struct formatter<vp::PlanetSurfaceChunkKey> {
+    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+    template <typename FormatContext> auto format(const vp::PlanetSurfaceChunkKey& k, FormatContext& ctx) const {
+        return fmt::format_to(ctx.out(), "{}[{},{},{}]@{}", vp::face_name(k.face), k.x, k.y, k.alt, k.level);
+    }
+};
+
+FMT_END_NAMESPACE

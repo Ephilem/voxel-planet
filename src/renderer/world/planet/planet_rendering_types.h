@@ -109,23 +109,43 @@ struct PlanetTileDrawItem {
     float distance = 0.f;
 };
 
-struct alignas(16) PlanetSurfaceChunkVertex {
-    uint8_t x;
-    uint8_t y;
-    uint8_t z;
+struct PlanetSurfaceChunkVertex {
+    uint32_t x : 8;
+    uint32_t y : 8;
+    uint32_t z : 8;
+    uint32_t face : 3;
+    uint32_t _pad0 : 5 = 0;
 
-    // packed data
     uint32_t textureSlot : 16;
-    uint32_t _pad0 : 16 = 0;
+    uint32_t _pad1 : 16 = 0;
+};
+
+struct PlanetSurfaceChunkAnchor {
+    glm::ivec4 chunk;
+    glm::vec4 tangentU;
+    glm::vec4 tangentV;
+    glm::vec4 up;
+    glm::vec4 quu, quv, qvv;
+    glm::vec4 camRelAnchor;
 };
 
 struct alignas(16) PlanetSurfaceChunkInstance {
-    glm::ivec3 chunkFacePos;
+
+    glm::ivec3 chunkCoord;
+
+    uint32_t face : 3 = 7;
+    uint32_t level : 5 = 0;
+    uint32_t _pad0 : 24 = 0;
 };
 
 struct PlanetSurfaceChunkMesh {
     std::vector<PlanetSurfaceChunkVertex> vertices;
     uint32_t generation;
+};
+
+struct PlanetSurfaceChunkMeshUpload {
+    PlanetSurfaceChunkKey key;
+    std::shared_ptr<const PlanetSurfaceChunkMesh> mesh;
 };
 
 } // namespace vp
