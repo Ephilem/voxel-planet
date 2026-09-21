@@ -12,10 +12,8 @@ add_library(VoxelPlanetClient STATIC
         debug/world/PlayerWorldInfo.cpp
         debug/world/PlanetLayerViewer.h
         debug/world/PlanetLayerViewer.cpp
-        debug/world/PlanetLodPanel.h
-        debug/world/PlanetLodPanel.cpp
-        debug/world/PlanetChunkGenPanel.h
-        debug/world/PlanetChunkGenPanel.cpp
+        debug/world/PlanetChunksDebug.h
+        debug/world/PlanetChunksDebug.cpp
         debug/world/PlanetDirectionField.h
         debug/performance/FpsCounter.h
         debug/performance/FpsCounter.cpp
