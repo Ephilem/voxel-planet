@@ -33,7 +33,13 @@ struct SpatialCoordinate {
 };
 
 // Transform in the camera space, used for rendering
-struct GlobalTransform : Transform {};
+struct GlobalTransform {
+    glm::dvec3 pos{0.0};
+    glm::quat rot{1.0f, 0.f, 0.f, 0.f};
+    glm::vec3 scale{1.0f};
+
+    glm::vec3 forward() const { return rot * glm::vec3(0.0f, 0.0f, -1.0f); }
+};
 
 // Not a component, but contain information about the local floating origin from the grid.
 struct LocalFloatingOrigin {

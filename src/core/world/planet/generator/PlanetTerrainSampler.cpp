@@ -24,11 +24,6 @@ constexpr float LAND_MASK_HIGH = 200.0f;
 PlanetTerrainSampler::PlanetTerrainSampler(PlanetTerrainParams params)
     : m_params(std::move(params)), m_noise(FastNoise::New<FastNoise::Simplex>()) {}
 
-// Normaliser par le bounding de maxOctave et non du nombre d'octaves courant :
-// sinon ajouter une octave rescale toutes les précédentes (norm passe de 1.984
-// à 1.992 entre 7 et 8 octaves, soit 0.39 %) et le terrain déjà visible se
-// déplace verticalement au LOD switch. Avec une constante la somme reste
-// strictement additive : niveau fin = niveau grossier + détail HF.
 float PlanetTerrainSampler::fractal_bounding(int octave) {
     float amplitude = 1.0f;
     float norm = 0.0f;
@@ -41,9 +36,6 @@ float PlanetTerrainSampler::fractal_bounding(int octave) {
     return norm;
 }
 
-// Les octaves sont sommées à la main plutôt que via FastNoise::FractalFBm :
-// SetOctaveCount() mute le node partagé (et recalcule mFractalBounding), donc
-// il est inutilisable pour un nombre d'octaves variable par appel.
 float PlanetTerrainSampler::fbm(const glm::vec3& position, float freq, int octave) const {
     const int baseSeed = m_params.seed;
 

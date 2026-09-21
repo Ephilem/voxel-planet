@@ -149,11 +149,23 @@ inline double planet_voxels_per_face_side(double radius, uint8_t level) {
     return planet_face_size(radius) / planet_chunk_voxel_size(level);
 }
 
+/**
+ * Voxel LOD -> quadtree level, the convention the terrain sampler takes.
+ */
+inline int planet_lod_for_voxel_level(double radius, uint8_t level, uint32_t tileResolution = 256) {
+    const double nodesPerFace = planet_face_size(radius) / (planet_chunk_voxel_size(level) * double(tileResolution));
+    if (nodesPerFace <= 1.0) {
+        return 0;
+    }
+    return int(std::lround(std::log2(nodesPerFace)));
+}
+
 inline PlanetVoxelCoord planet_pos_to_voxel(const glm::dvec3& posPlanet, double radius, uint8_t level) {
     const double r = glm::length(posPlanet);
     PlanetVoxelCoord out;
-    if (r < 1e-9)
+    if (r < 1e-9) {
         return out;
+    }
 
     double u;
     double v;

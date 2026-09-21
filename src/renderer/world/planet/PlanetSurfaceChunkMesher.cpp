@@ -1,5 +1,6 @@
 #include "PlanetSurfaceChunkMesher.h"
 #include "core/log/Logger.h"
+#include "core/TracyIntegration.h"
 
 #include <algorithm>
 
@@ -61,7 +62,7 @@ void PlanetSurfaceChunkMesher::worker_loop(std::stop_token stopToken) {
             continue;
         }
 
-        std::shared_ptr<PlanetSurfaceChunkMesh> mesh;
+        std::shared_ptr<PlanetSurfaceChunkMesh> mesh = std::make_shared<PlanetSurfaceChunkMesh>();
         mesh->generation = task.generation;
         MeshingResult result;
         result.key = task.key;
@@ -74,6 +75,7 @@ void PlanetSurfaceChunkMesher::worker_loop(std::stop_token stopToken) {
 void PlanetSurfaceChunkMesher::mesh_chunk(const PlanetSurfaceChunkKey& key,
                                           const std::shared_ptr<PlanetSurfaceVoxelChunk>& chunk,
                                           std::shared_ptr<PlanetSurfaceChunkMesh>& outMesh) {
+    VOXEL_ZONE_N("mesh_chunk");
     constexpr glm::ivec3 kFaceNormals[6] = {
         {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1},
     };
@@ -129,7 +131,7 @@ void PlanetSurfaceChunkMesher::mesh_chunk(const PlanetSurfaceChunkKey& key,
                         };
                     }
 
-                    vertices.insert(vertices.end(), {quad[0], quad[1], quad[2], quad[0], quad[2], quad[3]});
+                    vertices.insert(vertices.end(), {quad[0], quad[2], quad[1], quad[0], quad[3], quad[2]});
                 }
             }
         }

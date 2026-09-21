@@ -15,9 +15,9 @@ void vp::SpatialModule::register_components(flecs::world& ecs) {
         .member<float>("scale", 3, 6 * sizeof(float));
 
     ecs.component<GlobalTransform>()
-        .member<float>("pos", 3, 0)
-        .member<float>("rot", 3, 3 * sizeof(float))
-        .member<float>("scale", 3, 6 * sizeof(float));
+        .member<double>("pos", 3, 0)
+        .member<float>("rot", 4, offsetof(GlobalTransform, rot))
+        .member<float>("scale", 3, offsetof(GlobalTransform, scale));
 
     ecs.component<CellCoord>().member<int64_t>("x").member<int64_t>("y").member<int64_t>("z");
 
@@ -169,8 +169,7 @@ void vp::SpatialModule::register_systems(flecs::world& ecs) {
 
                     const glm::dvec3 pGrid = glm::dvec3(dCell) * (double)grid.cellSize + glm::dvec3(localTrs[i].pos);
 
-                    const glm::dvec3 pFo = glm::conjugate(lfo.rotation) * (pGrid - glm::dvec3(lfo.translation));
-                    globalTrs[i].pos = glm::vec3(pFo);
+                    globalTrs[i].pos = glm::conjugate(lfo.rotation) * (pGrid - glm::dvec3(lfo.translation));
                     globalTrs[i].rot = glm::quat(glm::conjugate(lfo.rotation) * glm::dquat(localTrs[i].rot));
                     globalTrs[i].scale = localTrs[i].scale;
                 }

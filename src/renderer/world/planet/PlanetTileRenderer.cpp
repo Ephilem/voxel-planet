@@ -151,7 +151,7 @@ void PlanetTileRenderer::render_planets(nvrhi::CommandListHandle cmd, Camera3d& 
         batch.firstInstance = static_cast<uint32_t>(m_instanceScratch.size());
         batch.instanceCount = static_cast<uint32_t>(drawList.drawItems.size());
         batch.radius = planet.radius;
-        batch.camPosPlanet = -transform.pos;
+        batch.camPosPlanet = glm::vec3(-transform.pos);
         m_batches.push_back(batch);
 
         for (const PlanetTileDrawItem& item : drawList.drawItems) {

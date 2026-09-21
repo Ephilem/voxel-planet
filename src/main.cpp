@@ -76,7 +76,7 @@ int main() {
             glm::vec3 pos;
 
             if (const auto* gt = e.get<vp::GlobalTransform>()) {
-                pos = gt->pos;
+                pos = glm::vec3(gt->pos);
             } else {
                 const glm::dvec3 originRender =
                     -(glm::dvec3(grid.localOrigin.cell) * grid.cellSize + glm::dvec3(grid.localOrigin.translation));
@@ -93,7 +93,7 @@ int main() {
             glm::vec3 pos;
 
             if (const auto* gt = e.get<vp::GlobalTransform>()) {
-                pos = gt->pos;
+                pos = glm::vec3(gt->pos);
             } else {
                 const glm::dvec3 originRender =
                     -(glm::dvec3(grid.localOrigin.cell) * grid.cellSize + glm::dvec3(grid.localOrigin.translation));

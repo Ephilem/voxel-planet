@@ -161,7 +161,10 @@ void PlanetSurfaceChunkGenerator::generate(const PlanetSurfaceChunkKey& key, Pla
         }
     }
 
-    sampler.sample_height_batch(dirX.data(), dirY.data(), dirZ.data(), COLUMNS, key.level, heights.data(), scratch);
+    // key.level is a voxel LOD. The sampler wants the quadtree level
+    const int samplerLod = planet_lod_for_voxel_level(m_planetRadius, key.level);
+
+    sampler.sample_height_batch(dirX.data(), dirY.data(), dirZ.data(), COLUMNS, samplerLod, heights.data(), scratch);
 
     const auto [minIt, maxIt] = std::minmax_element(heights.begin(), heights.end());
     const float minH = *minIt;
@@ -180,6 +183,9 @@ void PlanetSurfaceChunkGenerator::generate(const PlanetSurfaceChunkKey& key, Pla
     out.allocate();
     const LocalBlockID stoneLocal = out.palette.intern(registry->resolve("voxelplanet:cobblestone"_asset));
     const PlanetSurfaceChunkBlockInfo solid{.localBlockID = stoneLocal, .height = 15};
+
+    // out.set(0, 0, 0, solid);
+    // return;
 
     if (chunkTop <= double(minH)) {
         for (int z = 0; z < CHUNK_SIZE; ++z) {

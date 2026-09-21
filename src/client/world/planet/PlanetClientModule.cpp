@@ -36,7 +36,7 @@ void PlanetClientModule::register_systems(flecs::world& ecs) {
 
             lod.params.planetRadius = planet.radius;
 
-            const glm::dvec3 cameraPosPlanet = -glm::dvec3(transform.pos);
+            const glm::dvec3 cameraPosPlanet = -transform.pos;
 
             lod.quadtree->update(cameraPosPlanet, lod.params);
 
@@ -66,7 +66,7 @@ void PlanetClientModule::register_systems(flecs::world& ecs) {
             }
 
             if (lod.debugDrawNodes) {
-                lod.quadtree->debug_draw(transform.pos, lod.params, lod.debugMode, lod.debugSegmentsPerEdge);
+                lod.quadtree->debug_draw(glm::vec3(transform.pos), lod.params, lod.debugMode, lod.debugSegmentsPerEdge);
             }
         });
 }

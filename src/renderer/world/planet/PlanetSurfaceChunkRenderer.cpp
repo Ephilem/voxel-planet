@@ -113,7 +113,7 @@ void PlanetSurfaceChunkRenderer::render(nvrhi::CommandListHandle cmd, Camera3d& 
     const VkExtent2D extent = m_backend->get_swapchain_extent();
 
     const double radius = playerPlanet.radius;
-    const glm::dvec3 camPlanet = -glm::dvec3(planetCamTransform.pos);
+    const glm::dvec3 camPlanet = -planetCamTransform.pos;
     const PlanetVoxelCoord camVoxel = planet_pos_to_voxel(camPlanet, radius, 0);
     const PlanetSurfaceChunkKey anchorKey(camVoxel.face, 0, glm::ivec3(camVoxel.voxel));
     if (!anchorKey.valid()) {
@@ -140,7 +140,6 @@ void PlanetSurfaceChunkRenderer::render(nvrhi::CommandListHandle cmd, Camera3d& 
     pc.viewProj = camera.projectionMatrix * camera.viewMatrix;
     cmd->setPushConstants(&pc, sizeof(PushConstants));
 
-    LOG_TRACE("PlanetSurfaceChunkRenderer", "Draw count: {}", m_chunkBuffer->draw_count());
     cmd->drawIndirect(0, m_chunkBuffer->draw_count());
     cmd->clearState();
 }
