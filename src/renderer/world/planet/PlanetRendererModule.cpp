@@ -72,7 +72,7 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
             while (it.next()) {
                 auto renderer = it.field<const Renderer>(0);
                 if (!renderer->frameContext.frameActive) {
-                    return;
+                    continue;
                 }
                 m_voxelTextureManager->upload_pending(renderer->frameContext.commandList);
             }

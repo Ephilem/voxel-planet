@@ -25,6 +25,7 @@ layout(push_constant) uniform PushConstants {
 
 layout(location = 0) flat out uint outFace;
 layout(location = 1) flat out uint outTextureSlot;
+layout(location = 2) out vec2 outUv;
 
 const int CHUNK_SIZE = 32;
 
@@ -53,6 +54,13 @@ void main() {
 
     gl_Position = pc.viewProj * vec4(pos - A.camRelAnchor.xyz, 1.0);
 
-    outFace        = (raw.x >> 24) & 7u;
+    uint face = (raw.x >> 24) & 7u;
+    outFace = face;
     outTextureSlot = raw.y & 0xFFFFu;
+
+    vec2 uv;
+    if (face < 2u) uv = vec2(local.y, local.z);
+    else if (face < 4u) uv = vec2(local.x, local.z);
+    else uv = vec2(local.x, local.y);
+    outUv = uv;
 }

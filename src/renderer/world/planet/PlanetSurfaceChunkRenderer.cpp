@@ -125,6 +125,10 @@ void PlanetSurfaceChunkRenderer::render(nvrhi::CommandListHandle cmd, Camera3d& 
     // upload anchor
     cmd->writeBuffer(m_anchorBuffer, &anchor, sizeof(PlanetSurfaceChunkAnchor));
 
+    if (m_chunkBuffer->draw_count() <= 0) {
+        return;
+    }
+
     const auto graphicState =
         nvrhi::GraphicsState()
             .setPipeline(m_pipeline)

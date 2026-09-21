@@ -69,14 +69,14 @@ void vp::SpatialModule::register_systems(flecs::world& ecs) {
             root->floatingOrigin = e;
         });
 
-    ecs.observer<FloatingOrigin>("SpatialModule-ClearFloatingOrigin")
-        .event(flecs::OnRemove)
-        .each([](flecs::entity e, FloatingOrigin) {
-            auto root = e.world().get_mut<SpatialRoot>();
-            if (root->floatingOrigin == e) {
-                root->floatingOrigin = {};
-            }
-        });
+    // ecs.observer<FloatingOrigin>("SpatialModule-ClearFloatingOrigin")
+    //     .event(flecs::OnRemove)
+    //     .each([](flecs::entity e, FloatingOrigin) {
+    //         auto root = e.world().get_mut<SpatialRoot>();
+    //         if (root->floatingOrigin == e) {
+    //             root->floatingOrigin = {};
+    //         }
+    //     });
 
     // -- Local floating origin calculation --
     ecs.system("SpatialModule-ComputeLocalFloatingOrigin").kind(flecs::PostUpdate).run([](flecs::iter& iter) {
