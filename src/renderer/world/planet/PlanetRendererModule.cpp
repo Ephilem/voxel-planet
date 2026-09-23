@@ -92,15 +92,16 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
         .term_at(2)
         .parent()
         .kind(flecs::PreStore)
-        .each([this](const PlanetSurfaceChunkStore store, const Planet planet, const GlobalTransform planetCamPos,
-                     const Camera3d cameraInfo) {
+        .each([this](const PlanetSurfaceChunkStore& store, const Planet& planet, const GlobalTransform& planetCamPos,
+                     const Camera3d& cameraInfo) {
             VOXEL_ZONE_N("PullChunksUpdate");
             std::vector<PlanetSurfaceChunkKey> unloadedChunk{};
             for (const auto [key, kind] : store.changed_chunks()) {
                 if (kind == PlanetSurfaceChunkStore::ChunkChangeKind::Removed) {
+                    m_chunkMesher->cancel(key); // a mesh still in flight must not come back after the unload
                     unloadedChunk.push_back(key);
                 } else {
-                    m_chunkMesher->enqueue(key, store.find(key), 0);
+                    m_chunkMesher->enqueue(key, store.find(key));
                 }
             }
 
@@ -131,7 +132,6 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
                 }
 
                 m_tileAtlas->begin_frame();
-                m_surfaceChunkRenderer->upload_chunk_to_gpu(renderer->frameContext.commandList);
             }
         });
 

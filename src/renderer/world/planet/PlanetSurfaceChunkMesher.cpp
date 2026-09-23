@@ -8,7 +8,9 @@ namespace vp {
 
 PlanetSurfaceChunkMesher::PlanetSurfaceChunkMesher(unsigned workerCount) {
     if (workerCount == 0) {
-        workerCount = std::max(1U, std::thread::hardware_concurrency() / 2);
+        const unsigned hw = std::thread::hardware_concurrency();
+        const unsigned total = hw > 4 ? hw - 2 : 2;
+        workerCount = std::max(1U, total - std::max(1U, total * 6 / 10));
     }
 
     m_workerThreads.reserve(workerCount);
@@ -27,12 +29,14 @@ PlanetSurfaceChunkMesher::~PlanetSurfaceChunkMesher() {
 }
 
 void PlanetSurfaceChunkMesher::enqueue(const PlanetSurfaceChunkKey& key,
-                                       const std::shared_ptr<PlanetSurfaceVoxelChunk>& chunk, uint32_t generation) {
+                                       const std::shared_ptr<PlanetSurfaceVoxelChunk>& chunk) {
     // early out for chunk without voxel data
     if (!chunk->is_allocated()) {
         return;
     }
 
+    const uint32_t generation = m_nextGeneration++;
+    m_latest[key] = generation; // supersedes any older meshing still in flight
     m_taskQueue.enqueue({.key = key, .chunk = chunk, .generation = generation});
 }
 
@@ -41,6 +45,13 @@ uint32_t PlanetSurfaceChunkMesher::drain(std::vector<MeshingResult>& outResults,
     MeshingResult result;
 
     while (count < maxResults && m_resultQueue.try_dequeue(result)) {
+        // chunk unloaded meanwhile, or a newer remesh was enqueued
+        const auto it = m_latest.find(result.key);
+        if (it == m_latest.end() || it->second != result.mesh->generation) {
+            continue;
+        }
+        m_latest.erase(it);
+
         outResults.emplace_back(std::move(result));
         ++count;
     }
@@ -88,8 +99,6 @@ void PlanetSurfaceChunkMesher::mesh_chunk(const PlanetSurfaceChunkKey& key,
         {{0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1}}, // +Z
         {{0, 0, 0}, {0, 1, 0}, {1, 1, 0}, {1, 0, 0}}, // -Z
     };
-
-    outMesh = std::make_shared<PlanetSurfaceChunkMesh>();
 
     auto& vertices = outMesh->vertices;
 

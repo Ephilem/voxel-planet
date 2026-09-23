@@ -16,7 +16,8 @@ PlanetSurfaceChunkGenerator::PlanetSurfaceChunkGenerator(PlanetTerrainParams par
     : m_params(params), m_planetRadius(planetRadius), m_registry(registry) {
     if (workerCount == 0) {
         const unsigned hw = std::thread::hardware_concurrency();
-        workerCount = hw > 3 ? hw - 2 : 1;
+        const unsigned total = hw > 4 ? hw - 2 : 2;
+        workerCount = std::max(1U, total * 6 / 10);
     }
 
     for (unsigned i = 0; i < workerCount; ++i) {
