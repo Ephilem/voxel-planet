@@ -73,21 +73,24 @@ void PlanetModule::register_systems(flecs::world& ecs) {
                  const Planet& planet, const Grid& grid, PlanetSurfaceChunkGeneratorComp& gen,
                  PlanetSurfaceChunkStore& store) {
             VOXEL_ZONE_N("PlanetModule-RequestChunks");
-            if (!gen.generator)
+            if (!gen.generator) {
                 return;
+            }
 
             // 1. Get player chunk
             const glm::dvec3 posPlanet = grid.get_hp_grid_pos(cell, transform.pos);
 
             const PlanetVoxelCoord vc = planet_pos_to_voxel(posPlanet, double(planet.radius), 0);
-            if (vc.face == FACE_UNKNOWN)
+            if (vc.face == FACE_UNKNOWN) {
                 return;
+            }
 
             const PlanetSurfaceChunkKey center = PlanetSurfaceChunkKey(vc.face, 0, glm::ivec3(vc.voxel));
 
             // 2. early out if we are still in the same chunk
-            if (center == loader.lastCenter)
+            if (center == loader.lastCenter) {
                 return;
+            }
             loader.lastCenter = center;
 
             // 3. Request chunks in a sphere around the player
@@ -97,24 +100,39 @@ void PlanetModule::register_systems(flecs::world& ecs) {
             const int R = int(loader.loadingDistance);
             const int altR = int(loader.altitudeDistance);
 
+            gen.generator->reprioritize([&](const PlanetSurfaceChunkKey& k) -> std::optional<float> {
+                if (k.face != center.face || k.level != center.level) {
+                    return std::nullopt;
+                }
+                const int dx = k.x - center.x, dy = k.y - center.y, dz = k.alt - center.alt;
+                const int d2 = dx * dx + dy * dy + dz * dz;
+                if (d2 > R * R) {
+                    return std::nullopt;
+                }
+                return float(d2);
+            });
+
             for (int dz = -altR; dz <= altR; ++dz) {
                 for (int dy = -R; dy <= R; ++dy) {
                     for (int dx = -R; dx <= R; ++dx) {
                         // spherical radius
                         const int d2 = (dx * dx) + (dy * dy) + (dz * dz);
-                        if (d2 > R * R)
+                        if (d2 > R * R) {
                             continue;
+                        }
 
                         PlanetSurfaceChunkKey k = center;
                         k.x += dx;
                         k.y += dy;
                         k.alt += dz;
 
-                        if (k.x < 0 || k.y < 0 || k.x >= perSide || k.y >= perSide)
+                        if (k.x < 0 || k.y < 0 || k.x >= perSide || k.y >= perSide) {
                             continue;
+                        }
 
-                        if (store.contains(k))
+                        if (store.contains(k)) {
                             continue;
+                        }
 
                         gen.generator->request(k, float(d2));
                     }
@@ -137,8 +155,9 @@ void PlanetModule::register_systems(flecs::world& ecs) {
         .each([](flecs::entity e, PlanetSurfaceChunkGeneratorComp& gen, PlanetSurfaceChunkStore& store) {
             VOXEL_ZONE_N("PlanetModule-StreamChunks");
 
-            if (!gen.generator)
+            if (!gen.generator) {
                 return;
+            }
 
             gen.generator->submit_pending(32);
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/TracyIntegration.h"
 #include "core/world/planet/planet_types.h"
 
 #include <memory>
@@ -11,7 +12,7 @@ class PlanetSurfaceChunkStore {
 public:
     enum class ChunkChangeKind : uint8_t { Added, Removed, Updated };
 
-    PlanetSurfaceChunkStore() = default;
+    PlanetSurfaceChunkStore() { VOXEL_ZONE_N("CreateStore"); };
 
     void store(const PlanetSurfaceChunkKey& key, std::shared_ptr<PlanetSurfaceVoxelChunk> chunk);
     bool remove(const PlanetSurfaceChunkKey& key);

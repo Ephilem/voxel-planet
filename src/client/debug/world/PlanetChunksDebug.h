@@ -36,5 +36,8 @@ private:
 
     void select_planet(PlanetRepresentation planet);
     void collect_planets(flecs::world& ecs, std::vector<PlanetRepresentation>& planets);
+
+    void draw_store();
+    void draw_generator();
 };
 } // namespace vp

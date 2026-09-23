@@ -43,10 +43,12 @@ void PlanetSurfaceChunkGenerator::request(const PlanetSurfaceChunkKey& key, floa
         return;
     }
     if (m_inFlight.contains(key)) {
+        m_cancelled.erase(key);
         ++m_stats.dedupRejects;
         return;
     }
     if (m_pendingSet.contains(key)) {
+        m_cancelled.erase(key);
         ++m_stats.dedupRejects;
         return;
     }
@@ -58,13 +60,19 @@ void PlanetSurfaceChunkGenerator::request(const PlanetSurfaceChunkKey& key, floa
     m_stats.peakPending = std::max(m_stats.peakPending, uint32_t(m_pending.size()));
 }
 
-void PlanetSurfaceChunkGenerator::submit_pending(uint32_t maxSubmit) {
-    if (m_pending.empty()) {
+void PlanetSurfaceChunkGenerator::cancel(const PlanetSurfaceChunkKey& key) {
+    m_cancelled.emplace(key);
+}
+
+void PlanetSurfaceChunkGenerator::submit_pending(uint32_t maxInFlight) {
+    const auto inFlight = uint32_t(m_inFlight.size());
+    if (m_pending.empty() || inFlight >= maxInFlight) {
         return;
     }
 
-    const uint32_t count = std::min<uint32_t>(maxSubmit, static_cast<uint32_t>(m_pending.size()));
+    const uint32_t count = std::min<uint32_t>(maxInFlight - inFlight, uint32_t(m_pending.size()));
 
+    // apply priority
     if (count < m_pending.size()) {
         std::partial_sort(m_pending.begin(), m_pending.begin() + count, m_pending.end(),
                           [](const Pending& a, const Pending& b) { return a.priority < b.priority; });
@@ -75,6 +83,7 @@ void PlanetSurfaceChunkGenerator::submit_pending(uint32_t maxSubmit) {
     }
 
     for (uint32_t i = 0; i < count; ++i) {
+        m_pendingSet.erase(m_pending[i].key);
         m_inFlight.insert(m_pending[i].key);
         m_keyScratch[i] = m_pending[i].key;
     }
@@ -93,8 +102,12 @@ uint32_t PlanetSurfaceChunkGenerator::drain(std::vector<PlanetSurfaceChunkGenera
 
     while (count < maxDrain && m_resultQueue.try_dequeue(result)) {
         m_inFlight.erase(result.key);
-        out.emplace_back(std::move(result));
-        ++count;
+        if (!m_cancelled.contains(result.key)) {
+            out.emplace_back(std::move(result));
+            ++count;
+        } else {
+            m_cancelled.erase(result.key);
+        }
     }
 
     m_stats.completed += count;

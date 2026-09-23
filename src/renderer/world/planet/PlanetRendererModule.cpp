@@ -94,6 +94,7 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
         .kind(flecs::PreStore)
         .each([this](const PlanetSurfaceChunkStore store, const Planet planet, const GlobalTransform planetCamPos,
                      const Camera3d cameraInfo) {
+            VOXEL_ZONE_N("PullChunksUpdate");
             std::vector<PlanetSurfaceChunkKey> unloadedChunk{};
             for (const auto [key, kind] : store.changed_chunks()) {
                 if (kind == PlanetSurfaceChunkStore::ChunkChangeKind::Removed) {

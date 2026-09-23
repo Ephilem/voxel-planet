@@ -27,11 +27,31 @@ public:
 
     void request(const PlanetSurfaceChunkKey& key, float priority = 0.F);
 
+    void cancel(const PlanetSurfaceChunkKey& key);
+
+    template <class Fn> void reprioritize(Fn&& priorityCalculationMethod) {
+        std::erase_if(m_pending, [&](Pending& p) {
+            const std::optional<float> prio = priorityCalculationMethod(p.key);
+            if (!prio) {
+                m_pendingSet.erase(p.key);
+                return true;
+            }
+            p.priority = *prio;
+            return false;
+        });
+
+        for (const auto& k : m_inFlight) {
+            if (!priorityCalculationMethod(k).has_value()) {
+                m_cancelled.insert(k);
+            }
+        }
+    }
+
     /**
      * Each by frame, submit a limited number of pending requests to the worker threads
      * @param maxSubmit Maximum number of requests to submit. The rest will be kept for the next frame
      */
-    void submit_pending(uint32_t maxSubmit = 32);
+    void submit_pending(uint32_t maxInFlight = 32);
 
     uint32_t drain(std::vector<PlanetSurfaceChunkGenerationResult>& out, uint32_t maxDrain = 16);
 
@@ -53,6 +73,10 @@ public:
 
     [[nodiscard]] const Stats& stats() const { return m_stats; }
 
+    [[nodiscard]] size_t pending_count() const { return m_pending.size(); }
+
+    [[nodiscard]] size_t in_flight_count() const { return m_inFlight.size(); }
+
 private:
     void worker_loop(std::stop_token stop);
     void generate(const PlanetSurfaceChunkKey& key, PlanetSurfaceVoxelChunk& out, const PlanetTerrainSampler& sampler,
@@ -72,6 +96,7 @@ private:
     };
 
     std::vector<Pending> m_pending;
+    std::unordered_set<PlanetSurfaceChunkKey> m_cancelled;
     std::unordered_set<PlanetSurfaceChunkKey> m_pendingSet;
     std::unordered_set<PlanetSurfaceChunkKey> m_inFlight;
     std::vector<PlanetSurfaceChunkKey> m_keyScratch;

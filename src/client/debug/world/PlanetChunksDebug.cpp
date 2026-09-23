@@ -27,6 +27,39 @@ void PlanetChunksDebug::render(flecs::world& ecs) {
         }
         ImGui::EndCombo();
     }
+
+    if (m_selectedPlanet.entity.is_alive()) {
+        draw_store();
+        draw_generator();
+    }
+}
+
+void PlanetChunksDebug::draw_store() {
+    ImGui::SeparatorText("Store");
+
+    if (!m_selectedPlanet.store.has()) {
+        ImGui::Text("Invalid store reference!");
+        return;
+    }
+
+    const auto* store = m_selectedPlanet.store.get();
+    ImGui::Text("Loaded Chunks: %lu", store->size());
+}
+
+void PlanetChunksDebug::draw_generator() {
+    ImGui::SeparatorText("Generator");
+
+    const auto* comp = m_selectedPlanet.generator.try_get();
+    if (comp == nullptr || !comp->generator) {
+        ImGui::Text("No generator");
+        return;
+    }
+
+    const auto& gen = *comp->generator;
+    const auto& s = gen.stats();
+
+    ImGui::Text("Pending:   %zu (peak %u)", gen.pending_count(), s.peakPending);
+    ImGui::Text("In flight: %zu (peak %u)", gen.in_flight_count(), s.peakInFlight);
 }
 
 void PlanetChunksDebug::select_planet(PlanetRepresentation planet) {

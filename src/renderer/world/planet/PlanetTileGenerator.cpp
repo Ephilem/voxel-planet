@@ -78,10 +78,7 @@ void PlanetTileGenerator::submit_pending(uint32_t maxSubmit) {
 
     const uint32_t count = std::min<uint32_t>(maxSubmit, static_cast<uint32_t>(m_pending.size()));
 
-    // Only a prefix is submitted, so the order decides what gets generated first. The
-    // draw list is built face by face, which bears no relation to what the player is
-    // looking at, hence the sort: nearest first, so the tile under the camera stops
-    // waiting behind a horizon tile that nobody can tell apart from its ancestor
+    // Only a prefix is submitted, so the order decides what gets generated first
     if (count < m_pending.size()) {
         std::partial_sort(m_pending.begin(), m_pending.begin() + count, m_pending.end(),
                           [](const PendingTile& a, const PendingTile& b) { return a.priority < b.priority; });
