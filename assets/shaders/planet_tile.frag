@@ -3,8 +3,19 @@
 layout(location = 0) in vec2 inGridUV;
 layout(location = 1) flat in uint inLevel;
 layout(location = 2) in float inHeight;
+layout(location = 3) in float inDistance;
 
 layout(location = 0) out vec4 outColor;
+
+
+layout(push_constant) uniform PushConstants {
+    mat4  viewProj;
+    vec3  camPosPlanet;
+    float radius;
+
+    float startFade;
+    float endFade;
+} pc;
 
 vec3 level_color(uint level) {
     const vec3 COLORS[8] = vec3[](
@@ -29,9 +40,19 @@ void main() {
     float shade = mix(0.35, 1.25, h);
 
     vec3 base = inHeight < 0.0
-        ? vec3(0.10, 0.25, 0.55)                       // sous le niveau 0
+        ? vec3(0.10, 0.25, 0.55)
         : level_color(inLevel);
 
     vec3 color = base * mix(0.55, 1.0, checker) * shade;
+
+
+    if (inDistance < pc.startFade) {
+        // in chunks
+        discard;
+    } else if (pc.startFade < inDistance && inDistance < pc.endFade) {
+        // transition
+        color = vec3(0,0,0);
+    }
+
     outColor = vec4(color, 1.0);
 }

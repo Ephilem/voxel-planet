@@ -58,6 +58,10 @@ private:
         glm::mat4 viewProj;
         glm::vec3 camPosPlanet;
         float radius = 0.f;
+
+        // in meter
+        float startFade = 0.f;
+        float endFade = 0.f;
     };
 
     struct PlanetBatch {

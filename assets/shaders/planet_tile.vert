@@ -25,11 +25,15 @@ layout(push_constant) uniform PushConstants {
     mat4  viewProj;
     vec3  camPosPlanet;
     float radius;
+
+    float startFade;
+    float endFade;
 } pc;
 
 layout(location = 0) out vec2 outGridUV;
 layout(location = 1) flat out uint outLevel;
 layout(location = 2) out float height;
+layout(location = 3) out float outDistance;
 
 const uint GRID_RES = 33u;
 const uint INVALID_ATLAS_SLOT = 0xFFFFu;
@@ -40,15 +44,15 @@ const float PLANET_HEIGHT_SCALE = 16384.0;
 void main() {
     TileInstance inst = instances[gl_InstanceIndex];
 
-    uint face  = inst.packed & 7u;
+    uint face = inst.packed & 7u;
     uint level = (inst.packed >> 3) & 31u;
 
     uint ix = gl_VertexIndex % GRID_RES;
     uint iy = gl_VertexIndex / GRID_RES;
     vec2 st = vec2(ix, iy) / float(GRID_RES - 1u);
 
-    vec2 uv     = inst.nodeFaceOrigin + st * inst.extent;
-    vec3 dir    = face_uv_to_direction(face, uv);
+    vec2 uv = inst.nodeFaceOrigin + st * inst.extent;
+    vec3 dir = face_uv_to_direction(face, uv);
     vec3 dirRef = face_uv_to_direction(face, inst.nodeFaceOrigin);
 
     if (inst.atlasSlot == INVALID_ATLAS_SLOT) {
@@ -67,5 +71,6 @@ void main() {
     gl_Position = pc.viewProj * vec4(posRelCam, 1.0);
 
     outGridUV = st;
-    outLevel  = level;
+    outLevel = level;
+    outDistance = distance(posRelCam, vec3(0,0,0));
 }

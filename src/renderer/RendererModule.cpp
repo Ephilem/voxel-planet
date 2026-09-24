@@ -107,7 +107,9 @@ void RendererModule::register_submodules(flecs::world& ecs) {
     ecs.import<DebugRenderModule>();
 }
 
-void RendererModule::register_entities(flecs::world& ecs) {}
+void RendererModule::register_entities(flecs::world& ecs) {
+    ecs.emplace<RenderingPreferences>();
+}
 
 // void vp::shutdown_renderer(flecs::world& ecs) {
 //     LOG_INFO("RendererModule", "Shutting down...");

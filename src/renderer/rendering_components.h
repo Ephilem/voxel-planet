@@ -19,3 +19,9 @@ struct Camera3d {
     glm::float32 nearClip = 0.1f;
     glm::float32 aspect_ratio = 16.0f / 9.0f;
 };
+
+struct RenderingPreferences {
+    // Chunk drawing
+    float chunkFadeStart = 9 * 32; // in meter
+    float chunkFadeEnd = 10 * 32;  // in meter
+};

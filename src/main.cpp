@@ -68,7 +68,7 @@ int main() {
             .set<vp::GlobalTransform>({})
             .set<vp::Transform>({.pos = {0.f, 667544.f + 1000.f, 0.f}})
 
-            .set<vp::PlanetChunkLoader>({.loadingDistance = 4, .unloadingDistance = 5, .altitudeDistance = 2})
+            .set<vp::PlanetChunkLoader>({.loadingDistance = 8, .unloadingDistance = 10, .altitudeDistance = 4})
 
             .child_of(earth);
 

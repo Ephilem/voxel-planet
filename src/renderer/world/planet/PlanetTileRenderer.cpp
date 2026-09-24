@@ -120,6 +120,8 @@ void PlanetTileRenderer::render_planets(nvrhi::CommandListHandle cmd, Camera3d& 
     m_batches.clear();
     m_stats = Stats{};
 
+    const auto* const renderParam = ecs.get<RenderingPreferences>();
+
     ecs.each([&](flecs::entity e, const PlanetTileDrawListComp& drawList, PlanetTileStreamComp& stream,
                  const Planet& planet, const PlanetTerrainParams& terrain, const GlobalTransform& transform) {
         VOXEL_ZONE_N("PlanetTileRenderer::render_planets-Planet");
@@ -179,25 +181,6 @@ void PlanetTileRenderer::render_planets(nvrhi::CommandListHandle cmd, Camera3d& 
             }
 
             m_instanceScratch.push_back(inst);
-
-#ifndef NDEBUG
-            // Guards against the key and the position drifting apart, which silently
-            // draws a tile with another one's heightmap. Debug only: it is a double
-            // precision face projection per tile per frame
-            {
-                const double ex = 2.0 / double(1u << item.key.level());
-                const double u0 = -1.0 + double(item.key.x()) * ex;
-                const double v0 = -1.0 + double(item.key.y()) * ex;
-                const glm::dvec3 expected =
-                    face_uv_to_direction(item.key.face(), u0, v0) * double(planet.radius) - glm::dvec3(-transform.pos);
-
-                const float err = glm::length(glm::vec3(expected) - item.originSpacePos);
-                if (err > 1.f) {
-                    LOG_ERROR("PlanetTileRenderer", "Key/pos mismatch L{} f{} x{} y{} err={:.1f}m", item.key.level(),
-                              int(item.key.face()), item.key.x(), item.key.y(), err);
-                }
-            }
-#endif
         }
 
         stream.generator->submit_pending();
@@ -206,8 +189,9 @@ void PlanetTileRenderer::render_planets(nvrhi::CommandListHandle cmd, Camera3d& 
     m_atlas->finish_uploads(cmd);
 
     m_lastInstanceCount = static_cast<uint32_t>(m_instanceScratch.size());
-    if (m_instanceScratch.empty())
+    if (m_instanceScratch.empty()) {
         return;
+    }
 
     cmd->writeBuffer(m_instanceBuffer, m_instanceScratch.data(),
                      m_instanceScratch.size() * sizeof(GpuPlanetTileDrawInstance));
@@ -230,6 +214,8 @@ void PlanetTileRenderer::render_planets(nvrhi::CommandListHandle cmd, Camera3d& 
         pc.viewProj = camera.projectionMatrix * camera.viewMatrix;
         pc.camPosPlanet = batch.camPosPlanet;
         pc.radius = batch.radius;
+        pc.startFade = renderParam->chunkFadeStart;
+        pc.endFade = renderParam->chunkFadeEnd;
         cmd->setPushConstants(&pc, sizeof(pc));
 
         cmd->drawIndexed(nvrhi::DrawArguments()

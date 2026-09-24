@@ -26,4 +26,5 @@ struct PlanetTileStreamComp {
     std::unique_ptr<PlanetTileGenerator> generator;
     std::vector<PlanetTileGenerator::PlanetTileResult> drainScratch;
 };
+
 } // namespace vp
