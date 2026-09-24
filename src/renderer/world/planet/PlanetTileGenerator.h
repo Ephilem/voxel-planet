@@ -32,8 +32,10 @@ public:
      */
     void request(const PlanetTileKey& key, float priority = 0.f);
 
-    /// Call once per frame, after every request() of that frame.
-    void submit_pending(uint32_t maxSubmit = 64);
+    /**
+     * Call once per frame, after every request() of that frame
+     */
+    void submit_pending(uint32_t maxInFlight = 64);
     uint32_t drain(std::vector<PlanetTileResult>& out, uint32_t maxDrain = 32);
 
     [[nodiscard]] size_t in_flight() const { return m_inFlight.size(); }

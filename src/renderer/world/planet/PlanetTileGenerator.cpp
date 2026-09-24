@@ -72,13 +72,13 @@ void PlanetTileGenerator::request(const PlanetTileKey& key, float priority) {
     m_stats.peakPending = std::max(m_stats.peakPending, uint32_t(m_pending.size()));
 }
 
-void PlanetTileGenerator::submit_pending(uint32_t maxSubmit) {
-    if (m_pending.empty())
+void PlanetTileGenerator::submit_pending(uint32_t maxInFlight) {
+    const auto inFlight = static_cast<uint32_t>(m_inFlight.size());
+    if (m_pending.empty() || inFlight >= maxInFlight)
         return;
 
-    const uint32_t count = std::min<uint32_t>(maxSubmit, static_cast<uint32_t>(m_pending.size()));
+    const uint32_t count = std::min<uint32_t>(maxInFlight - inFlight, static_cast<uint32_t>(m_pending.size()));
 
-    // Only a prefix is submitted, so the order decides what gets generated first
     if (count < m_pending.size()) {
         std::partial_sort(m_pending.begin(), m_pending.begin() + count, m_pending.end(),
                           [](const PendingTile& a, const PendingTile& b) { return a.priority < b.priority; });
