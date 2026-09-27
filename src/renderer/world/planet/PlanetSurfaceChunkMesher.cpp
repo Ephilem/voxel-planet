@@ -32,6 +32,7 @@ void PlanetSurfaceChunkMesher::enqueue(const PlanetSurfaceChunkKey& key,
                                        const std::shared_ptr<PlanetSurfaceVoxelChunk>& chunk) {
     // early out for chunk without voxel data
     if (!chunk->is_allocated()) {
+        ++m_stats.skippedUnallocated;
         return;
     }
 
@@ -48,9 +49,14 @@ uint32_t PlanetSurfaceChunkMesher::drain(std::vector<MeshingResult>& outResults,
         // chunk unloaded meanwhile, or a newer remesh was enqueued
         const auto it = m_latest.find(result.key);
         if (it == m_latest.end() || it->second != result.mesh->generation) {
+            ++m_stats.discardedStale;
             continue;
         }
         m_latest.erase(it);
+
+        if (result.mesh->vertices.empty()) {
+            ++m_stats.emptyMeshes;
+        }
 
         outResults.emplace_back(std::move(result));
         ++count;

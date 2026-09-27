@@ -9,6 +9,8 @@ namespace vp {
 
 class PlanetTileAtlas;
 class PlanetTileRenderer;
+class PlanetSurfaceChunkMesher;
+class PlanetSurfaceChunkRenderer;
 
 /**
  * Singleton handles on the objects owned by PlanetRendererModule.
@@ -16,6 +18,11 @@ class PlanetTileRenderer;
 struct PlanetTileAtlasRef {
     PlanetTileAtlas* atlas = nullptr;
     PlanetTileRenderer* renderer = nullptr;
+};
+
+struct PlanetSurfaceChunkRenderingRef {
+    PlanetSurfaceChunkMesher* mesher = nullptr;
+    PlanetSurfaceChunkRenderer* renderer = nullptr;
 };
 
 struct PlanetTileDrawListComp {

@@ -25,14 +25,30 @@ public:
     /// Drop any in-flight meshing of this chunk: its result will be discarded by drain()
     void cancel(const PlanetSurfaceChunkKey& key) { m_latest.erase(key); }
 
+    /// Cumulative counters, main thread only
+    struct Stats {
+        uint32_t skippedUnallocated = 0; // enqueue() early out
+        uint32_t discardedStale = 0;     // results dropped by drain() cancelled or superseded by newer generation
+        uint32_t emptyMeshes = 0;        // results without vertices
+    };
+
+    [[nodiscard]] const Stats& stats() const { return m_stats; }
+
+    [[nodiscard]] size_t in_flight_count() const { return m_latest.size(); }
+
+    [[nodiscard]] size_t queued_results() const { return m_resultQueue.size_approx(); }
+
 private:
-    // main thread only: latest generation enqueued per chunk. A result with an older generation is stale
+    Stats m_stats;
+
+    // main thread only: latest generation enqueued per chunk
     std::unordered_map<PlanetSurfaceChunkKey, uint32_t> m_latest;
     uint32_t m_nextGeneration = 1;
 
     struct MeshingTask {
         PlanetSurfaceChunkKey key;
         std::shared_ptr<PlanetSurfaceVoxelChunk> chunk;
+        std::array<std::shared_ptr<const PlanetSurfaceVoxelChunk>, 6> neighbors; // +X, -X, +Y, -Y, +Z, -Z
         uint32_t generation = 0;
     };
 

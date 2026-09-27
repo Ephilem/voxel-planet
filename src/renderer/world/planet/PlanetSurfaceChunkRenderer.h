@@ -38,6 +38,8 @@ public:
 
     void upload_chunk_to_gpu(nvrhi::ICommandList* cmd);
 
+    [[nodiscard]] const PlanetSurfaceChunkBuffer& chunk_buffer() const { return *m_chunkBuffer; }
+
 private:
     struct PushConstants {
         glm::mat4 viewProj;

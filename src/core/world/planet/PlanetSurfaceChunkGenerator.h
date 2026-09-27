@@ -79,8 +79,10 @@ public:
 
 private:
     void worker_loop(std::stop_token stop);
-    void generate(const PlanetSurfaceChunkKey& key, PlanetSurfaceVoxelChunk& out, const PlanetTerrainSampler& sampler,
-                  PlanetTerrainSampler::BatchScratch& scratch) const;
+    /// nullptr = only air
+    std::shared_ptr<PlanetSurfaceVoxelChunk> generate(const PlanetSurfaceChunkKey& key,
+                                                       const PlanetTerrainSampler& sampler,
+                                                       PlanetTerrainSampler::BatchScratch& scratch) const;
 
     PlanetTerrainParams m_params;
     double m_planetRadius;

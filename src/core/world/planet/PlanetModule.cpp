@@ -167,7 +167,7 @@ void PlanetModule::register_systems(flecs::world& ecs) {
 
             for (auto& result : scratch) {
                 if (!result.chunk)
-                    result.chunk = std::make_shared<PlanetSurfaceVoxelChunk>(PlanetSurfaceVoxelChunk::Unallocated{});
+                    result.chunk = std::make_shared<PlanetSurfaceVoxelChunk>(); // air chunk
 
                 store.store(result.key, std::move(result.chunk));
             }

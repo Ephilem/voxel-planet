@@ -154,47 +154,33 @@ struct PlanetSurfaceChunkPalette {
     }
 };
 
+using PlanetVoxelArray = std::array<uint16_t, CHUNK_VOLUME>;
+
+constexpr int planet_voxel_index(int x, int y, int z) {
+    return x + (y * CHUNK_SIZE) + (z * CHUNK_SIZE * CHUNK_SIZE);
+}
+
+constexpr uint16_t planet_voxel_encode(PlanetSurfaceChunkBlockInfo block) {
+    return uint16_t(uint8_t(block.localBlockID)) | uint16_t(uint16_t(block.height) << 8);
+}
+
+/**
+ * Represets a chunk of voxels on the surface of a planet, with a palette mapping local block IDs to global block IDs.
+ * Immutable once built, like a snapshot of a chunk. The voxel array is shared_ptr<const> to allow sharing between
+ * multiple consumers without copying
+ */
 struct PlanetSurfaceVoxelChunk {
-    std::shared_ptr<std::array<uint16_t, CHUNK_VOLUME>> voxels;
+    std::shared_ptr<const PlanetVoxelArray> voxels; // nullptr = only air
     PlanetSurfaceChunkPalette palette;
 
-    /// Tag for the constructor that leaves the voxel array unallocated. The planet generator
-    /// rejects the large majority of the nodes it is handed on a pair of altitude comparisons,
-    /// and a chunk is 64 KB that would be allocated and zeroed only to be thrown away
-    struct Unallocated {};
+    /// Air chunk, without voxel array
+    PlanetSurfaceVoxelChunk() = default;
 
-    PlanetSurfaceVoxelChunk() : voxels(std::make_shared<std::array<uint16_t, CHUNK_VOLUME>>()) { voxels->fill(0); }
-
-    explicit PlanetSurfaceVoxelChunk(Unallocated) {}
-
-    /// Allocate the voxel array if it is not there yet. Cheap to call on an allocated chunk
-    void allocate() {
-        if (voxels)
-            return;
-        voxels = std::make_shared<std::array<uint16_t, CHUNK_VOLUME>>();
-        voxels->fill(0);
-    }
-
-    void ensure_unique() {
-        if (!voxels) {
-            allocate();
-            return;
-        }
-        if (voxels.use_count() > 1) {
-            voxels = std::make_shared<std::array<uint16_t, CHUNK_VOLUME>>(*voxels);
-        }
-    }
-
-    void set(int x, int y, int z, PlanetSurfaceChunkBlockInfo blockInfo) {
-        ensure_unique();
-
-        (*voxels)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE] =
-            static_cast<uint8_t>(blockInfo.localBlockID) | static_cast<uint16_t>(blockInfo.height) << 8;
-    }
+    PlanetSurfaceVoxelChunk(std::shared_ptr<const PlanetVoxelArray> voxels, PlanetSurfaceChunkPalette palette)
+        : voxels(std::move(voxels)), palette(std::move(palette)) {}
 
     PlanetSurfaceChunkBlockInfo at(int x, int y, int z) const {
-        return reinterpret_cast<const PlanetSurfaceChunkBlockInfo&>(
-            (*voxels)[x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE]);
+        return reinterpret_cast<const PlanetSurfaceChunkBlockInfo&>((*voxels)[planet_voxel_index(x, y, z)]);
     }
 
     PlanetSurfaceChunkBlockInfo at(glm::ivec3 localPos) const { return at(localPos.x, localPos.y, localPos.z); }

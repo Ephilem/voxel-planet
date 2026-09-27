@@ -30,11 +30,13 @@ void PlanetRendererModule::init_renderers(flecs::world& ecs) {
     m_chunkMesher = std::make_unique<PlanetSurfaceChunkMesher>();
 
     ecs.set<PlanetTileAtlasRef>({.atlas = m_tileAtlas.get(), .renderer = m_tileRenderer.get()});
+    ecs.set<PlanetSurfaceChunkRenderingRef>({.mesher = m_chunkMesher.get(), .renderer = m_surfaceChunkRenderer.get()});
 }
 
 void PlanetRendererModule::register_components(flecs::world& ecs) {
     ecs.component<PlanetTileDrawListComp>();
     ecs.component<PlanetTileAtlasRef>();
+    ecs.component<PlanetSurfaceChunkRenderingRef>();
 }
 
 void PlanetRendererModule::register_pipelines(flecs::world& ecs) {}

@@ -132,17 +132,14 @@ void PlanetSurfaceChunkGenerator::worker_loop(std::stop_token stop) {
             continue;
         }
 
-        PlanetSurfaceVoxelChunk chunk(PlanetSurfaceVoxelChunk::Unallocated{});
-        generate(key, chunk, sampler, scratch);
-
-        m_resultQueue.enqueue(PlanetSurfaceChunkGenerationResult{
-            .key = key, .chunk = std::make_shared<PlanetSurfaceVoxelChunk>(std::move(chunk))});
+        m_resultQueue.enqueue(
+            PlanetSurfaceChunkGenerationResult{.key = key, .chunk = generate(key, sampler, scratch)});
     }
 }
 
-void PlanetSurfaceChunkGenerator::generate(const PlanetSurfaceChunkKey& key, PlanetSurfaceVoxelChunk& out,
-                                           const PlanetTerrainSampler& sampler,
-                                           PlanetTerrainSampler::BatchScratch& scratch) const {
+std::shared_ptr<PlanetSurfaceVoxelChunk>
+PlanetSurfaceChunkGenerator::generate(const PlanetSurfaceChunkKey& key, const PlanetTerrainSampler& sampler,
+                                      PlanetTerrainSampler::BatchScratch& scratch) const {
     VOXEL_ZONE_N("PlanetSurfaceChunkGenerator::generate");
 
     constexpr int COLUMNS = CHUNK_SIZE * CHUNK_SIZE;
@@ -185,43 +182,39 @@ void PlanetSurfaceChunkGenerator::generate(const PlanetSurfaceChunkKey& key, Pla
     const float maxH = *maxIt;
 
     if (chunkBottom >= double(maxH)) {
-        return;
+        return nullptr;
     }
 
     const auto* registry = m_registry.try_get();
     if (registry == nullptr) {
         LOG_ERROR("PlanetSurfaceChunkGenerator", "Voxel registry unavailable during generate(), skipping chunk");
-        return;
+        return nullptr;
     }
 
-    out.allocate();
-    const LocalBlockID stoneLocal = out.palette.intern(registry->resolve("voxelplanet:cobblestone"_asset));
-    const PlanetSurfaceChunkBlockInfo solid{.localBlockID = stoneLocal, .height = 15};
+    PlanetSurfaceChunkPalette palette;
+    const LocalBlockID stoneLocal = palette.intern(registry->resolve("voxelplanet:cobblestone"_asset));
+    const uint16_t solid = planet_voxel_encode({.localBlockID = stoneLocal, .height = 15});
 
-    // out.set(0, 0, 0, solid);
-    // return;
+    // only writable here: the chunk gets it as const
+    auto voxels = std::make_shared<PlanetVoxelArray>(); // value-initialized: all air
 
     if (chunkTop <= double(minH)) {
-        for (int z = 0; z < CHUNK_SIZE; ++z) {
-            for (int j = 0; j < CHUNK_SIZE; ++j) {
-                for (int i = 0; i < CHUNK_SIZE; ++i) {
-                    out.set(i, j, z, solid);
+        voxels->fill(solid);
+    } else {
+        idx = 0;
+        for (int j = 0; j < CHUNK_SIZE; ++j) {
+            for (int i = 0; i < CHUNK_SIZE; ++i, ++idx) {
+                const double colTop = double(heights[idx]);
+                const int filled = std::clamp(int(std::floor((colTop - chunkBottom) / voxelSize)), 0, CHUNK_SIZE);
+
+                for (int z = 0; z < filled; ++z) {
+                    (*voxels)[planet_voxel_index(i, j, z)] = solid;
                 }
             }
         }
-        return;
     }
 
-    idx = 0;
-    for (int j = 0; j < CHUNK_SIZE; ++j) {
-        for (int i = 0; i < CHUNK_SIZE; ++i, ++idx) {
-            const double colTop = double(heights[idx]);
-            const int filled = std::clamp(int(std::floor((colTop - chunkBottom) / voxelSize)), 0, CHUNK_SIZE);
-
-            for (int z = 0; z < filled; ++z)
-                out.set(i, j, z, solid);
-        }
-    }
+    return std::make_shared<PlanetSurfaceVoxelChunk>(std::move(voxels), std::move(palette));
 }
 
 } // namespace vp
