@@ -160,7 +160,7 @@ void PlanetVoxelTextureManager::register_textures(std::span<const AssetID> textu
     }
 }
 
-PlanetVoxelTextureManager::TextureSlot PlanetVoxelTextureManager::slot_of(const AssetID textureID) {
+PlanetVoxelTextureManager::TextureSlot PlanetVoxelTextureManager::slot_of(const AssetID textureID) const {
     auto it = m_slotByTexture.find(textureID);
     if (it != m_slotByTexture.end()) {
         return static_cast<uint16_t>(it->second);

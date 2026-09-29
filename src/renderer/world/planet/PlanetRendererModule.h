@@ -3,6 +3,7 @@
 #include "PlanetTileRenderer.h"
 #include "renderer/world/planet/PlanetSurfaceChunkMesher.h"
 #include "renderer/world/planet/PlanetSurfaceChunkRenderer.h"
+#include "renderer/world/planet/PlanetVoxelRenderTable.h"
 #include "renderer/world/PlanetVoxelTextureManager.h"
 #include "utils/common/BaseModule.h"
 
@@ -21,6 +22,7 @@ private:
     std::unique_ptr<PlanetTileAtlas> m_tileAtlas;
     std::unique_ptr<PlanetVoxelTextureManager> m_voxelTextureManager;
     std::unique_ptr<PlanetSurfaceChunkMesher> m_chunkMesher;
+    std::unique_ptr<PlanetVoxelRenderTable> m_voxelRenderTable;
 
     void init_renderers(flecs::world& ecs);
 

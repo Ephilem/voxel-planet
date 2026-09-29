@@ -3,6 +3,7 @@
 #include "blockingconcurrentqueue.h"
 #include "core/world/planet/planet_types.h"
 #include "renderer/world/planet/planet_rendering_types.h"
+#include "renderer/world/planet/PlanetVoxelRenderTable.h"
 #include <thread>
 #include <unordered_map>
 #include <vector>
@@ -13,7 +14,7 @@ class PlanetSurfaceChunkMesher {
 public:
     using MeshingResult = PlanetSurfaceChunkMeshUpload;
 
-    PlanetSurfaceChunkMesher(unsigned workerCount = 0);
+    PlanetSurfaceChunkMesher(const PlanetVoxelRenderTable* renderTable, unsigned workerCount = 0);
     ~PlanetSurfaceChunkMesher();
 
     PlanetSurfaceChunkMesher(const PlanetSurfaceChunkMesher&) = delete;
@@ -42,6 +43,7 @@ private:
     Stats m_stats;
 
     // main thread only: latest generation enqueued per chunk
+    const PlanetVoxelRenderTable* m_voxelRenderTable;
     std::unordered_map<PlanetSurfaceChunkKey, uint32_t> m_latest;
     uint32_t m_nextGeneration = 1;
 

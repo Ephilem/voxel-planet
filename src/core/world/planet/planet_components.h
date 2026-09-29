@@ -36,10 +36,10 @@ struct PlanetChunkLoader {
 
 struct PlanetVoxelRegistry {
 public:
-    BlockID register_block(BlockDefinition def) {
+    VoxelID register_block(BlockDefinition def) {
         if (auto it = byAsset.find(def.id); it != byAsset.end())
             return it->second;
-        const auto newId = static_cast<BlockID>(blocks.size());
+        const auto newId = static_cast<VoxelID>(blocks.size());
         byAsset.emplace(def.id, newId);
         blocks.push_back(std::move(def));
         LOG_TRACE("PlanetVoxelRegistry", "Registered block {} with ID {}", blocks.back().name,
@@ -47,28 +47,28 @@ public:
         return newId;
     }
 
-    [[nodiscard]] BlockID resolve(AssetID id) const {
+    [[nodiscard]] VoxelID resolve(AssetID id) const {
         if (auto it = byAsset.find(id); it != byAsset.end())
             return it->second;
-        return BlockID::Air;
+        return VoxelID::Air;
     }
 
-    [[nodiscard]] const BlockDefinition& block(BlockID id) const {
+    [[nodiscard]] const BlockDefinition& block(VoxelID id) const {
         const auto i = static_cast<size_t>(id);
         return i < blocks.size() ? blocks[i] : blocks[0];
     }
 
     [[nodiscard]] std::span<const BlockDefinition> get_all() const { return blocks; }
 
-    [[nodiscard]] AssetID asset(BlockID id) const { return block(id).id; }
+    [[nodiscard]] AssetID asset(VoxelID id) const { return block(id).id; }
 
-    [[nodiscard]] bool is_opaque(BlockID id) const { return block(id).opaque; }
+    [[nodiscard]] bool is_opaque(VoxelID id) const { return block(id).opaque; }
 
     [[nodiscard]] size_t size() const { return blocks.size(); }
 
 private:
     std::vector<BlockDefinition> blocks;
-    std::unordered_map<AssetID, BlockID> byAsset;
+    std::unordered_map<AssetID, VoxelID> byAsset;
 };
 
 struct PlanetSurfaceChunkGeneratorComp {

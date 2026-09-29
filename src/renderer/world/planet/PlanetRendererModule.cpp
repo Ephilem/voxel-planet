@@ -27,7 +27,9 @@ void PlanetRendererModule::init_renderers(flecs::world& ecs) {
     m_surfaceChunkRenderer = std::make_unique<PlanetSurfaceChunkRenderer>(
         renderer->backend.get(), gameState->resourceSystem.get(), m_voxelTextureManager.get());
 
-    m_chunkMesher = std::make_unique<PlanetSurfaceChunkMesher>();
+    m_voxelRenderTable = std::make_unique<PlanetVoxelRenderTable>();
+
+    m_chunkMesher = std::make_unique<PlanetSurfaceChunkMesher>(m_voxelRenderTable.get());
 
     ecs.set<PlanetTileAtlasRef>({.atlas = m_tileAtlas.get(), .renderer = m_tileRenderer.get()});
     ecs.set<PlanetSurfaceChunkRenderingRef>({.mesher = m_chunkMesher.get(), .renderer = m_surfaceChunkRenderer.get()});
@@ -194,4 +196,9 @@ void PlanetRendererModule::register_entities(flecs::world& ecs) {
     }
 
     m_voxelTextureManager->register_textures(texturesUsed);
+
+    const auto* voxelRegistry = ecs.get<PlanetVoxelRegistry>();
+    if (voxelRegistry != nullptr) {
+        m_voxelRenderTable->build(*voxelRegistry, *m_voxelTextureManager);
+    }
 }

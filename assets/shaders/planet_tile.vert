@@ -8,7 +8,7 @@ struct TileInstance {
     float extent;
     vec2  nodeFaceOrigin;
     vec2  uvOffset;
-    uint  packed;      // face (3 bits) | level (5 bits)
+    uint  packed;      // face 3 bits | level 5 bits
     uint  atlasSlot;   // slice actually sampled, may be an ancestor's
     float uvScale;     // 1 when the tile owns its slice, halved per fallback level
     float morph;

@@ -6,7 +6,9 @@
 
 namespace vp {
 
-PlanetSurfaceChunkMesher::PlanetSurfaceChunkMesher(unsigned workerCount) {
+PlanetSurfaceChunkMesher::PlanetSurfaceChunkMesher(const PlanetVoxelRenderTable* renderTable, unsigned workerCount) {
+    m_voxelRenderTable = renderTable;
+
     if (workerCount == 0) {
         const unsigned hw = std::thread::hardware_concurrency();
         const unsigned total = hw > 4 ? hw - 2 : 2;
@@ -114,19 +116,28 @@ void PlanetSurfaceChunkMesher::mesh_chunk(const PlanetSurfaceChunkKey& key,
         if (x < 0 || y < 0 || z < 0 || x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE) {
             return false;
         }
-        return chunk->at(x, y, z).localBlockID != LocalBlockID::Air;
+        return chunk->at(x, y, z).localBlockID != LocalVoxelID::Air;
     };
+
+    // compose fast lookup table for render info
+    std::array<PlanetVoxelRenderInfo, 256> local{};
+    const auto& byLocal = chunk->palette.byLocalId;
+    for (size_t i = 0; i < byLocal.size() && i < local.size(); ++i) {
+        local[i] = m_voxelRenderTable->get_voxel_render_info(byLocal[i]);
+    }
 
     for (int z = 0; z < CHUNK_SIZE; ++z) {
         for (int y = 0; y < CHUNK_SIZE; ++y) {
             for (int x = 0; x < CHUNK_SIZE; ++x) {
                 const PlanetSurfaceChunkBlockInfo block = chunk->at(x, y, z);
-                if (block.localBlockID == LocalBlockID::Air) {
+                if (block.localBlockID == LocalVoxelID::Air) {
                     continue;
                 }
 
-                // TODO resove slot (for now defualt checkboard)
-                const uint32_t slot = 0;
+                const PlanetVoxelRenderInfo& renderInfo = local[static_cast<uint8_t>(block.localBlockID)];
+                if (!renderInfo.visible) {
+                    continue;
+                }
 
                 for (uint32_t f = 0; f < 6; ++f) {
                     const glm::ivec3 n = kFaceNormals[f];
@@ -142,7 +153,7 @@ void PlanetSurfaceChunkMesher::mesh_chunk(const PlanetSurfaceChunkKey& key,
                             .y = uint8_t(p.y),
                             .z = uint8_t(p.z),
                             .face = f,
-                            .textureSlot = slot,
+                            .textureSlot = renderInfo.textureSlot,
                         };
                     }
 

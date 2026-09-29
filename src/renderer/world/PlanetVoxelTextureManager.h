@@ -37,7 +37,7 @@ public:
      */
     void register_textures(std::span<const AssetID> textures);
 
-    [[nodiscard]] TextureSlot slot_of(const AssetID textureID);
+    [[nodiscard]] TextureSlot slot_of(const AssetID textureID) const;
 
     void upload_pending(nvrhi::ICommandList* cmd);
 

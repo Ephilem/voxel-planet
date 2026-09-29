@@ -192,7 +192,7 @@ PlanetSurfaceChunkGenerator::generate(const PlanetSurfaceChunkKey& key, const Pl
     }
 
     PlanetSurfaceChunkPalette palette;
-    const LocalBlockID stoneLocal = palette.intern(registry->resolve("voxelplanet:cobblestone"_asset));
+    const LocalVoxelID stoneLocal = palette.intern(registry->resolve("voxelplanet:cobblestone"_asset));
     const uint16_t solid = planet_voxel_encode({.localBlockID = stoneLocal, .height = 15});
 
     // only writable here: the chunk gets it as const

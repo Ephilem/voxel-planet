@@ -14,8 +14,8 @@ namespace vp {
 #define CHUNK_VOLUME (CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE)
 #define PLANET_VOXEL_SIZE_LOD0 1.0
 
-enum class BlockID : uint16_t { Air = 0 };
-enum class LocalBlockID : uint8_t { Air = 0 };
+enum class VoxelID : uint16_t { Air = 0 };
+enum class LocalVoxelID : uint8_t { Air = 0 };
 
 enum CubemapFace : uint8_t {
     FACE_POS_X = 0,
@@ -103,11 +103,11 @@ struct BlockDefinition {
 };
 
 struct PlanetSurfaceChunkBlockInfo {
-    LocalBlockID localBlockID; // index into the chunk's textureIDs map, which maps to an AssetID for the actual texture
+    LocalVoxelID localBlockID; // index into the chunk's textureIDs map, which maps to an AssetID for the actual texture
     uint8_t height;            // for terrain blocks. 0-15 is the height of the block, subdivision
 
     AABB get_block_aabb() const {
-        if (localBlockID == LocalBlockID::Air)
+        if (localBlockID == LocalVoxelID::Air)
             return AABB::Zero();
 
         float h = static_cast<float>(height) / 16.0f;
@@ -119,10 +119,10 @@ struct PlanetSurfaceChunkBlockInfo {
  * Maps BlockID (global registry id) -> local id in a chunk (0-255)
  */
 struct PlanetSurfaceChunkPalette {
-    std::vector<BlockID> byLocalId;
+    std::vector<VoxelID> byLocalId;
 
     PlanetSurfaceChunkPalette() {
-        byLocalId.push_back(BlockID::Air); // local id 0 is always air
+        byLocalId.push_back(VoxelID::Air); // local id 0 is always air
     }
 
     /**
@@ -130,9 +130,9 @@ struct PlanetSurfaceChunkPalette {
      * @param local Local id found in the voxel array
      * @return The global BlockID of the block, or BlockID::Air if the local id is out of range
      */
-    [[nodiscard]] BlockID global(LocalBlockID local) const {
+    [[nodiscard]] VoxelID global(LocalVoxelID local) const {
         const auto idx = static_cast<size_t>(local);
-        return idx < byLocalId.size() ? byLocalId[idx] : BlockID::Air;
+        return idx < byLocalId.size() ? byLocalId[idx] : VoxelID::Air;
     }
 
     /**
@@ -140,17 +140,17 @@ struct PlanetSurfaceChunkPalette {
      * @param globalId BlockID already resolved from the planet's voxel registry
      * @return The LocalBlockID to store in the voxel array, or LocalBlockID{0xFF} if the palette is full
      */
-    LocalBlockID intern(BlockID globalId) {
+    LocalVoxelID intern(VoxelID globalId) {
         for (size_t i = 0; i < byLocalId.size(); ++i) {
             if (byLocalId[i] == globalId) {
-                return static_cast<LocalBlockID>(i);
+                return static_cast<LocalVoxelID>(i);
             }
         }
         if (byLocalId.size() >= 256) {
-            return static_cast<LocalBlockID>(0xFF);
+            return static_cast<LocalVoxelID>(0xFF);
         }
         byLocalId.push_back(globalId);
-        return static_cast<LocalBlockID>(byLocalId.size() - 1);
+        return static_cast<LocalVoxelID>(byLocalId.size() - 1);
     }
 };
 
