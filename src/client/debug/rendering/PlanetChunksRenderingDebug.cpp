@@ -45,7 +45,7 @@ void PlanetChunksRenderingDebug::render(flecs::world& ecs) {
 
     ImGui::SeparatorText("GPU buffer");
     ImGui::Text("Resident chunks: %u", b.residentChunks);
-    ImGui::Text("Used vertices:   %u / %u reserved", b.usedVertices, b.reservedVertices);
+    ImGui::Text("Used vertices:   %u / %u reserved", b.usedVertices, ref->renderer->chunk_buffer().get_max_vertices());
     ImGui::Text("Failed allocs:   %u", b.failedAllocations);
 }
 

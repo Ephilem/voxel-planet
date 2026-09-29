@@ -10,6 +10,8 @@
 #include "core/world/planet/PlanetSurfaceChunkStore.h"
 #include "renderer/Renderer.h"
 
+#include <unordered_set>
+
 using namespace vp;
 
 void PlanetRendererModule::init_renderers(flecs::world& ecs) {
@@ -99,13 +101,35 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
         .each([this](const PlanetSurfaceChunkStore& store, const Planet& planet, const GlobalTransform& planetCamPos,
                      const Camera3d& cameraInfo) {
             VOXEL_ZONE_N("PullChunksUpdate");
+            constexpr glm::ivec3 kNeighborOffsets[6] = {
+                {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1},
+            };
+
             std::vector<PlanetSurfaceChunkKey> unloadedChunk{};
+            std::unordered_set<PlanetSurfaceChunkKey> toRemesh{};
             for (const auto [key, kind] : store.changed_chunks()) {
                 if (kind == PlanetSurfaceChunkStore::ChunkChangeKind::Removed) {
-                    m_chunkMesher->cancel(key); // a mesh still in flight must not come back after the unload
+                    m_chunkMesher->cancel(key);
                     unloadedChunk.push_back(key);
                 } else {
-                    m_chunkMesher->enqueue(key, store.find(key));
+                    // added or updated
+                    toRemesh.insert(key);
+                }
+
+                // the border faces of the neighbors depend on this chunk
+                for (const glm::ivec3& o : kNeighborOffsets) {
+                    PlanetSurfaceChunkKey neighbor = key;
+                    neighbor.x += o.x;
+                    neighbor.y += o.y;
+                    neighbor.alt += o.z;
+                    toRemesh.insert(neighbor);
+                }
+            }
+
+            for (const PlanetSurfaceChunkKey& key : toRemesh) {
+                // skips the neighbors not loaded and the chunks removed this frame
+                if (const auto chunk = store.find(key)) {
+                    m_chunkMesher->enqueue(key, chunk, store.neighbors_of(key));
                 }
             }
 

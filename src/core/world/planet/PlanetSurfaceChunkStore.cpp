@@ -66,6 +66,26 @@ std::optional<PlanetSurfaceChunkBlockInfo> PlanetSurfaceChunkStore::voxel_at(Cub
     return std::optional<PlanetSurfaceChunkBlockInfo>{};
 }
 
+PlanetSurfaceVoxelChunkNeighbors PlanetSurfaceChunkStore::neighbors_of(const PlanetSurfaceChunkKey& key) const {
+    const auto offset = [&](int dx, int dy, int dalt) {
+        PlanetSurfaceChunkKey k = key;
+        k.x += dx;
+        k.y += dy;
+        k.alt += dalt;
+        return find(k);
+    };
+
+    PlanetSurfaceVoxelChunkNeighbors neighbors;
+    neighbors.px = offset(+1, 0, 0);
+    neighbors.nx = offset(-1, 0, 0);
+    neighbors.py = offset(0, +1, 0);
+    neighbors.ny = offset(0, -1, 0);
+    neighbors.pz = offset(0, 0, +1);
+    neighbors.nz = offset(0, 0, -1);
+
+    return neighbors;
+}
+
 void PlanetSurfaceChunkStore::clear() {
     for (const auto& [key, chunk] : m_chunks) {
         m_changedChunks[key] = ChunkChangeKind::Removed;

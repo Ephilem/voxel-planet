@@ -20,7 +20,8 @@ public:
     PlanetSurfaceChunkMesher(const PlanetSurfaceChunkMesher&) = delete;
     PlanetSurfaceChunkMesher& operator=(const PlanetSurfaceChunkMesher&) = delete;
 
-    void enqueue(const PlanetSurfaceChunkKey& key, const std::shared_ptr<PlanetSurfaceVoxelChunk>& chunk);
+    void enqueue(const PlanetSurfaceChunkKey& key, const std::shared_ptr<PlanetSurfaceVoxelChunk>& chunk,
+                 const PlanetSurfaceVoxelChunkNeighbors& neighbors);
     uint32_t drain(std::vector<MeshingResult>& outResults, uint32_t maxResults = 32);
 
     /// Drop any in-flight meshing of this chunk: its result will be discarded by drain()
@@ -50,7 +51,7 @@ private:
     struct MeshingTask {
         PlanetSurfaceChunkKey key;
         std::shared_ptr<PlanetSurfaceVoxelChunk> chunk;
-        std::array<std::shared_ptr<const PlanetSurfaceVoxelChunk>, 6> neighbors; // +X, -X, +Y, -Y, +Z, -Z
+        PlanetSurfaceVoxelChunkNeighbors neighbors; // +X, -X, +Y, -Y, +Z, -Z
         uint32_t generation = 0;
     };
 
@@ -59,9 +60,28 @@ private:
     moodycamel::BlockingConcurrentQueue<MeshingTask> m_taskQueue;
     moodycamel::ConcurrentQueue<MeshingResult> m_resultQueue;
 
+    // occupancy grid padded by one voxel on each side
+    static constexpr int kPadded = CHUNK_SIZE + 2;
+    using PaddedOccupancy = std::array<uint8_t, kPadded * kPadded * kPadded>;
+
+    static constexpr int kNeighborOffset[6] = {1, -1, kPadded, -kPadded, kPadded * kPadded, -kPadded * kPadded};
+
+    // a neighbor not loaded yet hides the border faces
+    static constexpr uint8_t kMissingNeighbor = 1;
+
+    static constexpr int padded_index(int x, int y, int z) {
+        return (x + 1) + ((y + 1) * kPadded) + ((z + 1) * kPadded * kPadded);
+    }
+
+    static bool voxel_occludes(uint16_t raw);
+
+    static void fill_occupancy(PaddedOccupancy& occ, const PlanetSurfaceVoxelChunk& chunk,
+                               const PlanetSurfaceVoxelChunkNeighbors& neighbors);
+
     void worker_loop(std::stop_token stopToken);
 
     void mesh_chunk(const PlanetSurfaceChunkKey& key, const std::shared_ptr<PlanetSurfaceVoxelChunk>& chunk,
+                    const PlanetSurfaceVoxelChunkNeighbors& neighbors,
                     std::shared_ptr<PlanetSurfaceChunkMesh>& outMesh);
 };
 

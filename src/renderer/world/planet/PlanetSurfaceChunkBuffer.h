@@ -33,7 +33,8 @@ public:
     /**
      * Stores the mesh of a chunk, or replaces it when the chunk is already resident
      */
-    ChunkBufferSlot allocate(std::shared_ptr<const PlanetSurfaceChunkMesh> chunkMesh, const PlanetSurfaceChunkKey& chunkKey);
+    ChunkBufferSlot allocate(std::shared_ptr<const PlanetSurfaceChunkMesh> chunkMesh,
+                             const PlanetSurfaceChunkKey& chunkKey);
 
     void release(const PlanetSurfaceChunkKey& chunkKey);
 
@@ -49,6 +50,10 @@ public:
     [[nodiscard]] nvrhi::BufferHandle draw_buffer() const { return m_drawBuffer; }
 
     [[nodiscard]] uint32_t draw_count() const { return m_instanceHighWater; }
+
+    [[nodiscard]] uint32_t get_max_vertices() const { return m_maxVertices; }
+
+    [[nodiscard]] uint32_t get_max_chunks() const { return m_maxChunks; }
 
     struct Stats {
         uint32_t residentChunks = 0;

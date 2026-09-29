@@ -31,7 +31,8 @@ PlanetSurfaceChunkMesher::~PlanetSurfaceChunkMesher() {
 }
 
 void PlanetSurfaceChunkMesher::enqueue(const PlanetSurfaceChunkKey& key,
-                                       const std::shared_ptr<PlanetSurfaceVoxelChunk>& chunk) {
+                                       const std::shared_ptr<PlanetSurfaceVoxelChunk>& chunk,
+                                       const PlanetSurfaceVoxelChunkNeighbors& neighbors) {
     // early out for chunk without voxel data
     if (!chunk->is_allocated()) {
         ++m_stats.skippedUnallocated;
@@ -40,7 +41,7 @@ void PlanetSurfaceChunkMesher::enqueue(const PlanetSurfaceChunkKey& key,
 
     const uint32_t generation = m_nextGeneration++;
     m_latest[key] = generation; // supersedes any older meshing still in flight
-    m_taskQueue.enqueue({.key = key, .chunk = chunk, .generation = generation});
+    m_taskQueue.enqueue({.key = key, .chunk = chunk, .neighbors = neighbors, .generation = generation});
 }
 
 uint32_t PlanetSurfaceChunkMesher::drain(std::vector<MeshingResult>& outResults, uint32_t maxResults) {
@@ -85,20 +86,76 @@ void PlanetSurfaceChunkMesher::worker_loop(std::stop_token stopToken) {
         mesh->generation = task.generation;
         MeshingResult result;
         result.key = task.key;
-        mesh_chunk(task.key, task.chunk, mesh);
+        mesh_chunk(task.key, task.chunk, task.neighbors, mesh);
         result.mesh = mesh;
         m_resultQueue.enqueue(std::move(result));
     }
 }
 
-void PlanetSurfaceChunkMesher::mesh_chunk(const PlanetSurfaceChunkKey& key,
-                                          const std::shared_ptr<PlanetSurfaceVoxelChunk>& chunk,
-                                          std::shared_ptr<PlanetSurfaceChunkMesh>& outMesh) {
-    VOXEL_ZONE_N("mesh_chunk");
-    constexpr glm::ivec3 kFaceNormals[6] = {
-        {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1},
+bool PlanetSurfaceChunkMesher::voxel_occludes(uint16_t raw) {
+    return (raw & 0xFF) != static_cast<uint8_t>(LocalVoxelID::Air);
+}
+
+void PlanetSurfaceChunkMesher::fill_occupancy(PaddedOccupancy& occ, const PlanetSurfaceVoxelChunk& chunk,
+                                              const PlanetSurfaceVoxelChunkNeighbors& neighbors) {
+    occ.fill(0);
+
+    const PlanetVoxelArray& voxels = *chunk.voxels;
+    for (int z = 0; z < CHUNK_SIZE; ++z) {
+        for (int y = 0; y < CHUNK_SIZE; ++y) {
+            for (int x = 0; x < CHUNK_SIZE; ++x) {
+                occ[padded_index(x, y, z)] = voxel_occludes(voxels[planet_voxel_index(x, y, z)]);
+            }
+        }
+    }
+
+    // copy one border slice of a neighbor, (u, v) spans the two axes of the slice
+    const auto border = [&occ](const PlanetSurfaceVoxelChunk* neighbor, auto dstOf, auto srcOf) {
+        if (neighbor == nullptr) {
+            for (int v = 0; v < CHUNK_SIZE; ++v) {
+                for (int u = 0; u < CHUNK_SIZE; ++u) {
+                    occ[dstOf(u, v)] = kMissingNeighbor;
+                }
+            }
+            return;
+        }
+        if (!neighbor->is_allocated()) {
+            return; // only air, already 0
+        }
+        const PlanetVoxelArray& nv = *neighbor->voxels;
+        for (int v = 0; v < CHUNK_SIZE; ++v) {
+            for (int u = 0; u < CHUNK_SIZE; ++u) {
+                occ[dstOf(u, v)] = voxel_occludes(nv[srcOf(u, v)]);
+            }
+        }
     };
 
+    constexpr int kLast = CHUNK_SIZE - 1;
+    border(
+        neighbors.px.get(), [](int u, int v) { return padded_index(CHUNK_SIZE, u, v); },
+        [](int u, int v) { return planet_voxel_index(0, u, v); });
+    border(
+        neighbors.nx.get(), [](int u, int v) { return padded_index(-1, u, v); },
+        [](int u, int v) { return planet_voxel_index(kLast, u, v); });
+    border(
+        neighbors.py.get(), [](int u, int v) { return padded_index(u, CHUNK_SIZE, v); },
+        [](int u, int v) { return planet_voxel_index(u, 0, v); });
+    border(
+        neighbors.ny.get(), [](int u, int v) { return padded_index(u, -1, v); },
+        [](int u, int v) { return planet_voxel_index(u, kLast, v); });
+    border(
+        neighbors.pz.get(), [](int u, int v) { return padded_index(u, v, CHUNK_SIZE); },
+        [](int u, int v) { return planet_voxel_index(u, v, 0); });
+    border(
+        neighbors.nz.get(), [](int u, int v) { return padded_index(u, v, -1); },
+        [](int u, int v) { return planet_voxel_index(u, v, kLast); });
+}
+
+void PlanetSurfaceChunkMesher::mesh_chunk(const PlanetSurfaceChunkKey& key,
+                                          const std::shared_ptr<PlanetSurfaceVoxelChunk>& chunk,
+                                          const PlanetSurfaceVoxelChunkNeighbors& neighbors,
+                                          std::shared_ptr<PlanetSurfaceChunkMesh>& outMesh) {
+    VOXEL_ZONE_N("mesh_chunk");
     constexpr glm::ivec3 kFaceCorners[6][4] = {
         {{1, 0, 0}, {1, 1, 0}, {1, 1, 1}, {1, 0, 1}}, // +X
         {{0, 0, 0}, {0, 0, 1}, {0, 1, 1}, {0, 1, 0}}, // -X
@@ -112,12 +169,8 @@ void PlanetSurfaceChunkMesher::mesh_chunk(const PlanetSurfaceChunkKey& key,
 
     vertices.reserve(CHUNK_SIZE * CHUNK_SIZE * 6 * 6);
 
-    const auto solid = [&chunk](int x, int y, int z) {
-        if (x < 0 || y < 0 || z < 0 || x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE) {
-            return false;
-        }
-        return chunk->at(x, y, z).localBlockID != LocalVoxelID::Air;
-    };
+    thread_local PaddedOccupancy occ;
+    fill_occupancy(occ, *chunk, neighbors);
 
     // compose fast lookup table for render info
     std::array<PlanetVoxelRenderInfo, 256> local{};
@@ -139,9 +192,9 @@ void PlanetSurfaceChunkMesher::mesh_chunk(const PlanetSurfaceChunkKey& key,
                     continue;
                 }
 
+                const int base = padded_index(x, y, z);
                 for (uint32_t f = 0; f < 6; ++f) {
-                    const glm::ivec3 n = kFaceNormals[f];
-                    if (solid(x + n.x, y + n.y, z + n.z)) {
+                    if (occ[base + kNeighborOffset[f]] != 0) {
                         continue;
                     }
 

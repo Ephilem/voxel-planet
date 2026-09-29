@@ -132,8 +132,7 @@ void PlanetSurfaceChunkGenerator::worker_loop(std::stop_token stop) {
             continue;
         }
 
-        m_resultQueue.enqueue(
-            PlanetSurfaceChunkGenerationResult{.key = key, .chunk = generate(key, sampler, scratch)});
+        m_resultQueue.enqueue(PlanetSurfaceChunkGenerationResult{.key = key, .chunk = generate(key, sampler, scratch)});
     }
 }
 
@@ -193,18 +192,21 @@ PlanetSurfaceChunkGenerator::generate(const PlanetSurfaceChunkKey& key, const Pl
 
     PlanetSurfaceChunkPalette palette;
     const LocalVoxelID stoneLocal = palette.intern(registry->resolve("voxelplanet:cobblestone"_asset));
-    const uint16_t solid = planet_voxel_encode({.localBlockID = stoneLocal, .height = 15});
+    const uint16_t stone = planet_voxel_encode({.localBlockID = stoneLocal, .height = 15});
+    const LocalVoxelID grassLocal = palette.intern(registry->resolve("voxelplanet:grass"_asset));
+    const uint16_t grass = planet_voxel_encode({.localBlockID = grassLocal, .height = 15});
 
     // only writable here: the chunk gets it as const
     auto voxels = std::make_shared<PlanetVoxelArray>(); // value-initialized: all air
 
     if (chunkTop <= double(minH)) {
-        voxels->fill(solid);
+        voxels->fill(stone);
     } else {
         idx = 0;
         for (int j = 0; j < CHUNK_SIZE; ++j) {
             for (int i = 0; i < CHUNK_SIZE; ++i, ++idx) {
                 const double colTop = double(heights[idx]);
+                const uint16_t solid = colTop > 0 ? grass : stone;
                 const int filled = std::clamp(int(std::floor((colTop - chunkBottom) / voxelSize)), 0, CHUNK_SIZE);
 
                 for (int z = 0; z < filled; ++z) {

@@ -48,6 +48,8 @@ public:
 
     void clear_changed_chunks() { m_changedChunks.clear(); }
 
+    [[nodiscard]] PlanetSurfaceVoxelChunkNeighbors neighbors_of(const PlanetSurfaceChunkKey& key) const;
+
     void clear();
 
 private:

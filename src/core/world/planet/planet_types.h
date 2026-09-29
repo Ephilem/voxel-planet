@@ -188,6 +188,10 @@ struct PlanetSurfaceVoxelChunk {
     [[nodiscard]] bool is_allocated() const { return voxels != nullptr; }
 };
 
+struct PlanetSurfaceVoxelChunkNeighbors {
+    std::shared_ptr<const PlanetSurfaceVoxelChunk> px, nx, py, ny, pz, nz; // +X, -X, +Y, -Y, +Z, -Z
+};
+
 } // namespace vp
 
 template <> struct std::hash<vp::PlanetSurfaceChunkKey> {
