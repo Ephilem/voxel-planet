@@ -1,6 +1,5 @@
 #include "RendererModule.h"
 
-#include <iostream>
 #include <nvrhi/utils.h>
 
 #include "camera/Camera3dModule.h"
@@ -110,19 +109,3 @@ void RendererModule::register_submodules(flecs::world& ecs) {
 void RendererModule::register_entities(flecs::world& ecs) {
     ecs.emplace<RenderingPreferences>();
 }
-
-// void vp::shutdown_renderer(flecs::world& ecs) {
-//     LOG_INFO("RendererModule", "Shutting down...");
-//     auto* renderer = ecs.get_mut<Renderer>();
-//     if (renderer) {
-//         // renderer->renderPasses.clear();
-//         // TODO please find a better way to do this
-//         if (auto* vtm = ecs.get_mut<VoxelTextureManager>()) {
-//             vtm->release_resources();
-//         }
-//         renderer->frameContext.commandList = nullptr;
-//         if (renderer->backend) {
-//             renderer->backend.reset();
-//         }
-//     }
-// }

@@ -16,7 +16,6 @@ struct Window {
 
     bool shouldClose() const;
     void pollEvents() const;
-    glm::ivec2 getFramebufferSize() const;
 
     void setupCallbacks(flecs::world& ecs);
 };

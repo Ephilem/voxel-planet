@@ -70,31 +70,6 @@ void AssetRegistry::scan_assets(const std::filesystem::path& assetDir, const std
     LOG_INFO("AssetRegistry", "Registered {} assets", assetCount);
 }
 
-void AssetRegistry::register_asset(AssetID id, const std::string& path, const std::string& fullPath,
-                                   ResourceType type) {
-    if (m_registry.find(id) != m_registry.end()) {
-        LOG_WARN("AssetRegistry", "Asset ID {} already registered, overwriting", id);
-    }
-
-    m_registry[id] = AssetMetadata(path, fullPath, type);
-}
-
-const AssetMetadata* AssetRegistry::get_metadata(AssetID id) const {
-    auto it = m_registry.find(id);
-    if (it != m_registry.end()) {
-        return &it->second;
-    }
-    return nullptr;
-}
-
-std::string AssetRegistry::get_path(AssetID id) const {
-    auto it = m_registry.find(id);
-    if (it != m_registry.end()) {
-        return it->second.fullPath;
-    }
-    return "";
-}
-
 std::string AssetRegistry::get_relative_path(AssetID id) const {
     auto it = m_registry.find(id);
     if (it != m_registry.end()) {
@@ -115,27 +90,14 @@ bool AssetRegistry::has_asset(AssetID id) const {
     return m_registry.find(id) != m_registry.end();
 }
 
-std::string AssetRegistry::get_debug_name(AssetID id) const {
-    auto it = m_debugNames.find(id);
-    if (it != m_debugNames.end()) {
-        return it->second;
-    }
-    return "";
-}
-
 ResourceType AssetRegistry::get_type_from_extension(const std::string& extension) {
     if (extension == ".png" || extension == ".jpg" || extension == ".jpeg" || extension == ".bmp" ||
         extension == ".tga") {
         return ResourceType::IMAGE;
     }
 
-    if (extension == ".spv" || extension == ".glsl" || extension == ".vert" || extension == ".frag" ||
-        extension == ".comp") {
+    if (extension == ".spv") {
         return ResourceType::SHADER;
-    }
-
-    if (extension == ".txt" || extension == ".json" || extension == ".xml") {
-        return ResourceType::TEXT;
     }
 
     return ResourceType::UNKNOWN;

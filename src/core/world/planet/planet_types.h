@@ -5,7 +5,6 @@
 #include <memory>
 #include <vector>
 
-#include "core/math/aabb.h"
 #include "core/resource/asset_id.h"
 #include "utils/maths/maths.h"
 
@@ -105,14 +104,6 @@ struct BlockDefinition {
 struct PlanetSurfaceChunkBlockInfo {
     LocalVoxelID localBlockID; // index into the chunk's textureIDs map, which maps to an AssetID for the actual texture
     uint8_t height;            // for terrain blocks. 0-15 is the height of the block, subdivision
-
-    AABB get_block_aabb() const {
-        if (localBlockID == LocalVoxelID::Air)
-            return AABB::Zero();
-
-        float h = static_cast<float>(height) / 16.0f;
-        return AABB{glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, h, 1.0f)};
-    }
 };
 
 /**

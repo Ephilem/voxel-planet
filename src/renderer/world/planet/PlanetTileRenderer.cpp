@@ -123,15 +123,11 @@ void PlanetTileRenderer::render_planets(nvrhi::CommandListHandle cmd, Camera3d& 
     const auto* const renderParam = ecs.get<RenderingPreferences>();
 
     ecs.each([&](flecs::entity e, const PlanetTileDrawListComp& drawList, PlanetTileStreamComp& stream,
-                 const Planet& planet, const PlanetTerrainParams& terrain, const GlobalTransform& transform) {
+                 const Planet& planet, const GlobalTransform& transform) {
         VOXEL_ZONE_N("PlanetTileRenderer::render_planets-Planet");
-        if (drawList.drawItems.empty())
+        // the generator is created by PlanetRendererModule-SetupStreamer
+        if (drawList.drawItems.empty() || !stream.generator)
             return;
-
-        if (!stream.generator) {
-            stream.generator =
-                std::make_unique<PlanetTileGenerator>(terrain, PLANET_TILE_ATLAS_RESOLUTION, planet.radius);
-        }
 
         stream.generator->begin_frame();
 

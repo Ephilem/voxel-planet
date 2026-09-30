@@ -36,58 +36,11 @@ float PlanetTerrainSampler::fractal_bounding(int octave) {
     return norm;
 }
 
-float PlanetTerrainSampler::fbm(const glm::vec3& position, float freq, int octave) const {
-    const int baseSeed = m_params.seed;
-
-    float sum = 0.0f;
-    float amplitude = 1.0f;
-    float f = freq;
-
-    for (int i = 0; i < octave; ++i) {
-        sum += amplitude * m_noise->GenSingle3D(position.x * f, position.y * f, position.z * f, baseSeed + i);
-        amplitude *= GAIN;
-        f *= LACUNARITY;
-    }
-
-    return sum / fractal_bounding(m_params.maxOctave);
-}
-
-float PlanetTerrainSampler::ridged(const glm::vec3& position, float freq, int octave) const {
-    const int baseSeed = m_params.seed + RIDGED_SEED_OFFSET;
-
-    float sum = 0.0f;
-    float amplitude = 1.0f;
-    float f = freq;
-
-    for (int i = 0; i < octave; ++i) {
-        const float n = m_noise->GenSingle3D(position.x * f, position.y * f, position.z * f, baseSeed + i);
-        sum += amplitude * (1.0f - std::abs(n)); // crêtes
-        amplitude *= GAIN;
-        f *= LACUNARITY;
-    }
-
-    return (sum / fractal_bounding(m_params.maxOctave)) * 2.0f - 1.0f; // [-1, 1]
-}
-
 // Règle n°2 : band-limiting. Une octave n'est incluse que si sa longueur
 // d'onde dépasse 2 x la taille de cellule du LOD courant (Nyquist).
 // Sans ça, popping permanent au LOD switch.
 int PlanetTerrainSampler::octave_for_lod(int lod) const {
     return std::clamp(3 + lod, 1, m_params.maxOctave);
-}
-
-float PlanetTerrainSampler::sample_height(const glm::dvec3& direction, int lod) const {
-    const glm::vec3 d = glm::vec3(direction);
-
-    const int octave = octave_for_lod(lod);
-
-    float h = fbm(d, m_params.continentFrequency, m_params.continentOctave) * m_params.continentAmplitude;
-
-    // montagnes : ridged, atténuées en mer pour ne pas créer d'îles-pics.
-    const float landMask = glm::smoothstep(LAND_MASK_LOW, LAND_MASK_HIGH, h);
-    h += ridged(d, m_params.mountainFrequency, octave) * m_params.mountainAmplitude * landMask;
-
-    return h - m_params.seaLevel;
 }
 
 void PlanetTerrainSampler::BatchScratch::resize(int count) {

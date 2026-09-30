@@ -21,8 +21,6 @@ class PlanetTileAtlas {
 public:
     PlanetTileAtlas(VulkanBackend* backend) : m_backend(backend) { init_gpu(); }
 
-    ~PlanetTileAtlas();
-
     PlanetTileAtlas(const PlanetTileAtlas&) = delete;
     PlanetTileAtlas& operator=(const PlanetTileAtlas&) = delete;
 
@@ -70,7 +68,6 @@ public:
         uint32_t uploads = 0;       // cumulative
         uint32_t evictions = 0;     // cumulative
         uint32_t failedUploads = 0; // cumulative, atlas full or malformed data
-        uint32_t expired = 0;       // cumulative, evicted due to TTL
     };
 
     [[nodiscard]] const Stats& stats() const { return m_stats; }

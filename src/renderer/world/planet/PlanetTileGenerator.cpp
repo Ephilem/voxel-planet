@@ -11,9 +11,8 @@
 #include "core/world/planet/planet_transform.h"
 
 namespace vp {
-PlanetTileGenerator::PlanetTileGenerator(PlanetTerrainParams params, uint16_t resolution, double planetRadius,
-                                         unsigned workerCount)
-    : m_params(std::move(params)), m_resolution(resolution), m_planetRadius(planetRadius) {
+PlanetTileGenerator::PlanetTileGenerator(PlanetTerrainParams params, uint16_t resolution, unsigned workerCount)
+    : m_params(std::move(params)), m_resolution(resolution) {
     if (workerCount == 0) {
         const unsigned hw = std::thread::hardware_concurrency();
         workerCount = hw > 3 ? hw - 2 : 1;

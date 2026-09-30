@@ -31,17 +31,12 @@ struct KeyBinding {
 class InputStateManager {
     std::unordered_map<ActionInputType, std::vector<KeyBinding>> m_actionKeyBindings;
 
-    float m_mouseSensitivityX = 1.0f;
-    float m_mouseSensitivityY = 1.0f;
-
 public:
     InputStateManager();
     ~InputStateManager();
 
     void bind_action(ActionInputType action, int key, int modifier = 0);
     void bind_action_mouse(ActionInputType action, int mouseButton, int modifier = 0);
-    void unbind_action(ActionInputType action, int key, int modifier = 0);
-    void clear_action_bindings(ActionInputType action);
 
     bool is_binding_active(const KeyBinding& binding, const InputState& inputState) const;
 

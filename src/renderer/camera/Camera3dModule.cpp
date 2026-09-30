@@ -3,7 +3,6 @@
 #include <GLFW/glfw3.h>
 
 #include "camera3d_systems.h"
-#include "client/world/planet/planet_client_components.h"
 #include "core/physics/physics_components.h"
 #include "core/TracyIntegration.h"
 #include "core/world/spatial/spatial_components.h"
@@ -34,6 +33,12 @@ void Camera3dModule::register_systems(flecs::world& ecs) {
         .kind(flecs::PostUpdate)
         .each([](flecs::entity e, Camera3d& camera, const Transform& transform, const Camera3dParameters& parameters) {
             VOXEL_ZONE_N("Camera-UpdateView");
+
+            // Recomputed every frame: the swapchain size changes on resize, and it is a few flops
+            if (const auto* renderer = e.world().get<Renderer>(); renderer && renderer->backend) {
+                systems::update_camera_projection_system(camera, parameters, *renderer);
+            }
+
             glm::vec3 playerPos = glm::vec3(0.f);
             glm::vec3 eyePos = glm::vec3(0.f);
             auto type = parameters.viewType;
@@ -57,16 +62,6 @@ void Camera3dModule::register_systems(flecs::world& ecs) {
 
                 eyePos = playerPos - forward * distance;
                 systems::update_camera_third_person_system(camera, eyePos, playerPos, up);
-            }
-        });
-
-    ecs.observer<Camera3d, const Camera3dParameters>("UpdateCameraProjectionSystem")
-        .event(flecs::OnSet)
-        .each([](flecs::entity e, Camera3d& camera, const Camera3dParameters& parameters) {
-            VOXEL_ZONE_N("Camera-UpdateProjection");
-            const auto* renderer = e.world().get<Renderer>();
-            if (renderer) {
-                systems::update_camera_projection_system(camera, parameters, *renderer);
             }
         });
 }

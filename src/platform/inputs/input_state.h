@@ -9,18 +9,12 @@ enum class ActionInputType {
     Backward,
     Left,
     Right,
-    Up,
     Down,
-
-    Debug1,
-    Debug2,
-    Debug3,
 
     Accelerate,
     Slowdown,
 
     Jump,
-    Sprint,
     ToggleControllerMode,
     ToggleCameraView,
 
@@ -45,10 +39,6 @@ struct InputState {
     bool mouseCaptured = false;
 
     inline bool is_key_down(int key) const { return keys[key] == KeyState::Down || keys[key] == KeyState::Pressed; }
-
-    inline bool is_key_pressed(int key) const { return keys[key] == KeyState::Pressed; }
-
-    inline bool is_key_released(int key) const { return keys[key] == KeyState::Released; }
 
     inline bool is_mouse_button_down(int button) const {
         return mouseButtons[button] == KeyState::Down || mouseButtons[button] == KeyState::Pressed;

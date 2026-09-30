@@ -36,18 +36,10 @@ public:
      * @param namespaceName Namespace prefix for asset IDs
      */
     void scan_assets(const std::filesystem::path& assetDir, const std::string& namespaceName = "voxelplanet");
-    void register_asset(AssetID id, const std::string& path, const std::string& fullPath, ResourceType type);
 
-    const AssetMetadata* get_metadata(AssetID id) const;
-
-    std::string get_path(AssetID id) const;
     std::string get_relative_path(AssetID id) const;
     std::optional<ResourceType> get_type(AssetID id) const;
     bool has_asset(AssetID id) const;
-
-    size_t get_asset_count() const { return m_registry.size(); }
-
-    std::string get_debug_name(AssetID id) const;
 
 private:
     static ResourceType get_type_from_extension(const std::string& extension);

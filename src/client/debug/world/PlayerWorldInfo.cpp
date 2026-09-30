@@ -19,8 +19,9 @@ void PlayerWorldInfo::pre_render() {
 void PlayerWorldInfo::render(flecs::world& ecs) {
     VOXEL_ZONE_N("WorldF3Info-Display");
 
-    ecs.each([](flecs::entity e, const Camera3d& camera, const vp::Transform& transform, const RigidBody& body,
-                const PlayerController& ctrl, const vp::CellCoord& gridCell) {
+    // RigidBody is optional: FreeCam removes it
+    ecs.each([](flecs::entity e, const Camera3d&, const vp::Transform& transform, const PlayerController& ctrl,
+                const vp::CellCoord& gridCell) {
         constexpr float kMetersPerWorldUnit = 1.0f;
         const glm::vec3 positionMeters = transform.pos * kMetersPerWorldUnit;
         const glm::quat orientation = glm::normalize(transform.rot);
@@ -47,7 +48,9 @@ void PlayerWorldInfo::render(flecs::world& ecs) {
         if (ctrl.mode == ControllerMode::FreeCam) {
             ImGui::Text("  Speed Multiplier: %.2fx", ctrl.freeCamSpeedMultiplier);
         }
-        ImGui::Text("  On Ground: %s", body.onGround ? "Yes" : "No");
+        if (const auto* body = e.get<RigidBody>()) {
+            ImGui::Text("  On Ground: %s", body->onGround ? "Yes" : "No");
+        }
 
         const glm::quat look = orientation * glm::angleAxis(glm::radians(angles.pitch), glm::vec3(1.0f, 0.0f, 0.0f));
         const glm::vec3 forward = look * glm::vec3(0.0f, 0.0f, -1.0f);

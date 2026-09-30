@@ -33,7 +33,7 @@ void DebugRenderModule::register_systems(flecs::world& ecs) {
             if (!renderer.frameContext.frameActive)
                 return;
             VOXEL_ZONE_N("DebugDrawRenderer-Render");
-            m_debugDraw->render(renderer.frameContext.commandList, camera, *renderer.backend);
+            m_debugDraw->render(renderer.frameContext.commandList, camera);
         });
 
     ecs.system<Renderer>("ImGui-Render").kind(flecs::OnStore).each([this](flecs::entity e, Renderer& renderer) {

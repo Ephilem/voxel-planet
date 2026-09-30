@@ -24,8 +24,6 @@ public:
     DebugDrawModule(flecs::world& ecs) : BaseModule(ecs) { register_all(ecs); }
 
 private:
-    static DebugDrawBuffer* s_buffer;
-
     void register_components(flecs::world& ecs);
     void register_systems(flecs::world& ecs);
 

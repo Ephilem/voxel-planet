@@ -11,9 +11,10 @@
 namespace vp {
 
 PlanetSurfaceChunkGenerator::PlanetSurfaceChunkGenerator(PlanetTerrainParams params, double planetRadius,
-                                                         flecs::ref<const PlanetVoxelRegistry> registry,
-                                                         unsigned workerCount)
-    : m_params(params), m_planetRadius(planetRadius), m_registry(registry) {
+                                                         const PlanetVoxelRegistry& registry, unsigned workerCount)
+    : m_params(params), m_planetRadius(planetRadius),
+      m_stoneId(registry.resolve("voxelplanet:cobblestone"_asset)),
+      m_grassId(registry.resolve("voxelplanet:grass"_asset)) {
     if (workerCount == 0) {
         const unsigned hw = std::thread::hardware_concurrency();
         const unsigned total = hw > 4 ? hw - 2 : 2;
@@ -59,10 +60,6 @@ void PlanetSurfaceChunkGenerator::request(const PlanetSurfaceChunkKey& key, floa
     ++m_stats.requested;
     ++m_stats.requestedThisFrame;
     m_stats.peakPending = std::max(m_stats.peakPending, uint32_t(m_pending.size()));
-}
-
-void PlanetSurfaceChunkGenerator::cancel(const PlanetSurfaceChunkKey& key) {
-    m_cancelled.emplace(key);
 }
 
 void PlanetSurfaceChunkGenerator::submit_pending(uint32_t maxInFlight) {
@@ -184,16 +181,10 @@ PlanetSurfaceChunkGenerator::generate(const PlanetSurfaceChunkKey& key, const Pl
         return nullptr;
     }
 
-    const auto* registry = m_registry.try_get();
-    if (registry == nullptr) {
-        LOG_ERROR("PlanetSurfaceChunkGenerator", "Voxel registry unavailable during generate(), skipping chunk");
-        return nullptr;
-    }
-
     PlanetSurfaceChunkPalette palette;
-    const LocalVoxelID stoneLocal = palette.intern(registry->resolve("voxelplanet:cobblestone"_asset));
+    const LocalVoxelID stoneLocal = palette.intern(m_stoneId);
     const uint16_t stone = planet_voxel_encode({.localBlockID = stoneLocal, .height = 15});
-    const LocalVoxelID grassLocal = palette.intern(registry->resolve("voxelplanet:grass"_asset));
+    const LocalVoxelID grassLocal = palette.intern(m_grassId);
     const uint16_t grass = planet_voxel_encode({.localBlockID = grassLocal, .height = 15});
 
     // only writable here: the chunk gets it as const
@@ -206,11 +197,13 @@ PlanetSurfaceChunkGenerator::generate(const PlanetSurfaceChunkKey& key, const Pl
         for (int j = 0; j < CHUNK_SIZE; ++j) {
             for (int i = 0; i < CHUNK_SIZE; ++i, ++idx) {
                 const double colTop = double(heights[idx]);
-                const uint16_t solid = colTop > 0 ? grass : stone;
-                const int filled = std::clamp(int(std::floor((colTop - chunkBottom) / voxelSize)), 0, CHUNK_SIZE);
+                // index of the first air voxel of the column
+                const int top = int(std::floor((colTop - chunkBottom) / voxelSize));
+                const int filled = std::clamp(top, 0, CHUNK_SIZE);
 
                 for (int z = 0; z < filled; ++z) {
-                    (*voxels)[planet_voxel_index(i, j, z)] = solid;
+                    // only the surface voxel is grass, and only above the sea
+                    (*voxels)[planet_voxel_index(i, j, z)] = (z == top - 1 && colTop > 0) ? grass : stone;
                 }
             }
         }

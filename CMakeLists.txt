@@ -149,13 +149,6 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(vk-bootstrap)
 
 FetchContent_Declare(
-        VulkanMemoryAllocator
-        GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator
-        GIT_TAG v3.1.0
-)
-FetchContent_MakeAvailable(VulkanMemoryAllocator)
-
-FetchContent_Declare(
         glfw
         GIT_REPOSITORY https://github.com/glfw/glfw.git
         GIT_TAG 3.4
@@ -263,7 +256,7 @@ FetchContent_MakeAvailable(concurrentqueue)
 
 set(CMAKE_CXX_FLAGS ${ORIGINAL_FLAGS})
 
-foreach(_dep tracy vk-bootstrap VulkanMemoryAllocator glfw nvrhi fastnoise2 fmt)
+foreach(_dep tracy vk-bootstrap glfw nvrhi fastnoise2 fmt)
     string(TOLOWER "${_dep}" _lc)
     if(DEFINED ${_lc}_SOURCE_DIR)
         optimize_external_targets("${${_lc}_SOURCE_DIR}")
@@ -292,7 +285,6 @@ endif()
 add_executable(${PROJECT_NAME}
         src/main.cpp
         src/vulkan_dispatcher.cpp
-        assets/shaders/noise.glsl
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
@@ -308,7 +300,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         nvrhi
         Vulkan::Vulkan
         vk-bootstrap::vk-bootstrap
-        VulkanMemoryAllocator
         glfw
         glm::glm
         flecs::flecs_static

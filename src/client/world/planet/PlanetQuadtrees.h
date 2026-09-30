@@ -47,8 +47,6 @@ struct PlanetLodParams {
     double maxNodeHeight = 5000.0;
 
     double faceCullAngleDeg = 90.0;
-
-    uint32_t chunkSize = CHUNK_SIZE;
 };
 
 /**
@@ -89,7 +87,6 @@ public:
         uint32_t merges = 0;
         uint32_t culledFaces = 0;
         uint32_t culledNodes = 0;
-        uint32_t balanceSplits = 0;      // splits forced by the 2:1 neighbour rule
         uint32_t frustumCulledNodes = 0; // subtrees skipped when collecting the draw list
         uint32_t collectedTiles = 0;     // leaves that made it into the draw list
     };

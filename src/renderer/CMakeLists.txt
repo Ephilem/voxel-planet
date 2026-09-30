@@ -4,12 +4,10 @@ add_library(VoxelPlanetRenderer STATIC
         RendererModule.cpp
         RendererModule.h
         Renderer.h
-        vulkan/vulkan_type.inl
         debug/ImGuiManager.h
         debug/ImGuiManager.cpp
         debug/DebugImageTexture.h
         debug/DebugImageTexture.cpp
-        IRenderPass.h
         TracyVulkanIntegration.h
         debug/DebugDrawRenderer.cpp
         debug/DebugDrawRenderer.h
@@ -51,7 +49,6 @@ target_link_libraries(VoxelPlanetRenderer
         PUBLIC
             Vulkan::Vulkan
             vk-bootstrap::vk-bootstrap
-            VulkanMemoryAllocator
             glm::glm
             nvrhi_vk
             nvrhi

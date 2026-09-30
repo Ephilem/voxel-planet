@@ -8,8 +8,6 @@
 enum class ResourceType {
     UNKNOWN,
 
-    TEXT,
-    BINARY,
     SHADER,
     IMAGE,
 };
@@ -32,7 +30,7 @@ public:
     std::string name;
 
     ShaderResource(std::string assetName, size_t dataSize, std::unique_ptr<uint8_t[]> data)
-        : name(std::move(assetName)), m_data_size(dataSize), m_data(std::move(data)) {
+        : m_data(std::move(data)), m_data_size(dataSize), name(std::move(assetName)) {
         id = hash_string_runtime(name);
     }
 
@@ -55,19 +53,10 @@ public:
     uint32_t width;
     uint32_t height;
     uint8_t channel_count;
-    bool has_transparency;
 
     ImageResource(std::string assetName, uint32_t w, uint32_t h, uint8_t channels, std::unique_ptr<uint8_t[]> data)
         : m_data(std::move(data)), name(std::move(assetName)), width(w), height(h), channel_count(channels) {
         id = hash_string_runtime(name);
-
-        has_transparency = false;
-        for (size_t i = 0; i < width * height; ++i) {
-            if (m_data[i * channel_count + 3] < 255) {
-                has_transparency = true;
-                break;
-            }
-        }
     }
 
     AssetID get_id() const override { return id; }

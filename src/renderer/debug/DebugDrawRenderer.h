@@ -1,19 +1,21 @@
 #pragma once
 
-#include "core/resource/ResourceSystem.h"
-#include "renderer/IRenderPass.h"
 #include <glm/glm.hpp>
+#include <nvrhi/nvrhi.h>
 
-class DebugDrawRenderer : public IRenderPass {
+#include "core/resource/ResourceSystem.h"
+#include "renderer/rendering_components.h"
+
+class VulkanBackend;
+
+class DebugDrawRenderer {
 public:
     DebugDrawRenderer(VulkanBackend* backend, ResourceSystem* resourceSystem)
         : m_backend(backend), m_resourceSystem(resourceSystem) {
         init_gpu();
     }
 
-    ~DebugDrawRenderer() override;
-
-    void render(nvrhi::CommandListHandle cmd, Camera3d& camera, VulkanBackend& backend) override;
+    void render(nvrhi::CommandListHandle cmd, Camera3d& camera);
 
 private:
     struct DebugDrawPushConstants {
@@ -21,11 +23,10 @@ private:
     };
 
     void init_gpu();
-    void destroy();
 
-    // render steps
-    void render_lines(nvrhi::CommandListHandle cmd, Camera3d& camera, VulkanBackend& backend);
-    void render_points(nvrhi::CommandListHandle cmd, Camera3d& camera, VulkanBackend& backend);
+    /// Uploads then draws the vertices, clamped to the buffer capacity
+    void draw_vertices(nvrhi::CommandListHandle cmd, Camera3d& camera, nvrhi::IGraphicsPipeline* pipeline,
+                       nvrhi::IBuffer* buffer, const void* vertices, size_t vertexCount);
 
     VulkanBackend* m_backend;
     ResourceSystem* m_resourceSystem;

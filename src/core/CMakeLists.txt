@@ -2,7 +2,6 @@ add_library(VoxelPlanetCore STATIC
         CoreModule.cpp
         CoreModule.h
     GameState.h
-    events.h
     log/Logger.cpp
     log/Logger.h
     resource/asset_id.h
@@ -22,15 +21,11 @@ add_library(VoxelPlanetCore STATIC
         math/frustrum.h
     math/aabb.h
     physics/physics_components.h
-    physics/PhysicsSystem.cpp
-    physics/PhysicsSystem.h
-    math/utils.h
         debug/DebugDraw.cpp
         debug/DebugDraw.h
         world/spatial/SpatialModule.cpp
         world/spatial/SpatialModule.h
         world/spatial/spatial_components.h
-        world/spatial/spatial_prefabs.h
         world/planet/PlanetModule.cpp
         world/planet/PlanetModule.h
         world/planet/planet_components.h

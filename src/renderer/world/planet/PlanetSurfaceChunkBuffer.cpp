@@ -7,7 +7,7 @@
 
 namespace vp {
 
-uint32_t round_up_granule(uint32_t vertexCount) {
+static uint32_t round_up_granule(uint32_t vertexCount) {
     constexpr uint32_t g = PlanetSurfaceChunkBuffer::VERTEX_GRANULE;
     return (vertexCount + g - 1) / g * g;
 }
@@ -190,7 +190,7 @@ void PlanetSurfaceChunkBuffer::upload_pending_chunks(nvrhi::ICommandList* cmd) {
         args.vertexCount = alloc.vertexCount;
         args.instanceCount = 1;
         args.startVertexLocation = alloc.firstVertex;
-        args.startInstanceLocation = alloc.instance; // TODO: the drawIndirectFirstInstance device feature
+        args.startInstanceLocation = alloc.instance; // needs drawIndirectFirstInstance
         cmd->writeBuffer(m_drawBuffer, &args, sizeof(args),
                          uint64_t(alloc.instance) * sizeof(nvrhi::DrawIndirectArguments));
 

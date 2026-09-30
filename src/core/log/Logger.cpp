@@ -3,8 +3,11 @@
 #include <chrono>
 #include <iomanip>
 #include <iostream>
+#include <mutex>
 
 namespace vp {
+
+static std::recursive_mutex s_mutex;
 
 // Static member initialization
 std::map<std::string, size_t> Logger::maxLengths = {{"LEVEL", 5}, {"COMPONENT", 20}};
@@ -23,6 +26,7 @@ Logger::Logger(std::string component)
 }
 
 Logger& Logger::get(const std::string& component) {
+    std::lock_guard lock(s_mutex);
     auto it = loggers.find(component);
     if (it == loggers.end()) {
         auto [inserted, _] = loggers.emplace(component, std::make_unique<Logger>(component));
@@ -32,6 +36,7 @@ Logger& Logger::get(const std::string& component) {
 }
 
 void Logger::setGlobalLevel(Level level) {
+    std::lock_guard lock(s_mutex);
     globalMinLevel = level;
     for (auto& [name, logger] : loggers) {
         logger->setLogLevel(level);
@@ -39,6 +44,7 @@ void Logger::setGlobalLevel(Level level) {
 }
 
 void Logger::setGlobalColors(bool use) {
+    std::lock_guard lock(s_mutex);
     globalUseColors = use;
     for (auto& [name, logger] : loggers) {
         logger->setUseColors(use);
@@ -46,6 +52,7 @@ void Logger::setGlobalColors(bool use) {
 }
 
 void Logger::setGlobalTimestamp(bool show) {
+    std::lock_guard lock(s_mutex);
     globalShowTimestamp = show;
     for (auto& [name, logger] : loggers) {
         logger->setShowTimestamp(show);
@@ -53,16 +60,19 @@ void Logger::setGlobalTimestamp(bool show) {
 }
 
 Logger::SinkId Logger::addSink(SinkCallback callback) {
+    std::lock_guard lock(s_mutex);
     SinkId id = nextSinkId++;
     sinks[id] = std::move(callback);
     return id;
 }
 
 void Logger::removeSink(SinkId id) {
+    std::lock_guard lock(s_mutex);
     sinks.erase(id);
 }
 
 void Logger::clearSinks() {
+    std::lock_guard lock(s_mutex);
     sinks.clear();
 }
 
@@ -76,6 +86,7 @@ void Logger::log(Level level, const std::string& message) {
     if (level < m_minimumLevel)
         return;
 
+    std::lock_guard lock(s_mutex);
     auto now = std::chrono::system_clock::now();
 
     // Dispatch to all registered sinks

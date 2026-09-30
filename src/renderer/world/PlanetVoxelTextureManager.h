@@ -27,7 +27,6 @@ public:
     using TextureSlot = uint16_t;
 
     PlanetVoxelTextureManager(VulkanBackend* backend, ResourceSystem* resourceSystem);
-    ~PlanetVoxelTextureManager();
 
     /**
      * Allocate, and mark to upload the textures to the GPU. The textures will be uploaded on the next call to
@@ -59,7 +58,7 @@ private:
         uint32_t arraySlice;
         uint32_t dstMipWidth;
         uint32_t dstMipHeight;
-    } m_mipmapPushConstants;
+    };
 
     void init_gpu();
     void init_mipmap_generator();
@@ -71,7 +70,6 @@ private:
 
     void generate_mipmaps(nvrhi::ICommandList* cmd, TextureSlot textureSlot);
 
-    std::vector<AssetID> m_slots;
     std::unordered_map<AssetID, TextureSlot> m_slotByTexture; // Map from texture ID to slot index
 
     uint32_t m_nextFreeSlot = VOXEL_TEXTURE_FALLBACK_SLOT + 1; // slot 0 is reserved for the fallback

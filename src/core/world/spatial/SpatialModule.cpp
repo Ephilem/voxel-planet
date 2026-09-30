@@ -10,27 +10,25 @@
 
 void vp::SpatialModule::register_components(flecs::world& ecs) {
     ecs.component<Transform>()
-        .member<float>("pos", 3, 0)
-        .member<float>("rot", 3, 3 * sizeof(float))
-        .member<float>("scale", 3, 6 * sizeof(float));
+        .member<float>("pos", 3, offsetof(Transform, pos))
+        .member<float>("rot", 4, offsetof(Transform, rot))
+        .member<float>("scale", 3, offsetof(Transform, scale));
 
     ecs.component<GlobalTransform>()
-        .member<double>("pos", 3, 0)
+        .member<double>("pos", 3, offsetof(GlobalTransform, pos))
         .member<float>("rot", 4, offsetof(GlobalTransform, rot))
         .member<float>("scale", 3, offsetof(GlobalTransform, scale));
 
     ecs.component<CellCoord>().member<int64_t>("x").member<int64_t>("y").member<int64_t>("z");
 
     ecs.component<LocalFloatingOrigin>()
-        .member<int64_t>("cellX")
-        .member<int64_t>("cellY")
-        .member<int64_t>("cellZ")
-        .member<float>("translation", 3, 3 * sizeof(int64_t))
-        .member<double>("rotation", 4, 3 * sizeof(int64_t) + 3 * sizeof(float))
-        .member<double>("transform", 16, 3 * sizeof(int64_t) + 3 * sizeof(float) + 4 * sizeof(double))
-        .member<bool>("is_unchanged", 1, 3 * sizeof(int64_t) + 3 * sizeof(float) + 4 * sizeof(double) + sizeof(bool));
+        .member<int64_t>("cell", 3, offsetof(LocalFloatingOrigin, cell))
+        .member<float>("translation", 3, offsetof(LocalFloatingOrigin, translation))
+        .member<double>("rotation", 4, offsetof(LocalFloatingOrigin, rotation));
 
-    ecs.component<Grid>().member<double>("Cell Size").member<LocalFloatingOrigin>("Local Origin");
+    ecs.component<Grid>()
+        .member<double>("Cell Size", 1, offsetof(Grid, cellSize))
+        .member<LocalFloatingOrigin>("Local Origin", 1, offsetof(Grid, localOrigin));
 
     ecs.component<FloatingOrigin>();
 
@@ -49,8 +47,6 @@ void vp::SpatialModule::register_systems(flecs::world& ecs) {
                 auto cells = it.field<CellCoord>(0);
                 auto transforms = it.field<Transform>(1);
                 const Grid& grid = *it.field<const Grid>(2);
-
-                const float half = static_cast<float>(grid.cellSize * 0.5);
 
                 for (auto i : it) {
                     glm::vec3& p = transforms[i].pos;
@@ -71,19 +67,13 @@ void vp::SpatialModule::register_systems(flecs::world& ecs) {
             root->floatingOrigin = e;
         });
 
-    // ecs.observer<FloatingOrigin>("SpatialModule-ClearFloatingOrigin")
-    //     .event(flecs::OnRemove)
-    //     .each([](flecs::entity e, FloatingOrigin) {
-    //         auto root = e.world().get_mut<SpatialRoot>();
-    //         if (root->floatingOrigin == e) {
-    //             root->floatingOrigin = {};
-    //         }
-    //     });
-
     // -- Local floating origin calculation --
     ecs.system("SpatialModule-ComputeLocalFloatingOrigin").kind(flecs::PostUpdate).run([](flecs::iter& iter) {
         SpatialRoot* root = iter.world().get_mut<SpatialRoot>();
         flecs::entity floatingOrigin = root->floatingOrigin;
+        if (!floatingOrigin.is_alive() || !floatingOrigin.has<CellCoord>()) {
+            return;
+        }
         flecs::entity foGridEntity = floatingOrigin.parent(); // assume that the fo is always parent of the grid
         flecs::entity worldGrid = iter.world().lookup("WorldGrid");
 
@@ -96,11 +86,6 @@ void vp::SpatialModule::register_systems(flecs::world& ecs) {
         g->localOrigin.cell = foCell;
         g->localOrigin.translation = foTransform.pos;
         g->localOrigin.rotation = glm::dquat(1.0, 0.0, 0.0, 0.0);
-        // Transform is a DAffine3d
-        g->localOrigin.transform = glm::dmat4{glm::dvec4(g->localOrigin.rotation * glm::dvec3(1.0, 0.0, 0.0), 0.0),
-                                              glm::dvec4(g->localOrigin.rotation * glm::dvec3(0.0, 1.0, 0.0), 0.0),
-                                              glm::dvec4(g->localOrigin.rotation * glm::dvec3(0.0, 0.0, 1.0), 0.0),
-                                              glm::dvec4(g->localOrigin.translation, 1.0)};
 
         flecs::entity currentGrid = foGridEntity;
 
@@ -121,13 +106,10 @@ void vp::SpatialModule::register_systems(flecs::world& ecs) {
             const glm::dvec3 pInChild =
                 glm::dvec3(childLfo.cell) * childGrid->cellSize + glm::dvec3(childLfo.translation);
 
-            glm::dmat3 J(1.0);
-            const glm::dvec3 pProjected = project(childGrid->transition, pInChild, &J);
-
             const glm::dvec3 childOriginInParent =
                 glm::dvec3(*childCell) * parentGrid->cellSize + glm::dvec3(childTransform->pos);
 
-            const glm::dvec3 posLfoInParent = childOriginInParent + pProjected;
+            const glm::dvec3 posLfoInParent = childOriginInParent + pInChild;
 
             const int64_t cx = (int64_t)std::floor(posLfoInParent.x / parentGrid->cellSize);
             const int64_t cy = (int64_t)std::floor(posLfoInParent.y / parentGrid->cellSize);
@@ -136,12 +118,7 @@ void vp::SpatialModule::register_systems(flecs::world& ecs) {
             parentGrid->localOrigin.cell = {cx, cy, cz};
             parentGrid->localOrigin.translation =
                 glm::vec3(posLfoInParent - glm::dvec3(cx, cy, cz) * parentGrid->cellSize);
-            parentGrid->localOrigin.rotation = childLfo.rotation * jacobian_to_quat(J);
-            parentGrid->localOrigin.transform =
-                glm::dmat4{glm::dvec4(parentGrid->localOrigin.rotation * glm::dvec3(1.0, 0.0, 0.0), 0.0),
-                           glm::dvec4(parentGrid->localOrigin.rotation * glm::dvec3(0.0, 1.0, 0.0), 0.0),
-                           glm::dvec4(parentGrid->localOrigin.rotation * glm::dvec3(0.0, 0.0, 1.0), 0.0),
-                           glm::dvec4(parentGrid->localOrigin.translation, 1.0)};
+            parentGrid->localOrigin.rotation = childLfo.rotation;
 
             if (parentGridEntity == worldGrid)
                 break; // stop if we reached the world grid

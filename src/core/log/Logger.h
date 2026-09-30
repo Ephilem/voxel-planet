@@ -54,24 +54,30 @@ public:
     void error(const std::string& message);
     void fatal(const std::string& message);
 
+    // The level is tested before formatting, so a filtered out message costs nothing
     template <typename... Args> void trace(fmt::format_string<Args...> format, Args&&... args) {
-        trace(fmt::format(format, std::forward<Args>(args)...));
+        if (Level::TRACE_LEVEL >= m_minimumLevel)
+            trace(fmt::format(format, std::forward<Args>(args)...));
     }
 
     template <typename... Args> void debug(fmt::format_string<Args...> format, Args&&... args) {
-        debug(fmt::format(format, std::forward<Args>(args)...));
+        if (Level::DEBUG_LEVEL >= m_minimumLevel)
+            debug(fmt::format(format, std::forward<Args>(args)...));
     }
 
     template <typename... Args> void info(fmt::format_string<Args...> format, Args&&... args) {
-        info(fmt::format(format, std::forward<Args>(args)...));
+        if (Level::INFO_LEVEL >= m_minimumLevel)
+            info(fmt::format(format, std::forward<Args>(args)...));
     }
 
     template <typename... Args> void warning(fmt::format_string<Args...> format, Args&&... args) {
-        warning(fmt::format(format, std::forward<Args>(args)...));
+        if (Level::WARNING_LEVEL >= m_minimumLevel)
+            warning(fmt::format(format, std::forward<Args>(args)...));
     }
 
     template <typename... Args> void error(fmt::format_string<Args...> format, Args&&... args) {
-        error(fmt::format(format, std::forward<Args>(args)...));
+        if (Level::ERROR_LEVEL >= m_minimumLevel)
+            error(fmt::format(format, std::forward<Args>(args)...));
     }
 
     template <typename... Args> void fatal(fmt::format_string<Args...> format, Args&&... args) {

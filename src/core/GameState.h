@@ -9,6 +9,4 @@ struct GameState {
     std::unique_ptr<AssetRegistry> assetRegistry;
 
     bool isRunning = true;
-    double deltaTime = 0.0;
-    double lastTime = 0.0;
 };

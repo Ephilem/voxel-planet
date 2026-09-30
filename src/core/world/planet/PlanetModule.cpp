@@ -3,7 +3,6 @@
 #include "core/TracyIntegration.h"
 #include "core/world/planet/PlanetSurfaceChunkGenerator.h"
 #include "core/world/spatial/spatial_components.h"
-#include "generator/PlanetTerrainSampler.h"
 #include "planet_components.h"
 #include "planet_transform.h"
 #include "PlanetSurfaceChunkStore.h"
@@ -14,8 +13,6 @@ void PlanetModule::register_components(flecs::world& ecs) {
     ecs.component<Planet>();
     ecs.component<PlanetTerrainParams>();
 
-    ecs.component<PlanetTerrainSampler>();
-
     ecs.component<PlanetSurfaceChunkStore>();
     ecs.component<PlanetSurfaceChunkGeneratorComp>();
     ecs.component<PlanetChunkLoader>();
@@ -23,25 +20,17 @@ void PlanetModule::register_components(flecs::world& ecs) {
 }
 
 void PlanetModule::register_systems(flecs::world& ecs) {
-    ecs.observer<const PlanetTerrainParams>("PlanetModule-ResyncTerrainGenerators")
-        .event(flecs::OnSet)
-        .each([](flecs::entity e, const PlanetTerrainParams& params) {
-            e.set<PlanetTerrainSampler>(PlanetTerrainSampler(params));
-        });
-
     ecs.observer<const PlanetTerrainParams, const Planet>("PlanetModule-SetupChunkGenerator")
         .without<PlanetSurfaceChunkGeneratorComp>()
         .event(flecs::OnAdd)
         .each([](flecs::entity e, const PlanetTerrainParams& params, const Planet& comp) {
-            auto* existing = e.get<PlanetSurfaceChunkGeneratorComp>();
-            if (existing) {
+            const auto* registry = e.world().get<PlanetVoxelRegistry>();
+            if (registry == nullptr) {
+                LOG_ERROR("PlanetModule", "No PlanetVoxelRegistry, chunk generator not created for {}", e.name().c_str());
                 return;
             }
 
-            flecs::world ecs = e.world();
-            auto registryRef = ecs.get_ref<const PlanetVoxelRegistry>();
-
-            auto generator = std::make_unique<PlanetSurfaceChunkGenerator>(params, double(comp.radius), registryRef);
+            auto generator = std::make_unique<PlanetSurfaceChunkGenerator>(params, double(comp.radius), *registry);
 
             e.set<PlanetSurfaceChunkGeneratorComp>({.generator = std::move(generator)});
             e.emplace<PlanetSurfaceChunkStore>();

@@ -20,30 +20,6 @@ inline AssetID hash_string_runtime(std::string_view str) noexcept {
     return static_cast<AssetID>(hash_fnv1a(str));
 }
 
-/**
- * Method that get the string value from a namespace string.
- * @return The value, or the whole string when there is no namespace.
- */
-constexpr std::string_view asset_id_get_value(std::string_view namespaceString) noexcept {
-    const size_t colonPos = namespaceString.find(':');
-    if (colonPos == std::string_view::npos) {
-        return namespaceString;
-    }
-    return namespaceString.substr(colonPos + 1);
-}
-
-/**
- * Method that get the namespace from a namespace string. Returns an empty view if not found.
- * @return The namespace.
- */
-constexpr std::string_view asset_id_get_namespace(std::string_view namespaceString) noexcept {
-    const size_t colonPos = namespaceString.find(':');
-    if (colonPos == std::string_view::npos) {
-        return {};
-    }
-    return namespaceString.substr(0, colonPos);
-}
-
 struct NamedAssetID {
     std::string_view namespaceString;
     AssetID id = AssetID::Invalid;

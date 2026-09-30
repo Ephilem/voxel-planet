@@ -38,10 +38,6 @@ void PlatformModule::register_systems(flecs::world& ecs) {
 
         platform->window->pollEvents();
 
-        double currentTime = glfwGetTime();
-        gameState->deltaTime = currentTime - gameState->lastTime;
-        gameState->lastTime = currentTime;
-
         if (platform->window->shouldClose()) {
             gameState->isRunning = false;
         }

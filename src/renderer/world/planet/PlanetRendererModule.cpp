@@ -48,12 +48,10 @@ void PlanetRendererModule::register_pipelines(flecs::world& ecs) {}
 void PlanetRendererModule::register_systems(flecs::world& ecs) {
     ecs.observer<const PlanetTileLodComp, const PlanetTerrainParams, const Planet>("PlanetRendererModule-SetupStreamer")
         .event(flecs::OnAdd)
-        .each([](flecs::entity e, const PlanetTileLodComp& lod, const PlanetTerrainParams& terrainParams,
-                 const Planet& comp) {
+        .each([](flecs::entity e, const PlanetTileLodComp&, const PlanetTerrainParams& terrainParams, const Planet&) {
             auto* streamer = e.get<PlanetTileStreamComp>();
             if (!streamer) {
-                auto generator =
-                    std::make_unique<PlanetTileGenerator>(terrainParams, PLANET_TILE_ATLAS_RESOLUTION, comp.radius);
+                auto generator = std::make_unique<PlanetTileGenerator>(terrainParams, PLANET_TILE_ATLAS_RESOLUTION);
 
                 // preload pinned level
                 for (uint8_t face = 0; face < 6; ++face)
@@ -155,8 +153,9 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
             while (it.next()) {
                 auto renderer = it.field<const Renderer>(0);
 
+                // continue, not return: an iterator left before next() returns false has to be fini()'d
                 if (!renderer->frameContext.frameActive) {
-                    return;
+                    continue;
                 }
 
                 m_tileAtlas->begin_frame();
@@ -172,7 +171,7 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
                 auto renderer = it.field<const Renderer>(0);
 
                 if (!renderer->frameContext.frameActive) {
-                    return;
+                    continue;
                 }
 
                 m_surfaceChunkRenderer->upload_chunk_to_gpu(renderer->frameContext.commandList);
@@ -187,13 +186,12 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
         .term_at(3)
         .parent()
         .kind(flecs::OnStore)
-        .each([this](flecs::entity e, const Renderer& renderer, Camera3d& camera, const Planet playerPlanet,
-                     const GlobalTransform planetTransform) {
+        .each([this](const Renderer& renderer, Camera3d& camera, const Planet& playerPlanet,
+                     const GlobalTransform& planetTransform) {
             if (!renderer.frameContext.frameActive)
                 return;
-            VOXEL_ZONE_N("PlanetTileRenderer-Render");
+            VOXEL_ZONE_N("PlanetSurfaceChunkRenderer-Render");
             m_surfaceChunkRenderer->render(renderer.frameContext.commandList, camera, planetTransform, playerPlanet);
-            flecs::world ecs = e.world();
         });
 
     ecs.system<const Renderer, Camera3d>("PlanetRendererModule-RenderTile")
@@ -212,17 +210,17 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
 void PlanetRendererModule::register_submodules(flecs::world& ecs) {}
 
 void PlanetRendererModule::register_entities(flecs::world& ecs) {
-    std::vector<AssetID> texturesUsed;
     const auto* registry = ecs.get<PlanetVoxelRegistry>();
+    if (registry == nullptr) {
+        LOG_ERROR("PlanetRendererModule", "No PlanetVoxelRegistry, PlanetModule must be imported first");
+        return;
+    }
 
-    for (auto& block : registry->get_all()) {
+    std::vector<AssetID> texturesUsed;
+    for (const auto& block : registry->get_all()) {
         texturesUsed.push_back(block.texture);
     }
 
     m_voxelTextureManager->register_textures(texturesUsed);
-
-    const auto* voxelRegistry = ecs.get<PlanetVoxelRegistry>();
-    if (voxelRegistry != nullptr) {
-        m_voxelRenderTable->build(*voxelRegistry, *m_voxelTextureManager);
-    }
+    m_voxelRenderTable->build(*registry, *m_voxelTextureManager);
 }

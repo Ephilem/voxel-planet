@@ -9,11 +9,6 @@
 #include "core/log/Logger.h"
 
 namespace vp {
-PlanetTileAtlas::~PlanetTileAtlas() {
-    m_texture = nullptr;
-    m_sampler = nullptr;
-}
-
 void PlanetTileAtlas::begin_frame() {
     ++m_currentFrame;
 }

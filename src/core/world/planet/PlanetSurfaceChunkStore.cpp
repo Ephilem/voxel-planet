@@ -15,17 +15,6 @@ void PlanetSurfaceChunkStore::store(const PlanetSurfaceChunkKey& key, std::share
     m_changedChunks[key] = existed ? ChunkChangeKind::Updated : ChunkChangeKind::Added;
 }
 
-bool PlanetSurfaceChunkStore::remove(const PlanetSurfaceChunkKey& key) {
-    if (m_chunks.contains(key)) {
-        m_chunks.erase(key);
-        m_lastChunk = nullptr;
-        m_lastKey = {};
-        m_changedChunks[key] = ChunkChangeKind::Removed;
-        return true;
-    }
-    return false;
-}
-
 std::shared_ptr<PlanetSurfaceVoxelChunk> PlanetSurfaceChunkStore::find(const PlanetSurfaceChunkKey& key) const {
     // fast find
     if (m_lastKey == key) {
@@ -55,17 +44,6 @@ bool PlanetSurfaceChunkStore::contains(const PlanetSurfaceChunkKey& key) const {
     return found;
 }
 
-std::optional<PlanetSurfaceChunkBlockInfo> PlanetSurfaceChunkStore::voxel_at(CubemapFace face, uint8_t level,
-                                                                             glm::ivec3 voxelPos) const {
-    PlanetSurfaceChunkKey key(face, level, voxelPos);
-    if (const auto chunk = find(key)) {
-        glm::ivec3 localPos = glm::ivec3{voxelPos.x - (key.x * CHUNK_SIZE), voxelPos.y - (key.y * CHUNK_SIZE),
-                                         voxelPos.z - (key.alt * CHUNK_SIZE)};
-        return chunk->at(localPos);
-    }
-    return std::optional<PlanetSurfaceChunkBlockInfo>{};
-}
-
 PlanetSurfaceVoxelChunkNeighbors PlanetSurfaceChunkStore::neighbors_of(const PlanetSurfaceChunkKey& key) const {
     const auto offset = [&](int dx, int dy, int dalt) {
         PlanetSurfaceChunkKey k = key;
@@ -84,15 +62,5 @@ PlanetSurfaceVoxelChunkNeighbors PlanetSurfaceChunkStore::neighbors_of(const Pla
     neighbors.nz = offset(0, 0, -1);
 
     return neighbors;
-}
-
-void PlanetSurfaceChunkStore::clear() {
-    for (const auto& [key, chunk] : m_chunks) {
-        m_changedChunks[key] = ChunkChangeKind::Removed;
-    }
-
-    m_chunks.clear();
-    m_lastChunk = nullptr;
-    m_lastKey = {};
 }
 } // namespace vp

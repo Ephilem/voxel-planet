@@ -2,8 +2,6 @@
 
 #define GLFW_INCLUDE_VULKAN
 
-#include "vulkan_type.inl"
-
 #include <GLFW/glfw3.h>
 
 #include <chrono>
@@ -25,8 +23,6 @@ typedef struct RenderParameters {
 
 class VulkanBackend {
 public:
-    // ResourceSystem resourceSystem;
-
 #ifdef TRACY_ENABLE
     tracy::VkCtx* tracyVkCtx = nullptr;
 #endif
@@ -60,13 +56,9 @@ public:
 
     uint32_t get_swapchain_image_count() const { return static_cast<uint32_t>(m_swapchainTextures.size()); }
 
-    nvrhi::FramebufferHandle get_swapchain_framebuffer(uint32_t index) const;
-
     nvrhi::TextureHandle get_current_texture() const { return m_swapchainTextures[m_imageIndex]; }
 
     VkExtent2D get_swapchain_extent() const { return m_swapchain.extent; }
-
-    VmaAllocator get_vma_allocator() const { return m_vmaAllocator; }
 
     /**
      * Index of the current frame in flight, mapped to MAX_FRAMES_IN_FLIGHT. This is used for syncing and command list
@@ -88,7 +80,6 @@ private:
     vkb::Swapchain m_swapchain;
     std::vector<nvrhi::TextureHandle> m_swapchainTextures;
     std::vector<nvrhi::FramebufferHandle> m_swapchainFramebuffers;
-    nvrhi::TextureHandle m_depthTexture;
     std::vector<nvrhi::CommandListHandle> m_commandLists;
 
     nvrhi::Format m_depthFormat;
@@ -97,10 +88,6 @@ private:
     uint32_t m_imageIndex;
     uint32_t m_acquiredSemaphoreIndex = 0;
     uint32_t m_commandListIndex = 0; // mapped to MAX_FRAMES_IN_FLIGHT
-
-    VmaAllocator m_vmaAllocator;
-
-    bool m_windowVisible = true;
 
     // Resize tracking
     bool m_isResizing = false;

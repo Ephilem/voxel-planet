@@ -1,7 +1,6 @@
 #pragma once
 #include <blockingconcurrentqueue.h>
 #include <concurrentqueue.h>
-#include <flecs.h>
 #include <thread>
 #include <unordered_set>
 #include <vector>
@@ -13,8 +12,8 @@
 namespace vp {
 class PlanetSurfaceChunkGenerator {
 public:
-    PlanetSurfaceChunkGenerator(PlanetTerrainParams params, double planetRadius,
-                                flecs::ref<const PlanetVoxelRegistry> registry, unsigned workerCount = 0);
+    PlanetSurfaceChunkGenerator(PlanetTerrainParams params, double planetRadius, const PlanetVoxelRegistry& registry,
+                                unsigned workerCount = 0);
     ~PlanetSurfaceChunkGenerator();
 
     PlanetSurfaceChunkGenerator(const PlanetSurfaceChunkGenerator&) = delete;
@@ -26,8 +25,6 @@ public:
     };
 
     void request(const PlanetSurfaceChunkKey& key, float priority = 0.F);
-
-    void cancel(const PlanetSurfaceChunkKey& key);
 
     template <class Fn> void reprioritize(Fn&& priorityCalculationMethod) {
         std::erase_if(m_pending, [&](Pending& p) {
@@ -86,8 +83,8 @@ private:
 
     PlanetTerrainParams m_params;
     double m_planetRadius;
-    mutable flecs::ref<const PlanetVoxelRegistry>
-        m_registry; // flecs::ref because it can be reallocated. flecs::ref prevent that problem
+    VoxelID m_stoneId;
+    VoxelID m_grassId;
 
     moodycamel::BlockingConcurrentQueue<PlanetSurfaceChunkKey> m_requestQueue;
     moodycamel::ConcurrentQueue<PlanetSurfaceChunkGenerationResult> m_resultQueue;

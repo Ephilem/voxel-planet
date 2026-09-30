@@ -9,7 +9,10 @@
 #include "platform/PlatformState.h"
 
 Window::Window(uint16_t w, uint16_t h, const std::string& t) : width(w), height(h), title(t) {
-    glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_WAYLAND);
+    // Prefer Wayland when available, otherwise let GLFW pick (X11, Win32...)
+    if (glfwPlatformSupported(GLFW_PLATFORM_WAYLAND)) {
+        glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_WAYLAND);
+    }
     if (!glfwInit()) {
         throw std::runtime_error("Failed to initialize GLFW");
     }
@@ -36,12 +39,6 @@ bool Window::shouldClose() const {
 
 void Window::pollEvents() const {
     glfwPollEvents();
-}
-
-glm::ivec2 Window::getFramebufferSize() const {
-    int width, height;
-    glfwGetFramebufferSize(window, &width, &height);
-    return {width, height};
 }
 
 void Window::setupCallbacks(flecs::world& ecs) {

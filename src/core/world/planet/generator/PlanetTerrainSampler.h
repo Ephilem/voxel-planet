@@ -31,17 +31,12 @@ public:
         void resize(int count);
     };
 
-    float sample_height(const glm::dvec3& direction, int lod) const;
     void sample_height_batch(const float* dirX, const float* dirY, const float* dirZ, int count, int lod,
-
                              float* outHeights, BatchScratch& scratch) const;
 
     const PlanetTerrainParams& params() const { return m_params; }
 
 private:
-    float fbm(const glm::vec3& position, float freq, int octave) const;
-    float ridged(const glm::vec3& position, float freq, int octave) const;
-
     int octave_for_lod(int lod) const;
 
     /// Somme des amplitudes d'un fractal de `octave` octaves, cad son facteur
@@ -60,7 +55,7 @@ private:
 /**
  * One scratch per thread.
  */
-static PlanetTerrainSampler::BatchScratch& thread_scratch() {
+inline PlanetTerrainSampler::BatchScratch& thread_scratch() {
     thread_local PlanetTerrainSampler::BatchScratch scratch;
     return scratch;
 }

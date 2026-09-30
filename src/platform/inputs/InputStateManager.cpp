@@ -17,18 +17,12 @@ InputStateManager::InputStateManager() {
     bind_action(ActionInputType::Backward, GLFW_KEY_S);
     bind_action(ActionInputType::Left, GLFW_KEY_A);
     bind_action(ActionInputType::Right, GLFW_KEY_D);
-    bind_action(ActionInputType::Up, GLFW_KEY_SPACE);
     bind_action(ActionInputType::Down, GLFW_KEY_LEFT_SHIFT);
-
-    bind_action(ActionInputType::Debug1, GLFW_KEY_F1);
-    bind_action(ActionInputType::Debug2, GLFW_KEY_F2);
-    bind_action(ActionInputType::Debug3, GLFW_KEY_F3);
 
     bind_action(ActionInputType::Accelerate, GLFW_KEY_PAGE_UP);
     bind_action(ActionInputType::Slowdown, GLFW_KEY_PAGE_DOWN);
 
     bind_action(ActionInputType::Jump, GLFW_KEY_SPACE);
-    bind_action(ActionInputType::Sprint, GLFW_KEY_LEFT_SHIFT);
     bind_action(ActionInputType::ToggleControllerMode, GLFW_KEY_F6);
     bind_action(ActionInputType::ToggleCameraView, GLFW_KEY_F5);
 }
@@ -36,21 +30,11 @@ InputStateManager::InputStateManager() {
 InputStateManager::~InputStateManager() {}
 
 void InputStateManager::bind_action(ActionInputType action, int key, int modifier) {
-    // LOG_DEBUG("InputStateManager", "Binding action {} to key {} with modifier {}", static_cast<int>(action), key,
-    // modifier);
     m_actionKeyBindings[action].emplace_back(key, modifier);
 }
 
 void InputStateManager::bind_action_mouse(ActionInputType action, int mouseButton, int modifier) {
-    m_actionKeyBindings[action].emplace_back(mouseButton, modifier);
-}
-
-void InputStateManager::unbind_action(ActionInputType action, int key, int modifier) {
-    throw std::runtime_error("Unbinding specific keys not implemented yet");
-}
-
-void InputStateManager::clear_action_bindings(ActionInputType action) {
-    m_actionKeyBindings[action].clear();
+    m_actionKeyBindings[action].push_back(KeyBinding::Mouse(mouseButton, modifier));
 }
 
 bool InputStateManager::is_binding_active(const KeyBinding& binding, const InputState& inputState) const {
@@ -100,8 +84,8 @@ void InputStateManager::capture_input_system(InputState& inputState, PlatformSta
         }
     }
 
-    // Update
-    for (int i = 0; i <= GLFW_KEY_LAST; ++i) {
+    // Update. Codes below GLFW_KEY_SPACE are invalid for glfwGetKey (GLFW_INVALID_ENUM)
+    for (int i = GLFW_KEY_SPACE; i <= GLFW_KEY_LAST; ++i) {
         int state = glfwGetKey(window, i);
         if (state == GLFW_PRESS) {
             if (inputState.keys[i] == KeyState::Up) {

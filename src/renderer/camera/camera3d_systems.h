@@ -5,26 +5,26 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 
-#include "glm/detail/type_quat.hpp"
 #include "renderer/Renderer.h"
 #include "renderer/rendering_components.h"
 
 namespace vp::systems {
-void update_camera_third_person_system(Camera3d& camera, const glm::vec3& cameraPos, const glm::vec3& target,
-                                       const glm::vec3& up) {
+inline void update_camera_third_person_system(Camera3d& camera, const glm::vec3& cameraPos, const glm::vec3& target,
+                                              const glm::vec3& up) {
     camera.viewMatrix = glm::lookAt(cameraPos, target, up);
 }
 
-void update_camera_view_system(Camera3d& camera, const glm::vec3& position, const glm::quat& rot) {
+inline void update_camera_view_system(Camera3d& camera, const glm::vec3& position, const glm::quat& rot) {
     const glm::quat orientation = glm::normalize(rot);
     camera.viewMatrix = glm::mat4_cast(glm::conjugate(orientation)) * glm::translate(glm::mat4(1.0f), -position);
 }
 
-void update_camera_projection_system(Camera3d& camera, const Camera3dParameters& parameters, const Renderer& renderer) {
-    // calculate aspect ratio
-    auto rendererParameters = renderer.backend->renderParameters;
-    camera.aspect_ratio =
-        static_cast<glm::float32>(rendererParameters.width) / static_cast<glm::float32>(rendererParameters.height);
+/// Reverse-Z, infinite far plane
+inline void update_camera_projection_system(Camera3d& camera, const Camera3dParameters& parameters,
+                                            const Renderer& renderer) {
+    const auto& rendererParameters = renderer.backend->renderParameters;
+    if (rendererParameters.width == 0 || rendererParameters.height == 0)
+        return;
 
     const float f = 1.0f / std::tan(glm::radians(parameters.fov) * 0.5f);
     const float aspect = float(rendererParameters.width) / float(rendererParameters.height);

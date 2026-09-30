@@ -37,11 +37,6 @@ struct LookAngles {
     float roll = 0.0f;
 };
 
-struct SpatialCoordinate {
-    CellCoord cell;
-    Transform transform;
-};
-
 // Transform in the camera space, used for rendering
 struct GlobalTransform {
     glm::dvec3 pos{0.0};
@@ -54,29 +49,17 @@ struct GlobalTransform {
 // Not a component, but contain information about the local floating origin from the grid.
 struct LocalFloatingOrigin {
     CellCoord cell;
-    glm::vec3 translation;
-    glm::dquat rotation;
-
-    glm::dmat4 transform;
-    bool is_unchanged;
+    glm::vec3 translation{0.f};
+    glm::dquat rotation{1.0, 0.0, 0.0, 0.0};
 };
 
 // Tags
 struct FloatingOrigin {};
 
-enum class TransitionKind : u_int8_t { Linear, CubeToSphere };
-
-struct GridTransition {
-    TransitionKind kind = TransitionKind::Linear;
-    double radius = 0.0;
-    glm::dmat3 faceBasis{1.0}; // columns : right, face normal, forward
-};
-
 // Spatial grid
 struct Grid {
     double cellSize = 10'000.0; // in meter
     LocalFloatingOrigin localOrigin{};
-    GridTransition transition{};
 
     /**
      * Get the local grid position based on the cell coordinate and the local position within the cell.
@@ -86,15 +69,6 @@ struct Grid {
      */
     inline glm::dvec3 get_hp_grid_pos(const CellCoord& cell, const glm::vec3& localPos) const {
         return glm::dvec3(cell * cellSize) + glm::dvec3(localPos);
-    }
-
-    inline glm::dvec3 get_hp_grid_pos(const SpatialCoordinate coord) const {
-        return get_hp_grid_pos(coord.cell, coord.transform.pos);
-    }
-
-    inline SpatialCoordinate get_grid_spatial_coord(const glm::dvec3& pos) const {
-        const glm::dvec3 c = glm::round(pos / cellSize);
-        return {CellCoord(glm::i64vec3(c)), {glm::vec3(pos - c * cellSize), {}, glm::vec3(1.0f)}};
     }
 };
 

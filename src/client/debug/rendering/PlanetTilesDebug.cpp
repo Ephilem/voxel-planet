@@ -56,7 +56,7 @@ void PlanetTilesDebug::draw_lod() {
 
     ImGui::Text("Leaves:        %u", s.leafCount);
     ImGui::Text("Draw items:    %zu", drawList ? drawList->drawItems.size() : 0);
-    ImGui::Text("Splits/merges: %u / %u (balance %u)", s.splits, s.merges, s.balanceSplits);
+    ImGui::Text("Splits/merges: %u / %u", s.splits, s.merges);
 }
 
 void PlanetTilesDebug::draw_generator() {
@@ -93,7 +93,6 @@ void PlanetTilesDebug::draw_atlas(flecs::world& ecs) {
 
     ImGui::Text("Uploads:   %u", a.uploads);
     ImGui::Text("Evictions: %u", a.evictions);
-    ImGui::Text("Expired:   %u", a.expired);
     ImGui::Text("Failed:    %u", a.failedUploads);
 
     if (ref->renderer == nullptr) {

@@ -12,23 +12,7 @@ PlanetVoxelTextureManager::PlanetVoxelTextureManager(VulkanBackend* backend, Res
     m_backend = backend;
     m_resourceSystem = resourceSystem;
 
-    m_slots.resize(MAX_VOXEL_TEXTURE_SLOTS, AssetID::Invalid);
-
     init_gpu();
-}
-
-PlanetVoxelTextureManager::~PlanetVoxelTextureManager() {
-    m_textureArray = nullptr;
-    m_bindingLayout = nullptr;
-    m_bindingSet = nullptr;
-    m_sampler = nullptr;
-
-    // Mipmap generator
-    m_mipmapGenerator.computeShader = nullptr;
-    m_mipmapGenerator.pipeline = nullptr;
-    m_mipmapGenerator.bindingLayout = nullptr;
-    m_mipmapGenerator.linearSampler = nullptr;
-    m_mipmapGenerator.initialized = false;
 }
 
 void PlanetVoxelTextureManager::init_gpu() {
@@ -154,7 +138,6 @@ void PlanetVoxelTextureManager::register_textures(std::span<const AssetID> textu
 
         const TextureSlot newSlot = static_cast<TextureSlot>(m_nextFreeSlot++);
         m_slotByTexture[textureID] = newSlot;
-        m_slots[newSlot] = textureID;
         m_toUploadList.push_back(textureID);
         LOG_TRACE("VoxelTextureManager", "Registered texture ID {} to slot {}", textureID, newSlot);
     }
@@ -194,24 +177,24 @@ void PlanetVoxelTextureManager::upload_pending(nvrhi::ICommandList* cmd) {
         } catch (const std::exception& e) {
             LOG_ERROR("VoxelTextureManager", "Failed to load texture ID {}: {}. Falling back to checkerboard",
                       textureID, e.what());
-            it->second = VOXEL_TEXTURE_FALLBACK_SLOT;
-            m_slots[slotIndex] = AssetID::Invalid;
-            continue;
         }
 
         // The rowPitch below assumes exactly VOXEL_TEXTURE_SIZE pixels per row, so anything
         // else would be read with the wrong stride rather than merely look wrong.
-        if (textureRes->width != VOXEL_TEXTURE_SIZE || textureRes->height != VOXEL_TEXTURE_SIZE) {
+        if (textureRes && (textureRes->width != VOXEL_TEXTURE_SIZE || textureRes->height != VOXEL_TEXTURE_SIZE)) {
             LOG_ERROR("VoxelTextureManager",
                       "Texture ID {} must be exactly {}x{}, got {}x{}. Falling back to checkerboard", textureID,
                       VOXEL_TEXTURE_SIZE, VOXEL_TEXTURE_SIZE, textureRes->width, textureRes->height);
-            it->second = VOXEL_TEXTURE_FALLBACK_SLOT;
-            m_slots[slotIndex] = AssetID::Invalid;
-            continue;
+            textureRes.reset();
         }
 
         // rowPitch = VOXEL_TEXTURE_SIZE pixels * 4 bytes per pixel (RGBA8)
-        cmd->writeTexture(m_textureArray, slotIndex, 0, textureRes->get_data(), VOXEL_TEXTURE_SIZE * 4);
+        if (textureRes) {
+            cmd->writeTexture(m_textureArray, slotIndex, 0, textureRes->get_data(), VOXEL_TEXTURE_SIZE * 4);
+        } else {
+            const auto checkerboard = generate_checkerboard_texture();
+            cmd->writeTexture(m_textureArray, slotIndex, 0, checkerboard.data(), VOXEL_TEXTURE_SIZE * 4);
+        }
 
         generate_mipmaps(cmd, slotIndex);
 

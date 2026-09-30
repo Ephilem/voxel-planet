@@ -117,30 +117,6 @@ inline double planet_node_size(double radius, uint8_t level) {
     return planet_face_size(radius) / double(1u << level);
 }
 
-inline double planet_voxel_size(double radius, uint8_t maxLevel, uint32_t chunkSize = CHUNK_SIZE) {
-    return planet_node_size(radius, maxLevel) / double(chunkSize);
-}
-
-inline double planet_radius_for_voxel_size(double voxelSize, uint8_t maxLevel, uint32_t chunkSize = CHUNK_SIZE) {
-    return voxelSize * double(chunkSize) * double(1u << maxLevel) / 1.5707963267948966192; // / (pi/2)
-}
-
-inline double planet_snap_radius(double radius, uint8_t maxLevel, uint32_t chunkSize = CHUNK_SIZE) {
-    const double voxels = std::round(planet_voxel_size(radius, maxLevel, chunkSize));
-    return planet_radius_for_voxel_size(voxels < 1.0 ? 1.0 : voxels, maxLevel, chunkSize);
-}
-
-/**
- * Whether the voxel size is a whole number of meters, within a millimeter.
- *
- * A radius rounded to the meter cannot hit the target exactly, since the pi/2
- * factor is irrational, so an exact test would reject every usable value
- */
-inline bool planet_is_voxel_aligned(double radius, uint8_t maxLevel, uint32_t chunkSize = CHUNK_SIZE) {
-    const double voxel = planet_voxel_size(radius, maxLevel, chunkSize);
-    return std::abs(voxel - std::round(voxel)) < 1e-3;
-}
-
 inline double planet_chunk_voxel_size(uint8_t level) {
     return PLANET_VOXEL_SIZE_LOD0 * double(1U << level);
 }

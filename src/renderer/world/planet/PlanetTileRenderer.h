@@ -1,12 +1,13 @@
 #pragma once
 #include <vector>
 
+#include <flecs.h>
 #include <glm/glm.hpp>
 
 #include "core/resource/ResourceSystem.h"
 #include "planet_rendering_components.h"
 #include "PlanetTileAtlas.h"
-#include "renderer/IRenderPass.h"
+#include "renderer/rendering_components.h"
 
 namespace vp {
 /**

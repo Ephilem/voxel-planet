@@ -6,7 +6,6 @@
 
 #include "core/main_components.h"
 #include "core/physics/physics_components.h"
-#include "core/world/spatial/spatial_prefabs.h"
 #include "debug/DebugUIModule.h"
 #include "player/player_components.h"
 #include "player/PlayerClientModule.h"

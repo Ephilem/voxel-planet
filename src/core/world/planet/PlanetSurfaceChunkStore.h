@@ -4,7 +4,6 @@
 #include "core/world/planet/planet_types.h"
 
 #include <memory>
-#include <optional>
 #include <unordered_map>
 
 namespace vp {
@@ -15,13 +14,9 @@ public:
     PlanetSurfaceChunkStore() { VOXEL_ZONE_N("CreateStore"); };
 
     void store(const PlanetSurfaceChunkKey& key, std::shared_ptr<PlanetSurfaceVoxelChunk> chunk);
-    bool remove(const PlanetSurfaceChunkKey& key);
 
     [[nodiscard]] std::shared_ptr<PlanetSurfaceVoxelChunk> find(const PlanetSurfaceChunkKey& key) const;
     [[nodiscard]] bool contains(const PlanetSurfaceChunkKey& key) const;
-
-    [[nodiscard]] std::optional<PlanetSurfaceChunkBlockInfo> voxel_at(CubemapFace face, uint8_t level,
-                                                                      glm::ivec3 voxelPos) const;
 
     [[nodiscard]] size_t size() const { return m_chunks.size(); }
 
@@ -49,8 +44,6 @@ public:
     void clear_changed_chunks() { m_changedChunks.clear(); }
 
     [[nodiscard]] PlanetSurfaceVoxelChunkNeighbors neighbors_of(const PlanetSurfaceChunkKey& key) const;
-
-    void clear();
 
 private:
     std::unordered_map<PlanetSurfaceChunkKey, std::shared_ptr<PlanetSurfaceVoxelChunk>> m_chunks;

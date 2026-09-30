@@ -13,8 +13,7 @@ namespace vp {
  */
 class PlanetTileGenerator {
 public:
-    explicit PlanetTileGenerator(PlanetTerrainParams params, uint16_t resolution, double planetRadius,
-                                 unsigned workerCount = 0);
+    explicit PlanetTileGenerator(PlanetTerrainParams params, uint16_t resolution, unsigned workerCount = 0);
     ~PlanetTileGenerator();
 
     PlanetTileGenerator(const PlanetTileGenerator&) = delete;
@@ -70,7 +69,6 @@ private:
 
     PlanetTerrainParams m_params;
     uint16_t m_resolution;
-    double m_planetRadius;
 
     moodycamel::BlockingConcurrentQueue<PlanetTileKey> m_requestQueue;
     moodycamel::ConcurrentQueue<PlanetTileResult> m_resultQueue;

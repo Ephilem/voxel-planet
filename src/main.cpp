@@ -91,23 +91,6 @@ int main() {
             vp::DebugDraw::Point(pos, COLORS[e.id() % 6]);
         });
 
-        ecs->system<const vp::Grid>("GridOrigin").kind(flecs::PreStore).each([](flecs::entity e, const vp::Grid& grid) {
-            glm::vec3 pos;
-
-            if (const auto* gt = e.get<vp::GlobalTransform>()) {
-                pos = glm::vec3(gt->pos);
-            } else {
-                const glm::dvec3 originRender =
-                    -(glm::dvec3(grid.localOrigin.cell) * grid.cellSize + glm::dvec3(grid.localOrigin.translation));
-                pos = glm::vec3(glm::normalize(originRender) * 100.0);
-            }
-            static constexpr glm::vec4 COLORS[] = {{1.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f, 1.0f},
-                                                   {0.0f, 0.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 0.0f, 1.0f},
-                                                   {1.0f, 0.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 1.0f, 1.0f}};
-
-            vp::DebugDraw::Point(pos, COLORS[e.id() % 6]);
-        });
-
         ecs->app().target_fps(99999).enable_stats().enable_rest().run();
     } catch (const std::exception& e) {
         std::cerr << "Fatal error: " << e.what() << std::endl;

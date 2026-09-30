@@ -8,9 +8,6 @@
 #include "core/TracyIntegration.h"
 #include "renderer/rendering_components.h"
 
-#define VMA_IMPLEMENTATION
-#include <vk_mem_alloc.h>
-
 VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
                                                  VkDebugUtilsMessageTypeFlagsEXT message_types,
                                                  const VkDebugUtilsMessengerCallbackDataEXT* callback_data, void* _) {
@@ -34,8 +31,6 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(VkDebugUtilsMessageSeverityFlag
 
 class DefaultMessageCallback : public nvrhi::IMessageCallback {
 public:
-    static DefaultMessageCallback& GetInstance();
-
     void message(nvrhi::MessageSeverity severity, const char* messageText) override {
         switch (severity) {
         case nvrhi::MessageSeverity::Fatal:
@@ -87,16 +82,6 @@ VulkanBackend::VulkanBackend(GLFWwindow* window, RenderParameters renderParamete
 
     init_nvrhi();
     create_swapchain();
-
-    // init vma for precise buffer manipulation (instead of using nvrhi buffers for everything)
-    VmaAllocatorCreateInfo allocatorCreateInfo{};
-    allocatorCreateInfo.physicalDevice = vkDevice.physical_device;
-    allocatorCreateInfo.device = vkDevice.device;
-    allocatorCreateInfo.instance = instance;
-    allocatorCreateInfo.vulkanApiVersion = VK_API_VERSION_1_3;
-    if (vmaCreateAllocator(&allocatorCreateInfo, &m_vmaAllocator) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create VMA allocator");
-    }
 
 #ifdef TRACY_ENABLE
     // Init tracy for vulkan
@@ -278,7 +263,8 @@ void VulkanBackend::init_nvrhi() {
     deviceDesc.device = vkDevice;
     deviceDesc.graphicsQueue = graphicsQueue;
     deviceDesc.graphicsQueueIndex = graphicsQueueIndex_ret.value();
-    deviceDesc.errorCB = new DefaultMessageCallback();
+    static DefaultMessageCallback s_messageCallback; // must outlive the device
+    deviceDesc.errorCB = &s_messageCallback;
 
     this->device = nvrhi::vulkan::createDevice(deviceDesc);
 }
@@ -374,7 +360,6 @@ void VulkanBackend::destroy_swapchain() {
     m_swapchainFramebuffers.clear();
 
     depthBuffer.Reset();
-    m_depthTexture.Reset();
 
     for (auto& tex : m_swapchainTextures) {
         tex.Reset();
@@ -443,28 +428,28 @@ bool VulkanBackend::begin_frame(nvrhi::CommandListHandle& out_currentCommandList
         m_swapchainDirty = false;
     }
 
-    // If still resizing and swapchain is dirty, skip this frame
-    // if (m_isResizing && m_swapchainDirty) {
-    //     return false;
-    // }
-
     VkResult result;
     int const maxAttempts = 3;
     for (int attempt = 0; attempt < maxAttempts; ++attempt) {
         VOXEL_ZONE_N("Try Acquire Next Image");
         result = vkAcquireNextImageKHR(vkDevice, m_swapchain, UINT64_MAX, semaphore, VK_NULL_HANDLE, &m_imageIndex);
 
-        if ((result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) && attempt < maxAttempts) {
+        if (result == VK_ERROR_OUT_OF_DATE_KHR) {
             VkSurfaceCapabilitiesKHR surfaceCaps;
             vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vkDevice.physical_device, surface, &surfaceCaps);
 
             renderParameters.width = surfaceCaps.currentExtent.width;
             renderParameters.height = surfaceCaps.currentExtent.height;
 
-            LOG_WARN("VulkanBackend", "Ouch, recreating swapchain");
+            LOG_WARN("VulkanBackend", "Swapchain out of date, recreating it");
             recreate_swapchain();
-        } else
-            break;
+            continue;
+        }
+
+        if (result == VK_SUBOPTIMAL_KHR) {
+            m_swapchainDirty = true;
+        }
+        break;
     }
 
     m_acquiredSemaphoreIndex = (m_acquiredSemaphoreIndex + 1) % m_acquireImageSemaphores.size();
@@ -539,9 +524,6 @@ bool VulkanBackend::present() {
         }
     }
 
-    // On Linux with validation layers, explicitly sync with GPU to prevent memory buildup
-    // vkQueueWaitIdle(presentQueue);
-
     // Track this frame's completion in its slot, so begin_frame() can wait on it before reuse
     nvrhi::EventQueryHandle query;
     if (!m_queryPool.empty()) {
@@ -570,11 +552,8 @@ bool VulkanBackend::present() {
 
 void VulkanBackend::handle_resize(uint32_t width, uint32_t height) {
     if (width == 0 || height == 0) {
-        m_windowVisible = false;
         return;
     }
-
-    m_windowVisible = true;
 
     if (renderParameters.width != width || renderParameters.height != height) {
         renderParameters.width = width;
@@ -586,10 +565,4 @@ void VulkanBackend::handle_resize(uint32_t width, uint32_t height) {
 
         LOG_TRACE("VulkanBackend", "Window resized to {}x{}, marking swapchain dirty", width, height);
     }
-}
-
-nvrhi::FramebufferHandle VulkanBackend::get_swapchain_framebuffer(uint32_t index) const {
-    if (index >= m_swapchainFramebuffers.size())
-        return VK_NULL_HANDLE;
-    return m_swapchainFramebuffers[index];
 }
