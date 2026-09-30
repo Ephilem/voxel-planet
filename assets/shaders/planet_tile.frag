@@ -51,7 +51,7 @@ void main() {
         discard;
     } else if (pc.startFade < inDistance && inDistance < pc.endFade) {
         // transition
-        color = vec3(0,0,0);
+        color *= (inDistance - pc.startFade) / (pc.endFade - pc.startFade);
     }
 
     outColor = vec4(color, 1.0);

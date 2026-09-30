@@ -51,10 +51,11 @@ void PlayerControllerSystem::Register(flecs::world& ecs) {
         });
 
     // --- FreeCam movement ---
-    ecs.system<vp::Transform, PlayerController, Velocity>("PlayerController-FreeCam")
+    ecs.system<vp::Transform, PlayerController, Velocity, const vp::LookAngles>("PlayerController-FreeCam")
         .kind(flecs::OnUpdate)
         .with<Player>()
-        .each([](flecs::entity e, vp::Transform& transform, PlayerController& ctrl, Velocity& vel) {
+        .each([](flecs::entity e, vp::Transform& transform, PlayerController& ctrl, Velocity& vel,
+                 const vp::LookAngles& angles) {
             if (ctrl.mode != ControllerMode::FreeCam)
                 return;
 
@@ -75,12 +76,14 @@ void PlayerControllerSystem::Register(flecs::world& ecs) {
             if (actions->is_action_active(ActionInputType::Slowdown))
                 speed *= 0.25f;
 
-            glm::vec3 worldUp = glm::vec3(0.f, 1.f, 0.f);
+            // Body rotation is aligned on the local up, the head pitch is added so we fly where we look
+            const glm::quat body = glm::normalize(transform.rot);
+            const float pitch = angles.pitch;
+            const glm::quat look = body * glm::angleAxis(glm::radians(pitch), glm::vec3(1.f, 0.f, 0.f));
 
-            const glm::quat orientation = glm::normalize(transform.rot);
-            glm::vec3 forward = orientation * glm::vec3(0.f, 0.f, -1.f);
-            glm::vec3 right = orientation * glm::vec3(1.f, 0.f, 0.f);
-            glm::vec3 up = worldUp;
+            glm::vec3 forward = look * glm::vec3(0.f, 0.f, -1.f);
+            glm::vec3 right = body * glm::vec3(1.f, 0.f, 0.f);
+            glm::vec3 up = body * glm::vec3(0.f, 1.f, 0.f);
 
             glm::vec3 dir = glm::vec3(0.0f);
             if (actions->is_action_active(ActionInputType::Forward))
@@ -105,24 +108,21 @@ void PlayerControllerSystem::Register(flecs::world& ecs) {
             vel = glm::vec3(0.0f);
         });
 
-    ecs.system<vp::Transform, PlayerController>("MouseLookSystem")
+    // Only writes the look angles, Transform.rot is built by PlanetModule-SurfaceAlign
+    ecs.system<vp::LookAngles>("MouseLookSystem")
         .kind(flecs::OnUpdate)
         .with<Camera3d>()
-        .each([](flecs::entity e, vp::Transform& transform, PlayerController& ctrl) {
+        .each([](flecs::entity e, vp::LookAngles& angles) {
             VOXEL_ZONE_N("ClientModule-MouseLook");
             auto* inputState = e.world().get_mut<InputState>();
             if (!inputState->mouseCaptured)
                 return;
 
             float sensitivity = 0.1f;
-            ctrl.yaw -= inputState->mouseDeltaX * sensitivity;
-            ctrl.pitch -= inputState->mouseDeltaY * sensitivity;
+            angles.yaw -= inputState->mouseDeltaX * sensitivity;
+            angles.pitch -= inputState->mouseDeltaY * sensitivity;
 
-            ctrl.yaw = fmod(ctrl.yaw, 360.0f);
-            ctrl.pitch = glm::clamp(ctrl.pitch, -89.0f, 89.0f);
-
-            glm::quat yawQuat = glm::angleAxis(glm::radians(ctrl.yaw), glm::vec3(0, 1, 0));
-            glm::quat pitchQuat = glm::angleAxis(glm::radians(ctrl.pitch), glm::vec3(1, 0, 0));
-            transform.rot = glm::normalize(yawQuat * pitchQuat);
+            angles.yaw = fmod(angles.yaw, 360.0f);
+            angles.pitch = glm::clamp(angles.pitch, -89.0f, 89.0f);
         });
 }

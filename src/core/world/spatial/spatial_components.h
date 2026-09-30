@@ -27,6 +27,16 @@ struct Transform {
     glm::vec3 forward() const { return rot * glm::vec3(0.0f, 0.0f, -1.0f); }
 };
 
+/**
+ * Look angles of an entity, in degrees, written by the input or the AI
+ */
+// TODO maybe in another module
+struct LookAngles {
+    float yaw = 0.0f;
+    float pitch = 0.0f;
+    float roll = 0.0f;
+};
+
 struct SpatialCoordinate {
     CellCoord cell;
     Transform transform;

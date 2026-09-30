@@ -33,6 +33,8 @@ void vp::SpatialModule::register_components(flecs::world& ecs) {
     ecs.component<Grid>().member<double>("Cell Size").member<LocalFloatingOrigin>("Local Origin");
 
     ecs.component<FloatingOrigin>();
+
+    ecs.component<LookAngles>().member<float>("yaw").member<float>("pitch").member<float>("roll");
 }
 
 void vp::SpatialModule::register_systems(flecs::world& ecs) {

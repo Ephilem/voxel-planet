@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <unordered_map>
 
+#include <glm/gtc/quaternion.hpp>
+
 #include "core/log/Logger.h"
 #include "core/resource/asset_id.h"
 #include "planet_types.h"
@@ -32,6 +34,13 @@ struct PlanetChunkLoader {
     uint8_t altitudeDistance = 2;
 
     PlanetSurfaceChunkKey lastCenter;
+};
+
+/**
+ * Align the entity body on the local up of the planet it is in (the entity must be a child of the planet grid)
+ */
+struct SurfaceAligned {
+    glm::quat frame{1.0f, 0.f, 0.f, 0.f}; // tangent frame, frame * Y = local up
 };
 
 struct PlanetVoxelRegistry {

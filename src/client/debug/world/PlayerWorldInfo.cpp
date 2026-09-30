@@ -24,7 +24,8 @@ void PlayerWorldInfo::render(flecs::world& ecs) {
         constexpr float kMetersPerWorldUnit = 1.0f;
         const glm::vec3 positionMeters = transform.pos * kMetersPerWorldUnit;
         const glm::quat orientation = glm::normalize(transform.rot);
-        const glm::vec3 orientationDeg = glm::degrees(glm::eulerAngles(orientation));
+        const vp::LookAngles angles = e.has<vp::LookAngles>() ? *e.get<vp::LookAngles>() : vp::LookAngles{};
+        const glm::vec3 up = orientation * glm::vec3(0.0f, 1.0f, 0.0f);
 
         const vp::Grid* playerGrid = vp::get_first_ancestor_grid(e).get<vp::Grid>();
         const glm::dvec3 inGridPosition =
@@ -35,9 +36,10 @@ void PlayerWorldInfo::render(flecs::world& ecs) {
         ImGui::Text("World Cell: %ld %ld %ld", gridCell.x, gridCell.y, gridCell.z);
         ImGui::Separator();
         ImGui::Text("Orientation:");
-        ImGui::Text("  Pitch: %.2f°", orientationDeg.x);
-        ImGui::Text("  Yaw: %.2f°", orientationDeg.y);
-        ImGui::Text("  Roll: %.2f°", orientationDeg.z);
+        ImGui::Text("  Yaw (body): %.2f°", angles.yaw);
+        ImGui::Text("  Pitch (head): %.2f°", angles.pitch);
+        ImGui::Text("  Roll (head): %.2f°", angles.roll);
+        ImGui::Text("  Local up: %.3f, %.3f, %.3f", up.x, up.y, up.z);
 
         ImGui::Separator();
         ImGui::Text("Player:");
@@ -47,7 +49,8 @@ void PlayerWorldInfo::render(flecs::world& ecs) {
         }
         ImGui::Text("  On Ground: %s", body.onGround ? "Yes" : "No");
 
-        const glm::vec3 forward = orientation * glm::vec3(0.0f, 0.0f, -1.0f);
+        const glm::quat look = orientation * glm::angleAxis(glm::radians(angles.pitch), glm::vec3(1.0f, 0.0f, 0.0f));
+        const glm::vec3 forward = look * glm::vec3(0.0f, 0.0f, -1.0f);
 
         ImGui::Separator();
         ImGui::Text("Looking: %.2f, %.2f, %.2f", forward.x, forward.y, forward.z);

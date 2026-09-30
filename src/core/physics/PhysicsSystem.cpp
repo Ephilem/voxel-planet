@@ -6,6 +6,7 @@
 
 #include "core/debug/DebugDraw.h"
 #include "core/main_components.h"
+#include "core/world/planet/planet_components.h"
 #include "core/world/spatial/spatial_components.h"
 #include "physics_components.h"
 
@@ -27,6 +28,14 @@ void PhysicsSystem::init(flecs::world& ecs) {
         .kind(flecs::OnUpdate)
         .without<RigidBody>()
         .run([this](flecs::iter& it) { apply_velocity(it); });
+
+    ecs.system<const SurfaceAligned, Gravity>("Physics-SurfaceGravitySystem")
+        .kind(flecs::OnUpdate)
+        .each([](const SurfaceAligned& aligned, Gravity& gravity) {
+            const glm::vec3 up = aligned.frame * glm::vec3(0.0f, 1.0f, 0.0f);
+            const glm::vec3 g = -up * glm::length(glm::vec3(gravity));
+            gravity = Gravity(g.x, g.y, g.z);
+        });
 
     ecs.system<const Gravity, Velocity>("Physics-ApplyGravitySystem")
         .kind(flecs::OnUpdate)

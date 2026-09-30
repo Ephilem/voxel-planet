@@ -21,6 +21,9 @@ layout(std430, set = 0, binding = 2) readonly buffer Instances { ChunkInstance i
 
 layout(push_constant) uniform PushConstants {
     mat4 viewProj;
+    
+    float startFade;
+    float endFade;
 } pc;
 
 layout(location = 0) flat out uint outFace;

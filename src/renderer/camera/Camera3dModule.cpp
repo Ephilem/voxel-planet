@@ -29,28 +29,34 @@ void Camera3dModule::register_systems(flecs::world& ecs) {
                                                                                        : CameraViewType::FirstPerson;
         });
 
+    // PostUpdate: must run after PlanetModule-SurfaceAlign, which builds Transform.rot (body) this frame
     ecs.system<Camera3d, const Transform, const Camera3dParameters>("UpdateCameraViewSystem")
-        .kind(flecs::OnUpdate)
+        .kind(flecs::PostUpdate)
         .each([](flecs::entity e, Camera3d& camera, const Transform& transform, const Camera3dParameters& parameters) {
             VOXEL_ZONE_N("Camera-UpdateView");
             glm::vec3 playerPos = glm::vec3(0.f);
             glm::vec3 eyePos = glm::vec3(0.f);
             auto type = parameters.viewType;
 
-            glm::vec3 worldUp = glm::vec3(0.f, 1.f, 0.f);
-            const glm::quat orientation = glm::normalize(transform.rot);
+            // Transform.rot is the body rotation (local up aligned), the head pitch and roll are added on top of it
+            const glm::quat body = glm::normalize(transform.rot);
+            const glm::vec3 up = body * glm::vec3(0.f, 1.f, 0.f);
+            const LookAngles angles = e.has<LookAngles>() ? *e.get<LookAngles>() : LookAngles{};
+            const glm::quat orientation = body *
+                                          glm::angleAxis(glm::radians(angles.pitch), glm::vec3(1.f, 0.f, 0.f)) *
+                                          glm::angleAxis(glm::radians(angles.roll), glm::vec3(0.f, 0.f, -1.f));
 
             if (type == CameraViewType::FirstPerson) {
-                if (auto* body = e.get<RigidBody>()) {
-                    eyePos.y += body->haftExtent.y * 0.75f;
+                if (auto* rigidBody = e.get<RigidBody>()) {
+                    eyePos += up * (rigidBody->haftExtent.y * 0.75f);
                 }
-                systems::update_camera_view_system(camera, eyePos, orientation, worldUp);
+                systems::update_camera_view_system(camera, eyePos, orientation);
             } else if (type == CameraViewType::ThirdPerson) {
                 float distance = 10.0f;
                 glm::vec3 forward = glm::normalize(orientation * glm::vec3(0.f, 0.f, -1.f));
 
                 eyePos = playerPos - forward * distance;
-                systems::update_camera_third_person_system(camera, eyePos, playerPos);
+                systems::update_camera_third_person_system(camera, eyePos, playerPos, up);
             }
         });
 

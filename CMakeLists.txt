@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.25)
 project(VoxelPlanet VERSION 0.1.0 LANGUAGES CXX)
 
+set_property(GLOBAL APPEND PROPERTY JOB_POOLS compile_pool=6 link_pool=1)
+set(CMAKE_JOB_POOL_COMPILE compile_pool)
+set(CMAKE_JOB_POOL_LINK link_pool)
+
 ######
 ###### Versioning: MAJOR.MINOR.PATCH+build.NUMBER.HASH
 ######

@@ -23,7 +23,4 @@ struct PlayerController {
     float freeCamSpeed = 20.0f;
     float freeCamFastMult = 4.0f;
     float freeCamSpeedMultiplier = 1.0f;
-
-    float yaw = 0.0f;
-    float pitch = 0.0f;
 };

@@ -67,8 +67,10 @@ int main() {
             .set<vp::CellCoord>({0, 0, 0})
             .set<vp::GlobalTransform>({})
             .set<vp::Transform>({.pos = {0.f, 667544.f + 1000.f, 0.f}})
+            .set<vp::SurfaceAligned>({})
+            .set<vp::LookAngles>({})
 
-            .set<vp::PlanetChunkLoader>({.loadingDistance = 8, .unloadingDistance = 10, .altitudeDistance = 4})
+            .set<vp::PlanetChunkLoader>({.loadingDistance = 10, .unloadingDistance = 12, .altitudeDistance = 5})
 
             .child_of(earth);
 

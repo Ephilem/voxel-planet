@@ -19,6 +19,7 @@ void PlanetModule::register_components(flecs::world& ecs) {
     ecs.component<PlanetSurfaceChunkStore>();
     ecs.component<PlanetSurfaceChunkGeneratorComp>();
     ecs.component<PlanetChunkLoader>();
+    ecs.component<SurfaceAligned>().member<float>("frame", 4);
 }
 
 void PlanetModule::register_systems(flecs::world& ecs) {
@@ -148,6 +149,29 @@ void PlanetModule::register_systems(flecs::world& ecs) {
                 const int dz = k.alt - center.alt;
                 return ((dx * dx) + (dy * dy) + (dz * dz)) > U * U;
             });
+        });
+
+    // Body rotation follows the local up of the planet
+    ecs.system<SurfaceAligned, Transform, const CellCoord, const Grid, const Planet>("PlanetModule-SurfaceAlign")
+        .kind(flecs::PostUpdate)
+        .term_at(3)
+        .parent()
+        .term_at(4)
+        .parent()
+        .each([](flecs::entity e, SurfaceAligned& aligned, Transform& transform, const CellCoord& cell,
+                 const Grid& grid, const Planet&) {
+            const glm::dvec3 p = grid.get_hp_grid_pos(cell, transform.pos);
+            const double r = glm::length(p);
+
+            if (r > 1.0) {
+                const glm::dvec3 newUp = p / r;
+                const glm::dvec3 curUp = glm::dquat(aligned.frame) * glm::dvec3(0.0, 1.0, 0.0);
+                aligned.frame = glm::quat(glm::normalize(glm::dquat(curUp, newUp) * glm::dquat(aligned.frame)));
+            }
+
+            const auto* angles = e.get<LookAngles>();
+            const float yaw = angles ? angles->yaw : 0.0f;
+            transform.rot = glm::normalize(aligned.frame * glm::angleAxis(glm::radians(yaw), glm::vec3(0.f, 1.f, 0.f)));
         });
 
     ecs.system<PlanetSurfaceChunkGeneratorComp, PlanetSurfaceChunkStore>("PlanetModule-StreamChunks")

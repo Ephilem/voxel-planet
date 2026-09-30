@@ -22,6 +22,6 @@ struct Camera3d {
 
 struct RenderingPreferences {
     // Chunk drawing
-    float chunkFadeStart = 9 * 32; // in meter
+    float chunkFadeStart = 8 * 32; // in meter
     float chunkFadeEnd = 10 * 32;  // in meter
 };
