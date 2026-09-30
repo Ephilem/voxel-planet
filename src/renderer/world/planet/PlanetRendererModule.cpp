@@ -15,8 +15,8 @@
 using namespace vp;
 
 void PlanetRendererModule::init_renderers(flecs::world& ecs) {
-    auto* renderer = ecs.get_mut<Renderer>();
-    auto* gameState = ecs.get_mut<GameState>();
+    auto* renderer = ecs.try_get_mut<Renderer>();
+    auto* gameState = ecs.try_get_mut<GameState>();
 
     m_tileAtlas = std::make_unique<PlanetTileAtlas>(renderer->backend.get());
 
@@ -33,6 +33,8 @@ void PlanetRendererModule::init_renderers(flecs::world& ecs) {
 
     m_chunkMesher = std::make_unique<PlanetSurfaceChunkMesher>(m_voxelRenderTable.get());
 
+    ecs.component<PlanetTileAtlasRef>().add(flecs::Singleton);
+    ecs.component<PlanetSurfaceChunkRenderingRef>().add(flecs::Singleton);
     ecs.set<PlanetTileAtlasRef>({.atlas = m_tileAtlas.get(), .renderer = m_tileRenderer.get()});
     ecs.set<PlanetSurfaceChunkRenderingRef>({.mesher = m_chunkMesher.get(), .renderer = m_surfaceChunkRenderer.get()});
 }
@@ -49,7 +51,7 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
     ecs.observer<const PlanetTileLodComp, const PlanetTerrainParams, const Planet>("PlanetRendererModule-SetupStreamer")
         .event(flecs::OnAdd)
         .each([](flecs::entity e, const PlanetTileLodComp&, const PlanetTerrainParams& terrainParams, const Planet&) {
-            auto* streamer = e.get<PlanetTileStreamComp>();
+            auto* streamer = e.try_get<PlanetTileStreamComp>();
             if (!streamer) {
                 auto generator = std::make_unique<PlanetTileGenerator>(terrainParams, PLANET_TILE_ATLAS_RESOLUTION);
 
@@ -69,8 +71,6 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
         });
 
     ecs.system<const Renderer>("PlanetRendererModule-UploadTextures")
-        .term_at(0)
-        .singleton()
         .kind(flecs::PreStore)
         .run([this](flecs::iter& it) {
             while (it.next()) {
@@ -146,8 +146,6 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
     });
 
     ecs.system<const Renderer>("PlanetRendererModule-BeginFrame")
-        .term_at(0)
-        .singleton()
         .kind(flecs::OnStore)
         .run([this](flecs::iter& it) {
             while (it.next()) {
@@ -163,8 +161,6 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
         });
 
     ecs.system<const Renderer>("PlanetRendererModule-UploadChunkMeshes")
-        .term_at(0)
-        .singleton()
         .kind(flecs::OnStore)
         .run([this](flecs::iter& it) {
             while (it.next()) {
@@ -179,8 +175,6 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
         });
 
     ecs.system<const Renderer, Camera3d, const Planet, const GlobalTransform>("PlanetRendererModule-RenderSurface")
-        .term_at(0)
-        .singleton()
         .term_at(2)
         .parent()
         .term_at(3)
@@ -195,8 +189,6 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
         });
 
     ecs.system<const Renderer, Camera3d>("PlanetRendererModule-RenderTile")
-        .term_at(0)
-        .singleton()
         .kind(flecs::OnStore)
         .each([this](flecs::entity e, const Renderer& renderer, Camera3d& camera) {
             if (!renderer.frameContext.frameActive)
@@ -210,7 +202,7 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
 void PlanetRendererModule::register_submodules(flecs::world& ecs) {}
 
 void PlanetRendererModule::register_entities(flecs::world& ecs) {
-    const auto* registry = ecs.get<PlanetVoxelRegistry>();
+    const auto* registry = ecs.try_get<PlanetVoxelRegistry>();
     if (registry == nullptr) {
         LOG_ERROR("PlanetRendererModule", "No PlanetVoxelRegistry, PlanetModule must be imported first");
         return;

@@ -40,7 +40,7 @@ void PhysicsSystem::init(flecs::world& ecs) {
     ecs.system<const Gravity, Velocity>("Physics-ApplyGravitySystem")
         .kind(flecs::OnUpdate)
         .each([](flecs::entity e, const Gravity& gravity, Velocity& velocity) {
-            if (auto* body = e.get<RigidBody>(); body && body->onGround) {
+            if (auto* body = e.try_get<RigidBody>(); body && body->onGround) {
                 if (velocity.y < 0.0f)
                     velocity.y = 0.0f;
                 return;
@@ -64,7 +64,6 @@ void PhysicsSystem::init(flecs::world& ecs) {
             }
 
             float dt = e.world().delta_time();
-            // auto cm = e.world().get<ChunkManager>();
             int* cm = nullptr;
             if (!cm)
                 return;

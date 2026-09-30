@@ -26,6 +26,7 @@ layout(push_constant) uniform PushConstants {
 layout(location = 0) flat out uint outFace;
 layout(location = 1) flat out uint outTextureSlot;
 layout(location = 2) out vec2 outUv;
+layout(location = 3) flat out vec3 outNormal;
 
 const int CHUNK_SIZE = 32;
 
@@ -63,4 +64,11 @@ void main() {
     else if (face < 4u) uv = vec2(local.x, local.z);
     else uv = vec2(local.x, local.y);
     outUv = uv;
+
+    if (face == 0u) outNormal = vec3(1.0, 0.0, 0.0); // X+
+    else if (face == 1u) outNormal = vec3(-1.0, 0.0, 0.0); // X-
+    else if (face == 2u) outNormal = vec3(0.0, 1.0, 0.0); // Y+
+    else if (face == 3u) outNormal = vec3(0.0, -1.0, 0.0); // Y-
+    else if (face == 4u) outNormal = vec3(0.0, 0.0, 1.0); // Z+
+    else outNormal = vec3(0.0, 0.0, -1.0); // Z-
 }

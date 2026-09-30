@@ -334,7 +334,7 @@ void PlanetLayerViewer::draw_map(flecs::world& ecs) {
     }
 
     if (m_textureDirty) {
-        if (Renderer* renderer = ecs.get_mut<Renderer>()) {
+        if (Renderer* renderer = ecs.try_get_mut<Renderer>()) {
             if (VulkanBackend* backend = renderer->backend.get()) {
                 if (!m_mapTexture.upload(backend, m_pixels.data(), static_cast<uint32_t>(m_imageSize.x),
                                          static_cast<uint32_t>(m_imageSize.y)))
@@ -383,7 +383,7 @@ void PlanetLayerViewer::select_planet(PlanetRepresentation planet) {
 
     // Reload from the entity
     if (planet.entity.is_alive()) {
-        if (const auto* live = planet.entity.get<PlanetTerrainParams>())
+        if (const auto* live = planet.entity.try_get<PlanetTerrainParams>())
             m_selectedPlanet.terrainParams = *live;
     }
 
@@ -396,7 +396,7 @@ void PlanetLayerViewer::apply_generation_params() {
     if (!m_selectedPlanet.entity.is_alive())
         return;
 
-    if (auto* live = m_selectedPlanet.entity.get_mut<PlanetTerrainParams>())
+    if (auto* live = m_selectedPlanet.entity.try_get_mut<PlanetTerrainParams>())
         *live = m_selectedPlanet.terrainParams;
 
     m_appliedParams = m_selectedPlanet.terrainParams;

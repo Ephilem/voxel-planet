@@ -24,7 +24,7 @@ void PlanetModule::register_systems(flecs::world& ecs) {
         .without<PlanetSurfaceChunkGeneratorComp>()
         .event(flecs::OnAdd)
         .each([](flecs::entity e, const PlanetTerrainParams& params, const Planet& comp) {
-            const auto* registry = e.world().get<PlanetVoxelRegistry>();
+            const auto* registry = e.world().try_get<PlanetVoxelRegistry>();
             if (registry == nullptr) {
                 LOG_ERROR("PlanetModule", "No PlanetVoxelRegistry, chunk generator not created for {}", e.name().c_str());
                 return;
@@ -158,7 +158,7 @@ void PlanetModule::register_systems(flecs::world& ecs) {
                 aligned.frame = glm::quat(glm::normalize(glm::dquat(curUp, newUp) * glm::dquat(aligned.frame)));
             }
 
-            const auto* angles = e.get<LookAngles>();
+            const auto* angles = e.try_get<LookAngles>();
             const float yaw = angles ? angles->yaw : 0.0f;
             transform.rot = glm::normalize(aligned.frame * glm::angleAxis(glm::radians(yaw), glm::vec3(0.f, 1.f, 0.f)));
         });
@@ -204,5 +204,6 @@ void PlanetModule::register_entities(flecs::world& ecs) {
 
     reg.register_block(BlockDefinition::Uniform("voxelplanet:grass"_asset, "voxelplanet:textures/grass"_asset));
 
+    ecs.component<PlanetVoxelRegistry>().add(flecs::Singleton);
     ecs.set<PlanetVoxelRegistry>(std::move(reg));
 }

@@ -24,7 +24,7 @@ void PlayerControllerSystem::Register(flecs::world& ecs) {
         .kind(flecs::OnUpdate)
         .with<Player>()
         .each([](flecs::entity e, PlayerController& ctrl, Velocity& vel) {
-            const auto* actions = e.world().get<InputActionState>();
+            const auto* actions = e.world().try_get<InputActionState>();
             if (!actions->is_action_pressed(ActionInputType::ToggleControllerMode))
                 return;
 
@@ -51,8 +51,8 @@ void PlayerControllerSystem::Register(flecs::world& ecs) {
             if (ctrl.mode != ControllerMode::FreeCam)
                 return;
 
-            const auto* actions = e.world().get<InputActionState>();
-            const auto* inputState = e.world().get<InputState>();
+            const auto* actions = e.world().try_get<InputActionState>();
+            const auto* inputState = e.world().try_get<InputState>();
 
             float dt = e.world().delta_time();
 
@@ -106,7 +106,7 @@ void PlayerControllerSystem::Register(flecs::world& ecs) {
         .with<Camera3d>()
         .each([](flecs::entity e, vp::LookAngles& angles) {
             VOXEL_ZONE_N("ClientModule-MouseLook");
-            auto* inputState = e.world().get_mut<InputState>();
+            auto* inputState = e.world().try_get_mut<InputState>();
             if (!inputState->mouseCaptured)
                 return;
 

@@ -25,10 +25,10 @@ void PlayerWorldInfo::render(flecs::world& ecs) {
         constexpr float kMetersPerWorldUnit = 1.0f;
         const glm::vec3 positionMeters = transform.pos * kMetersPerWorldUnit;
         const glm::quat orientation = glm::normalize(transform.rot);
-        const vp::LookAngles angles = e.has<vp::LookAngles>() ? *e.get<vp::LookAngles>() : vp::LookAngles{};
+        const vp::LookAngles angles = e.has<vp::LookAngles>() ? *e.try_get<vp::LookAngles>() : vp::LookAngles{};
         const glm::vec3 up = orientation * glm::vec3(0.0f, 1.0f, 0.0f);
 
-        const vp::Grid* playerGrid = vp::get_first_ancestor_grid(e).get<vp::Grid>();
+        const vp::Grid* playerGrid = vp::get_first_ancestor_grid(e).try_get<vp::Grid>();
         const glm::dvec3 inGridPosition =
             playerGrid ? glm::dvec3(transform.pos) + (gridCell * playerGrid->cellSize) : glm::dvec3(transform.pos);
 
@@ -48,7 +48,7 @@ void PlayerWorldInfo::render(flecs::world& ecs) {
         if (ctrl.mode == ControllerMode::FreeCam) {
             ImGui::Text("  Speed Multiplier: %.2fx", ctrl.freeCamSpeedMultiplier);
         }
-        if (const auto* body = e.get<RigidBody>()) {
+        if (const auto* body = e.try_get<RigidBody>()) {
             ImGui::Text("  On Ground: %s", body->onGround ? "Yes" : "No");
         }
 

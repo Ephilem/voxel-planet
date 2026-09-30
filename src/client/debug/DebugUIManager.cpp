@@ -13,8 +13,9 @@ void DebugUIManager::tick(flecs::world& ecs) {
 }
 
 void DebugUIManager::Register(flecs::world& ecs) {
+    ecs.component<DebugUIManager>().add(flecs::Singleton);
     ecs.set<DebugUIManager>(DebugUIManager{});
-    auto* debugUI = ecs.get_mut<DebugUIManager>();
+    auto* debugUI = ecs.try_get_mut<DebugUIManager>();
 
     ecs.system("DebugUISystem").kind(flecs::PostUpdate).run([debugUI](flecs::iter& it) {
         VOXEL_ZONE_N("DebugUISystem-Tick");
@@ -24,7 +25,6 @@ void DebugUIManager::Register(flecs::world& ecs) {
 
     ecs.system<Renderer, InputActionState>("OpenDebugMenuBarSystem")
         .kind(flecs::OnUpdate)
-        .singleton()
         .each([debugUI](Renderer&, InputActionState& inputState) {
             VOXEL_ZONE_N("DebugUISystem-HandleMenuBarToggle");
             if (inputState.is_action_pressed(ActionInputType::DebugMenuBar)) {

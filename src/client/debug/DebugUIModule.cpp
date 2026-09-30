@@ -19,7 +19,7 @@ void DebugUIModule::register_components(flecs::world& ecs) {
 void DebugUIModule::register_systems(flecs::world& ecs) {
     DebugUIManager::Register(ecs); // TODO make this more ecs friendly by not using a singleton
 
-    auto* debugUI = ecs.get_mut<DebugUIManager>();
+    auto* debugUI = ecs.try_get_mut<DebugUIManager>();
     debugUI->add_panel<FpsCounter>();
     debugUI->add_panel<PlayerWorldInfo>();
     debugUI->add_panel<LogConsole>();

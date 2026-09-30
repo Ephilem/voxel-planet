@@ -12,18 +12,18 @@
 using namespace vp;
 
 void PlatformModule::init(flecs::world& ecs) {
-    auto* platformState = ecs.get_mut<PlatformState>();
+    auto* platformState = ecs.try_get_mut<PlatformState>();
     platformState->window->setupCallbacks(ecs);
 }
 
 void PlatformModule::register_components(flecs::world& ecs) {
-    auto* gameState = ecs.get<GameState>();
+    auto* gameState = ecs.try_get<GameState>();
     if (!gameState) {
         throw std::runtime_error("PlatformModule: CoreModule must be imported before PlatformModule");
     }
 
     ecs.component<WindowResizeEvent>();
-    ecs.component<PlatformState>();
+    ecs.component<PlatformState>().add(flecs::Singleton);
 
     ecs.set<PlatformState>({.window = std::make_unique<Window>(1280, 720, "VoxelPlanet")});
 }
@@ -31,8 +31,8 @@ void PlatformModule::register_components(flecs::world& ecs) {
 void PlatformModule::register_systems(flecs::world& ecs) {
     ecs.system("PlatformModule-Update").kind(flecs::PreUpdate).run([](flecs::iter& it) {
         VOXEL_ZONE_N("PlatformModule-Update");
-        auto* gameState = it.world().get_mut<GameState>();
-        auto* platform = it.world().get_mut<PlatformState>();
+        auto* gameState = it.world().try_get_mut<GameState>();
+        auto* platform = it.world().try_get_mut<PlatformState>();
         if (!gameState || !platform || !platform->window)
             return;
 

@@ -120,7 +120,7 @@ void PlanetTileRenderer::render_planets(nvrhi::CommandListHandle cmd, Camera3d& 
     m_batches.clear();
     m_stats = Stats{};
 
-    const auto* const renderParam = ecs.get<RenderingPreferences>();
+    const auto* const renderParam = ecs.try_get<RenderingPreferences>();
 
     ecs.each([&](flecs::entity e, const PlanetTileDrawListComp& drawList, PlanetTileStreamComp& stream,
                  const Planet& planet, const GlobalTransform& transform) {

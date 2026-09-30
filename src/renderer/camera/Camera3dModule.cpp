@@ -21,7 +21,7 @@ void Camera3dModule::register_systems(flecs::world& ecs) {
     ecs.system<Camera3dParameters>("ToggleCameraViewSystem")
         .kind(flecs::OnUpdate)
         .each([](flecs::entity e, Camera3dParameters& parameters) {
-            const auto* actions = e.world().get<InputActionState>();
+            const auto* actions = e.world().try_get<InputActionState>();
             if (!actions || !actions->is_action_pressed(ActionInputType::ToggleCameraView))
                 return;
             parameters.viewType = (parameters.viewType == CameraViewType::FirstPerson) ? CameraViewType::ThirdPerson
@@ -35,7 +35,7 @@ void Camera3dModule::register_systems(flecs::world& ecs) {
             VOXEL_ZONE_N("Camera-UpdateView");
 
             // Recomputed every frame: the swapchain size changes on resize, and it is a few flops
-            if (const auto* renderer = e.world().get<Renderer>(); renderer && renderer->backend) {
+            if (const auto* renderer = e.world().try_get<Renderer>(); renderer && renderer->backend) {
                 systems::update_camera_projection_system(camera, parameters, *renderer);
             }
 
@@ -46,13 +46,13 @@ void Camera3dModule::register_systems(flecs::world& ecs) {
             // Transform.rot is the body rotation (local up aligned), the head pitch and roll are added on top of it
             const glm::quat body = glm::normalize(transform.rot);
             const glm::vec3 up = body * glm::vec3(0.f, 1.f, 0.f);
-            const LookAngles angles = e.has<LookAngles>() ? *e.get<LookAngles>() : LookAngles{};
+            const LookAngles angles = e.has<LookAngles>() ? *e.try_get<LookAngles>() : LookAngles{};
             const glm::quat orientation = body *
                                           glm::angleAxis(glm::radians(angles.pitch), glm::vec3(1.f, 0.f, 0.f)) *
                                           glm::angleAxis(glm::radians(angles.roll), glm::vec3(0.f, 0.f, -1.f));
 
             if (type == CameraViewType::FirstPerson) {
-                if (auto* rigidBody = e.get<RigidBody>()) {
+                if (auto* rigidBody = e.try_get<RigidBody>()) {
                     eyePos += up * (rigidBody->haftExtent.y * 0.75f);
                 }
                 systems::update_camera_view_system(camera, eyePos, orientation);

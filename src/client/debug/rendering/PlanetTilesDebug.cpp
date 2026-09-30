@@ -78,7 +78,7 @@ void PlanetTilesDebug::draw_generator() {
 void PlanetTilesDebug::draw_atlas(flecs::world& ecs) {
     ImGui::SeparatorText("Atlas");
 
-    const auto* ref = ecs.get<PlanetTileAtlasRef>();
+    const auto* ref = ecs.try_get<PlanetTileAtlasRef>();
     if (ref == nullptr || ref->atlas == nullptr) {
         ImGui::Text("No atlas");
         return;

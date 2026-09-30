@@ -7,7 +7,7 @@
 namespace vp {
 
 void PlanetChunksRenderingDebug::render(flecs::world& ecs) {
-    const auto* ref = ecs.get<PlanetSurfaceChunkRenderingRef>();
+    const auto* ref = ecs.try_get<PlanetSurfaceChunkRenderingRef>();
     if (ref == nullptr || ref->mesher == nullptr || ref->renderer == nullptr) {
         ImGui::Text("No surface chunk renderer");
         return;

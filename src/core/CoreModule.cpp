@@ -12,6 +12,7 @@ void CoreModule::register_components(flecs::world& ecs) {
     ecs.component<Player>();
 
     auto assetRegistry = std::make_unique<AssetRegistry>();
+    ecs.component<GameState>().add(flecs::Singleton);
     ecs.component<GameState>().set<GameState>({.resourceSystem = std::make_unique<ResourceSystem>(assetRegistry.get()),
                                                .assetRegistry = std::move(assetRegistry),
                                                .isRunning = true});

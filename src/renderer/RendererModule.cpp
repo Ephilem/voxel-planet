@@ -21,12 +21,12 @@
 using namespace vp;
 
 void RendererModule::register_components(flecs::world& ecs) {
-    auto* platform = ecs.get<PlatformState>();
+    auto* platform = ecs.try_get<PlatformState>();
     if (!platform || !platform->window) {
         throw std::runtime_error("RendererModule: PlatformModule must be initialized before RendererModule");
     }
 
-    ecs.component<Renderer>();
+    ecs.component<Renderer>().add(flecs::Singleton);
     ecs.set<Renderer>({
         .backend = std::make_unique<VulkanBackend>(platform->window->window,
                                                    RenderParameters{platform->window->width, platform->window->height}),
@@ -34,34 +34,32 @@ void RendererModule::register_components(flecs::world& ecs) {
 }
 
 void RendererModule::register_systems(flecs::world& ecs) {
-    ecs.system<Renderer>("Renderer-BeginFrameSystem")
-        .kind(flecs::PreStore)
-        .each([](flecs::entity e, Renderer& renderer) {
-            VOXEL_ZONE_N("Renderer-BeginFrame");
-            FrameContext& ctx = renderer.frameContext;
-            ctx.frameActive = false;
+    ecs.system<Renderer>("Renderer-BeginFrameSystem").kind(flecs::PreStore).each([](Renderer& renderer) {
+        VOXEL_ZONE_N("Renderer-BeginFrame");
+        FrameContext& ctx = renderer.frameContext;
+        ctx.frameActive = false;
 
-            if (!renderer.backend)
-                return;
+        if (!renderer.backend)
+            return;
 
-            if (renderer.backend->begin_frame(ctx.commandList)) {
-                ctx.commandList->open();
+        if (renderer.backend->begin_frame(ctx.commandList)) {
+            ctx.commandList->open();
 
-                nvrhi::utils::ClearColorAttachment(ctx.commandList, renderer.backend->get_current_framebuffer(), 0,
-                                                   nvrhi::Color(0.0f, 0.0f, 0.0f, 1.0f));
-                nvrhi::utils::ClearDepthStencilAttachment(ctx.commandList, renderer.backend->get_current_framebuffer(),
-                                                          0.0f, 0);
+            nvrhi::utils::ClearColorAttachment(ctx.commandList, renderer.backend->get_current_framebuffer(), 0,
+                                               nvrhi::Color(0.0f, 0.0f, 0.0f, 1.0f));
+            nvrhi::utils::ClearDepthStencilAttachment(ctx.commandList, renderer.backend->get_current_framebuffer(),
+                                                      0.0f, 0);
 
-                nvrhi::TextureHandle currentTexture = renderer.backend->get_current_texture();
-                ctx.commandList->setTextureState(currentTexture, nvrhi::TextureSubresourceSet(0, 1, 0, 1),
-                                                 nvrhi::ResourceStates::RenderTarget);
-                ctx.commandList->commitBarriers();
+            nvrhi::TextureHandle currentTexture = renderer.backend->get_current_texture();
+            ctx.commandList->setTextureState(currentTexture, nvrhi::TextureSubresourceSet(0, 1, 0, 1),
+                                             nvrhi::ResourceStates::RenderTarget);
+            ctx.commandList->commitBarriers();
 
-                ctx.frameActive = true;
-            }
-        });
+            ctx.frameActive = true;
+        }
+    });
 
-    ecs.system<Renderer>("EndFrameSystem").kind(flecs::PostFrame).each([](flecs::entity e, Renderer& renderer) {
+    ecs.system<Renderer>("EndFrameSystem").kind(flecs::PostFrame).each([](Renderer& renderer) {
         VOXEL_ZONE_N("Renderer-EndFrame");
         FrameContext& ctx = renderer.frameContext;
         if (!ctx.frameActive || !ctx.commandList)
@@ -90,7 +88,7 @@ void RendererModule::register_systems(flecs::world& ecs) {
     ecs.observer<PlatformState>().event<WindowResizeEvent>().run([](flecs::iter& it) {
         VOXEL_ZONE_N("PlatformModule-HandleResize");
         auto* evt = it.param<WindowResizeEvent>();
-        auto* renderer = it.world().get_mut<Renderer>();
+        auto* renderer = it.world().try_get_mut<Renderer>();
 
         if (renderer && renderer->backend) {
             renderer->backend->handle_resize(evt->width, evt->height);
@@ -107,5 +105,6 @@ void RendererModule::register_submodules(flecs::world& ecs) {
 }
 
 void RendererModule::register_entities(flecs::world& ecs) {
+    ecs.component<RenderingPreferences>().add(flecs::Singleton);
     ecs.emplace<RenderingPreferences>();
 }

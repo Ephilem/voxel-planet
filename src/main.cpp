@@ -32,7 +32,7 @@ int main() {
 
         ecs->system("ShutdownSystem").kind(flecs::PostFrame).run([](flecs::iter& it) {
             flecs::world world = it.world();
-            auto* gameState = world.get<GameState>();
+            auto* gameState = world.try_get<GameState>();
             if (gameState && !gameState->isRunning) {
                 world.quit();
             }
@@ -77,7 +77,7 @@ int main() {
         ecs->system<const vp::Grid>("GridOrigin").kind(flecs::PreStore).each([](flecs::entity e, const vp::Grid& grid) {
             glm::vec3 pos;
 
-            if (const auto* gt = e.get<vp::GlobalTransform>()) {
+            if (const auto* gt = e.try_get<vp::GlobalTransform>()) {
                 pos = glm::vec3(gt->pos);
             } else {
                 const glm::dvec3 originRender =

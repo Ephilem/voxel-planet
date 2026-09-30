@@ -63,13 +63,13 @@ void vp::SpatialModule::register_systems(flecs::world& ecs) {
     ecs.observer<FloatingOrigin>("SpatialModule-TrackFloatingOrigin")
         .event(flecs::OnAdd)
         .each([](flecs::entity e, FloatingOrigin) {
-            auto root = e.world().get_mut<SpatialRoot>();
+            auto root = e.world().try_get_mut<SpatialRoot>();
             root->floatingOrigin = e;
         });
 
     // -- Local floating origin calculation --
     ecs.system("SpatialModule-ComputeLocalFloatingOrigin").kind(flecs::PostUpdate).run([](flecs::iter& iter) {
-        SpatialRoot* root = iter.world().get_mut<SpatialRoot>();
+        SpatialRoot* root = iter.world().try_get_mut<SpatialRoot>();
         flecs::entity floatingOrigin = root->floatingOrigin;
         if (!floatingOrigin.is_alive() || !floatingOrigin.has<CellCoord>()) {
             return;
@@ -77,12 +77,12 @@ void vp::SpatialModule::register_systems(flecs::world& ecs) {
         flecs::entity foGridEntity = floatingOrigin.parent(); // assume that the fo is always parent of the grid
         flecs::entity worldGrid = iter.world().lookup("WorldGrid");
 
-        CellCoord foCell = *floatingOrigin.get<CellCoord>();
-        const Transform* pFoTransform = floatingOrigin.get<Transform>();
+        CellCoord foCell = *floatingOrigin.try_get<CellCoord>();
+        const Transform* pFoTransform = floatingOrigin.try_get<Transform>();
         auto foTransform = pFoTransform == nullptr ? Transform{} : *pFoTransform;
 
         // Step 1 - Compute foGrid Lfo: Translation from the grid origin to the lfo
-        auto* g = foGridEntity.get_mut<Grid>();
+        auto* g = foGridEntity.try_get_mut<Grid>();
         g->localOrigin.cell = foCell;
         g->localOrigin.translation = foTransform.pos;
         g->localOrigin.rotation = glm::dquat(1.0, 0.0, 0.0, 0.0);
@@ -94,14 +94,14 @@ void vp::SpatialModule::register_systems(flecs::world& ecs) {
             if (!parentGridEntity.is_valid())
                 break;
 
-            const Grid* childGrid = currentGrid.get<Grid>();
-            const CellCoord* childCell = currentGrid.get<CellCoord>();
-            const Transform* childTransform = currentGrid.get<Transform>();
+            const Grid* childGrid = currentGrid.try_get<Grid>();
+            const CellCoord* childCell = currentGrid.try_get<CellCoord>();
+            const Transform* childTransform = currentGrid.try_get<Transform>();
             if (!childCell || !childTransform)
                 break;
 
             const LocalFloatingOrigin& childLfo = childGrid->localOrigin;
-            Grid* parentGrid = parentGridEntity.get_mut<Grid>();
+            Grid* parentGrid = parentGridEntity.try_get_mut<Grid>();
 
             const glm::dvec3 pInChild =
                 glm::dvec3(childLfo.cell) * childGrid->cellSize + glm::dvec3(childLfo.translation);
@@ -161,5 +161,6 @@ void vp::SpatialModule::register_pipelines(flecs::world& ecs) {}
 void vp::SpatialModule::register_submodules(flecs::world& ecs) {}
 
 void vp::SpatialModule::register_entities(flecs::world& ecs) {
+    ecs.component<SpatialRoot>().add(flecs::Singleton);
     ecs.set<SpatialRoot>({});
 }

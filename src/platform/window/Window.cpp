@@ -57,7 +57,7 @@ void Window::setupCallbacks(flecs::world& ecs) {
     glfwSetScrollCallback(window, [](GLFWwindow* win, double xoffset, double yoffset) {
         auto* world_c = static_cast<ecs_world_t*>(glfwGetWindowUserPointer(win));
         flecs::world world(world_c);
-        auto* inputState = world.get_mut<InputState>();
+        auto* inputState = world.try_get_mut<InputState>();
         if (inputState) {
             inputState->scrollDeltaX += static_cast<float>(xoffset);
             inputState->scrollDeltaY += static_cast<float>(yoffset);
