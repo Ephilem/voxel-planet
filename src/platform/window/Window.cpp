@@ -10,8 +10,8 @@
 
 Window::Window(uint16_t w, uint16_t h, const std::string& t) : width(w), height(h), title(t) {
     // Prefer Wayland when available, otherwise let GLFW pick (X11, Win32...)
-    if (glfwPlatformSupported(GLFW_PLATFORM_WAYLAND)) {
-        glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_WAYLAND);
+    if (glfwPlatformSupported(GLFW_PLATFORM_X11)) {
+        glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
     }
     if (!glfwInit()) {
         throw std::runtime_error("Failed to initialize GLFW");
