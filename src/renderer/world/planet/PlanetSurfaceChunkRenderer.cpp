@@ -1,5 +1,6 @@
 #include "PlanetSurfaceChunkRenderer.h"
 #include "core/world/planet/planet_transform.h"
+#include "renderer/TracyVulkanIntegration.h"
 
 namespace vp {
 
@@ -110,6 +111,7 @@ PlanetSurfaceChunkAnchor PlanetSurfaceChunkRenderer::compute_anchor(const Planet
 
 void PlanetSurfaceChunkRenderer::render(nvrhi::CommandListHandle cmd, Camera3d& camera,
                                         const GlobalTransform& planetCamTransform, const Planet& playerPlanet) {
+    VOXEL_VK_NVRHI_ZONE(m_backend->tracyVkCtx, cmd, "PlanetSurfaceChunkRenderer::render");
     const VkExtent2D extent = m_backend->get_swapchain_extent();
 
     const double radius = playerPlanet.radius;

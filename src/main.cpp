@@ -18,6 +18,7 @@
 #include "renderer/world/planet/planet_rendering_components.h"
 
 int main() {
+    tracy_integration::InstallFlecsHooks();
     try {
         auto ecs = std::make_unique<flecs::world>();
 

@@ -172,6 +172,10 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(flecs)
 
+if(ENABLE_TRACY)
+    target_compile_definitions(flecs_static PUBLIC FLECS_PERF_TRACE)
+endif()
+
 FetchContent_Declare(
         imgui
         GIT_REPOSITORY https://github.com/ocornut/imgui.git

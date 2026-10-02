@@ -37,4 +37,10 @@ void FpsCounter::render(flecs::world& ecs) {
 
     ImGui::PlotLines("##fps_graph", m_fpsHistory.data(), static_cast<int>(m_fpsHistory.size()),
                      static_cast<int>(m_fpsHistoryIndex), nullptr, 0.0f, 120.0f, ImVec2(200, 60));
+
+#ifdef TRACY_ENABLE
+    bool internals = tracy_integration::g_trace_flecs_internals.load();
+    if (ImGui::Checkbox("Tracy: flecs internals", &internals))
+        tracy_integration::g_trace_flecs_internals.store(internals);
+#endif
 }
