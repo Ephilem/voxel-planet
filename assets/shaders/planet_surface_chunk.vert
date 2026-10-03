@@ -21,14 +21,27 @@ layout(std430, set = 0, binding = 2) readonly buffer Instances { ChunkInstance i
 
 layout(push_constant) uniform PushConstants {
     mat4 viewProj;
+
+    float startFade;
+    float endFade;
 } pc;
 
 layout(location = 0) flat out uint outFace;
 layout(location = 1) flat out uint outTextureSlot;
 layout(location = 2) out vec2 outUv;
 layout(location = 3) flat out vec3 outNormal;
+layout(location = 4) out float outDistance;
 
 const int CHUNK_SIZE = 32;
+
+const ivec3[6] kNORMALS = ivec3[6](
+    ivec3(1, 0, 0),  // X+
+    ivec3(-1, 0, 0), // X-
+    ivec3(0, 1, 0),  // Y+
+    ivec3(0, -1, 0), // Y-
+    ivec3(0, 0, 1),  // Z+
+    ivec3(0, 0, -1)  // Z-
+);
 
 void main() {
     uvec2 raw = vertices[gl_VertexIndex];
@@ -65,10 +78,7 @@ void main() {
     else uv = vec2(local.x, local.y);
     outUv = uv;
 
-    if (face == 0u) outNormal = vec3(1.0, 0.0, 0.0); // X+
-    else if (face == 1u) outNormal = vec3(-1.0, 0.0, 0.0); // X-
-    else if (face == 2u) outNormal = vec3(0.0, 1.0, 0.0); // Y+
-    else if (face == 3u) outNormal = vec3(0.0, -1.0, 0.0); // Y-
-    else if (face == 4u) outNormal = vec3(0.0, 0.0, 1.0); // Z+
-    else outNormal = vec3(0.0, 0.0, -1.0); // Z-
+    outNormal = kNORMALS[face];
+
+    outDistance = length(pos - A.camRelAnchor.xyz);
 }

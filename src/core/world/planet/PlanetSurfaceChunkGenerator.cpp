@@ -190,7 +190,7 @@ PlanetSurfaceChunkGenerator::generate(const PlanetSurfaceChunkKey& key, const Pl
     // only writable here: the chunk gets it as const
     auto voxels = std::make_shared<PlanetVoxelArray>(); // value-initialized: all air
 
-    if (chunkTop <= double(minH)) {
+    if (chunkTop <= double(minH - 32.0)) { // -32.0 to avoid the surface layer
         voxels->fill(stone);
     } else {
         idx = 0;

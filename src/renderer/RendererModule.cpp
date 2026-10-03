@@ -26,6 +26,7 @@ void RendererModule::register_components(flecs::world& ecs) {
         throw std::runtime_error("RendererModule: PlatformModule must be initialized before RendererModule");
     }
 
+    ecs.component<RenderingPreferences>().add(flecs::Singleton);
     ecs.component<Renderer>().add(flecs::Singleton);
     ecs.set<Renderer>({
         .backend = std::make_unique<VulkanBackend>(platform->window->window,
@@ -105,6 +106,5 @@ void RendererModule::register_submodules(flecs::world& ecs) {
 }
 
 void RendererModule::register_entities(flecs::world& ecs) {
-    ecs.component<RenderingPreferences>().add(flecs::Singleton);
     ecs.emplace<RenderingPreferences>();
 }

@@ -145,20 +145,18 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
         }
     });
 
-    ecs.system<const Renderer>("PlanetRendererModule-BeginFrame")
-        .kind(flecs::OnStore)
-        .run([this](flecs::iter& it) {
-            while (it.next()) {
-                auto renderer = it.field<const Renderer>(0);
+    ecs.system<const Renderer>("PlanetRendererModule-BeginFrame").kind(flecs::OnStore).run([this](flecs::iter& it) {
+        while (it.next()) {
+            auto renderer = it.field<const Renderer>(0);
 
-                // continue, not return: an iterator left before next() returns false has to be fini()'d
-                if (!renderer->frameContext.frameActive) {
-                    continue;
-                }
-
-                m_tileAtlas->begin_frame();
+            // continue, not return: an iterator left before next() returns false has to be fini()'d
+            if (!renderer->frameContext.frameActive) {
+                continue;
             }
-        });
+
+            m_tileAtlas->begin_frame();
+        }
+    });
 
     ecs.system<const Renderer>("PlanetRendererModule-UploadChunkMeshes")
         .kind(flecs::OnStore)
@@ -174,18 +172,20 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
             }
         });
 
-    ecs.system<const Renderer, Camera3d, const Planet, const GlobalTransform>("PlanetRendererModule-RenderSurface")
+    ecs.system<const Renderer, Camera3d, const Planet, const GlobalTransform, const RenderingPreferences>(
+           "PlanetRendererModule-RenderSurface")
         .term_at(2)
         .parent()
         .term_at(3)
         .parent()
         .kind(flecs::OnStore)
         .each([this](const Renderer& renderer, Camera3d& camera, const Planet& playerPlanet,
-                     const GlobalTransform& planetTransform) {
+                     const GlobalTransform& planetTransform, const RenderingPreferences& renderParam) {
             if (!renderer.frameContext.frameActive)
                 return;
             VOXEL_ZONE_N("PlanetSurfaceChunkRenderer-Render");
-            m_surfaceChunkRenderer->render(renderer.frameContext.commandList, camera, planetTransform, playerPlanet);
+            m_surfaceChunkRenderer->render(renderer.frameContext.commandList, camera, planetTransform, playerPlanet,
+                                           renderParam);
         });
 
     ecs.system<const Renderer, Camera3d>("PlanetRendererModule-RenderTile")

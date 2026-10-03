@@ -110,7 +110,8 @@ PlanetSurfaceChunkAnchor PlanetSurfaceChunkRenderer::compute_anchor(const Planet
 }
 
 void PlanetSurfaceChunkRenderer::render(nvrhi::CommandListHandle cmd, Camera3d& camera,
-                                        const GlobalTransform& planetCamTransform, const Planet& playerPlanet) {
+                                        const GlobalTransform& planetCamTransform, const Planet& playerPlanet,
+                                        const RenderingPreferences& renderParam) {
     VOXEL_VK_NVRHI_ZONE(m_backend->tracyVkCtx, cmd, "PlanetSurfaceChunkRenderer::render");
     const VkExtent2D extent = m_backend->get_swapchain_extent();
 
@@ -144,6 +145,8 @@ void PlanetSurfaceChunkRenderer::render(nvrhi::CommandListHandle cmd, Camera3d& 
 
     PushConstants pc = {};
     pc.viewProj = camera.projectionMatrix * camera.viewMatrix;
+    pc.startFade = renderParam.chunkFadeStart;
+    pc.endFade = renderParam.chunkFadeEnd;
     cmd->setPushConstants(&pc, sizeof(PushConstants));
 
     cmd->drawIndirect(0, m_chunkBuffer->draw_count());

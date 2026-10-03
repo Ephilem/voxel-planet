@@ -22,7 +22,7 @@ public:
      * There can't have chunk from two planet different in the buffer
      */
     void render(nvrhi::CommandListHandle cmd, Camera3d& camera, const GlobalTransform& planetCamTransform,
-                const Planet& playerPlanet);
+                const Planet& playerPlanet, const RenderingPreferences& renderParam);
 
     /**
      * Remove from the buffer a list of chunks
@@ -43,6 +43,10 @@ public:
 private:
     struct PushConstants {
         glm::mat4 viewProj;
+
+        // in meter
+        float startFade = 0.f;
+        float endFade = 0.f;
     };
 
     void init_gpu();
