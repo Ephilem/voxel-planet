@@ -7,6 +7,18 @@ layout(location = 3) in float inDistance;
 
 layout(location = 0) out vec4 outColor;
 
+const float SEA_LEVEL     = 0.0;
+const float DEEP_DEPTH    = 1500.0;
+const float SNOW_HEIGHT   = 1700.0;
+const float ROCK_SLOPE    = 0.35;
+
+const vec3 DEEP_WATER    = vec3(0.02, 0.07, 0.20);
+const vec3 SHALLOW_WATER = vec3(0.06, 0.28, 0.42);
+const vec3 SAND          = vec3(0.74, 0.68, 0.48);
+const vec3 GRASS_LOW     = vec3(0.20, 0.40, 0.12);
+const vec3 GRASS_HIGH    = vec3(0.34, 0.42, 0.20);
+const vec3 ROCK          = vec3(0.40, 0.38, 0.36);
+const vec3 SNOW          = vec3(0.92, 0.94, 0.97);
 
 layout(push_constant) uniform PushConstants {
     mat4  viewProj;
@@ -56,3 +68,23 @@ void main() {
 
     outColor = vec4(color, 1.0);
 }
+// void main() {
+//     if (inDistance < pc.startFade) {
+//         discard;
+//     }
+
+//     vec3 color;
+//     if (inHeight < SEA_LEVEL) {
+//         color = mix(DEEP_WATER, SHALLOW_WATER, inHeight / DEEP_DEPTH);
+//     } else if (inHeight < SNOW_HEIGHT) {
+//         color = mix(GRASS_LOW, GRASS_HIGH, inHeight / 1700.0);
+//     } else {
+//         color = vec3(0.92, 0.94, 0.97);
+//     }
+
+//     if (inDistance < pc.endFade) {
+//         color *= (inDistance - pc.startFade) / (pc.endFade - pc.startFade);
+//     }
+
+//     outColor = vec4(color, 1.0);
+// }

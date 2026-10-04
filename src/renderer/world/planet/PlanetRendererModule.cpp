@@ -53,7 +53,7 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
         .each([](flecs::entity e, const PlanetTileLodComp&, const PlanetTerrainParams& terrainParams, const Planet&) {
             auto* streamer = e.try_get<PlanetTileStreamComp>();
             if (!streamer) {
-                auto generator = std::make_unique<PlanetTileGenerator>(terrainParams, PLANET_TILE_ATLAS_RESOLUTION);
+                auto generator = std::make_unique<PlanetTileGenerator>(terrainParams, PLANET_TILE_ATLAS_RESOLUTION, 4);
 
                 // preload pinned level
                 for (uint8_t face = 0; face < 6; ++face)
@@ -99,8 +99,9 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
         .each([this](const PlanetSurfaceChunkStore& store, const Planet& planet, const GlobalTransform& planetCamPos,
                      const Camera3d& cameraInfo) {
             VOXEL_ZONE_N("PullChunksUpdate");
-            constexpr glm::ivec3 kNeighborOffsets[6] = {
+            constexpr glm::ivec3 kNeighborOffsets[] = {
                 {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1},
+                {-1, -1, 0}, {-1, 0, -1}, {0, -1, -1}, {-1, -1, -1}, // chunks reading this one as a + diagonal
             };
 
             std::vector<PlanetSurfaceChunkKey> unloadedChunk{};

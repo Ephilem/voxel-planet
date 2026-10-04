@@ -60,6 +60,10 @@ PlanetSurfaceVoxelChunkNeighbors PlanetSurfaceChunkStore::neighbors_of(const Pla
     neighbors.ny = offset(0, -1, 0);
     neighbors.pz = offset(0, 0, +1);
     neighbors.nz = offset(0, 0, -1);
+    neighbors.pxpy = offset(+1, +1, 0);
+    neighbors.pxpz = offset(+1, 0, +1);
+    neighbors.pypz = offset(0, +1, +1);
+    neighbors.pxpypz = offset(+1, +1, +1);
 
     return neighbors;
 }

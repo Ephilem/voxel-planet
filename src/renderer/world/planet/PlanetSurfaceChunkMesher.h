@@ -73,7 +73,10 @@ private:
         return (x + 1) + ((y + 1) * kPadded) + ((z + 1) * kPadded * kPadded);
     }
 
-    static bool voxel_occludes(uint16_t raw);
+    static bool voxel_occludes(PlanetSurfaceChunkVoxelInfo raw);
+
+    /// Octahedral encoding of a unit vector on 16 bits (8 per axis), decoded in planet_surface_chunk.vert
+    static uint32_t encode_normal(glm::vec3 n);
 
     static void fill_occupancy(PaddedOccupancy& occ, const PlanetSurfaceVoxelChunk& chunk,
                                const PlanetSurfaceVoxelChunkNeighbors& neighbors);

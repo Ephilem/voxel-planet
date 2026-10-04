@@ -12,8 +12,7 @@ namespace vp {
 
 PlanetSurfaceChunkGenerator::PlanetSurfaceChunkGenerator(PlanetTerrainParams params, double planetRadius,
                                                          const PlanetVoxelRegistry& registry, unsigned workerCount)
-    : m_params(params), m_planetRadius(planetRadius),
-      m_stoneId(registry.resolve("voxelplanet:cobblestone"_asset)),
+    : m_params(params), m_planetRadius(planetRadius), m_stoneId(registry.resolve("voxelplanet:cobblestone"_asset)),
       m_grassId(registry.resolve("voxelplanet:grass"_asset)) {
     if (workerCount == 0) {
         const unsigned hw = std::thread::hardware_concurrency();
@@ -183,31 +182,63 @@ PlanetSurfaceChunkGenerator::generate(const PlanetSurfaceChunkKey& key, const Pl
 
     PlanetSurfaceChunkPalette palette;
     const LocalVoxelID stoneLocal = palette.intern(m_stoneId);
-    const uint16_t stone = planet_voxel_encode({.localBlockID = stoneLocal, .height = 15});
     const LocalVoxelID grassLocal = palette.intern(m_grassId);
-    const uint16_t grass = planet_voxel_encode({.localBlockID = grassLocal, .height = 15});
+    // const PlanetSurfaceChunkVoxelInfo stone = {.localBlockID = palette.intern(m_stoneId), .density = -64};
+    // const PlanetSurfaceChunkVoxelInfo grass = {.localBlockID = palette.intern(m_grassId), .density = -64};
+    // const PlanetSurfaceChunkVoxelInfo air = {.localBlockID = palette.intern(VoxelID::Air), .density = 64};
 
     // only writable here: the chunk gets it as const
-    auto voxels = std::make_shared<PlanetVoxelArray>(); // value-initialized: all air
+    auto voxels = std::make_shared<PlanetVoxelArray>();
+    const PlanetSurfaceChunkVoxelInfo fullStone{.localBlockID = stoneLocal, .density = -127};
 
-    if (chunkTop <= double(minH - 32.0)) { // -32.0 to avoid the surface layer
-        voxels->fill(stone);
+    if (chunkTop <= double(minH - 32.0)) {
+        voxels->fill(fullStone);
     } else {
         idx = 0;
         for (int j = 0; j < CHUNK_SIZE; ++j) {
             for (int i = 0; i < CHUNK_SIZE; ++i, ++idx) {
                 const double colTop = double(heights[idx]);
-                // index of the first air voxel of the column
-                const int top = int(std::floor((colTop - chunkBottom) / voxelSize));
-                const int filled = std::clamp(top, 0, CHUNK_SIZE);
 
-                for (int z = 0; z < filled; ++z) {
-                    // only the surface voxel is grass, and only above the sea
-                    (*voxels)[planet_voxel_index(i, j, z)] = (z == top - 1 && colTop > 0) ? grass : stone;
+                for (int z = 0; z < CHUNK_SIZE; ++z) {
+                    // same point as the column direction: voxel center
+                    const double h = chunkBottom + ((double(z) + 0.5) * voxelSize);
+                    const double dist = (h - colTop) / voxelSize; // voxel units, < 0 under the ground
+
+                    const long q = std::lround(dist * PlanetSurfaceVoxelChunk::DENSITY_SCALE);
+                    const auto density = int8_t(std::clamp(q, -127L, 127L));
+
+                    LocalVoxelID id = LocalVoxelID::Air;
+                    if (density < 0) { // same test as the mesher
+                        // 1.5 voxel thick: covers the quantization window of the air test above and the solid
+                        // end of X/Y edges on moderate slopes
+                        const bool surface = dist > -1.5 && colTop > 0;
+                        id = surface ? grassLocal : stoneLocal;
+                    }
+                    (*voxels)[planet_voxel_index(i, j, z)] = {.localBlockID = id, .density = density};
                 }
             }
         }
     }
+
+    // if (chunkTop <= double(minH - 32.0)) { // -32.0 to avoid the surface layer
+    //     voxels->fill(stone);
+    // } else {
+    //     voxels->fill(air); // value-initialization would give a density of 0, not outside
+    //     idx = 0;
+    //     for (int j = 0; j < CHUNK_SIZE; ++j) {
+    //         for (int i = 0; i < CHUNK_SIZE; ++i, ++idx) {
+    //             const double colTop = double(heights[idx]);
+    //             // index of the first air voxel of the column
+    //             const int top = int(std::floor((colTop - chunkBottom) / voxelSize));
+    //             const int filled = std::clamp(top, 0, CHUNK_SIZE);
+
+    //             for (int z = 0; z < filled; ++z) {
+    //                 // only the surface voxel is grass, and only above the sea
+    //                 (*voxels)[planet_voxel_index(i, j, z)] = (z >= top - 2 && colTop > 0) ? grass : stone;
+    //             }
+    //         }
+    //     }
+    // }
 
     return std::make_shared<PlanetSurfaceVoxelChunk>(std::move(voxels), std::move(palette));
 }

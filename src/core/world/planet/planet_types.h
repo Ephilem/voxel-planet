@@ -101,9 +101,10 @@ struct BlockDefinition {
     }
 };
 
-struct PlanetSurfaceChunkBlockInfo {
+struct PlanetSurfaceChunkVoxelInfo {
     LocalVoxelID localBlockID; // index into the chunk's textureIDs map, which maps to an AssetID for the actual texture
-    uint8_t height;            // for terrain blocks. 0-15 is the height of the block, subdivision
+    int8_t density; // signed distance : 0< = inside solid (negative distance from the surface), 0> = outside solid
+                    // (positive distance from the surface)
 };
 
 /**
@@ -145,14 +146,14 @@ struct PlanetSurfaceChunkPalette {
     }
 };
 
-using PlanetVoxelArray = std::array<uint16_t, CHUNK_VOLUME>;
+using PlanetVoxelArray = std::array<PlanetSurfaceChunkVoxelInfo, CHUNK_VOLUME>;
 
 constexpr int planet_voxel_index(int x, int y, int z) {
     return x + (y * CHUNK_SIZE) + (z * CHUNK_SIZE * CHUNK_SIZE);
 }
 
-constexpr uint16_t planet_voxel_encode(PlanetSurfaceChunkBlockInfo block) {
-    return uint16_t(uint8_t(block.localBlockID)) | uint16_t(uint16_t(block.height) << 8);
+constexpr uint16_t planet_voxel_encode(PlanetSurfaceChunkVoxelInfo block) {
+    return uint16_t(uint8_t(block.localBlockID)) | uint16_t(uint16_t(block.density) << 8);
 }
 
 /**
@@ -161,6 +162,8 @@ constexpr uint16_t planet_voxel_encode(PlanetSurfaceChunkBlockInfo block) {
  * multiple consumers without copying
  */
 struct PlanetSurfaceVoxelChunk {
+    constexpr static float DENSITY_SCALE = 64.0F;
+
     std::shared_ptr<const PlanetVoxelArray> voxels; // nullptr = only air
     PlanetSurfaceChunkPalette palette;
 
@@ -170,17 +173,30 @@ struct PlanetSurfaceVoxelChunk {
     PlanetSurfaceVoxelChunk(std::shared_ptr<const PlanetVoxelArray> voxels, PlanetSurfaceChunkPalette palette)
         : voxels(std::move(voxels)), palette(std::move(palette)) {}
 
-    PlanetSurfaceChunkBlockInfo at(int x, int y, int z) const {
-        return reinterpret_cast<const PlanetSurfaceChunkBlockInfo&>((*voxels)[planet_voxel_index(x, y, z)]);
+    PlanetSurfaceChunkVoxelInfo at(int x, int y, int z) const {
+        return reinterpret_cast<const PlanetSurfaceChunkVoxelInfo&>((*voxels)[planet_voxel_index(x, y, z)]);
     }
 
-    PlanetSurfaceChunkBlockInfo at(glm::ivec3 localPos) const { return at(localPos.x, localPos.y, localPos.z); }
+    PlanetSurfaceChunkVoxelInfo at(glm::ivec3 localPos) const { return at(localPos.x, localPos.y, localPos.z); }
 
     [[nodiscard]] bool is_allocated() const { return voxels != nullptr; }
+
+    /// Density of the voxel (x, y, z), coordinates must be inside the chunk
+    [[nodiscard]] float sample_quantized_density(int x, int y, int z) const {
+        if (!is_allocated()) {
+            return 127.0F / DENSITY_SCALE; // only air: max distance outside
+        }
+        return static_cast<float>((*voxels)[planet_voxel_index(x, y, z)].density) / DENSITY_SCALE;
+    }
+
+    [[nodiscard]] float sample_quantized_density(glm::ivec3 localPos) const {
+        return sample_quantized_density(localPos.x, localPos.y, localPos.z);
+    }
 };
 
 struct PlanetSurfaceVoxelChunkNeighbors {
-    std::shared_ptr<const PlanetSurfaceVoxelChunk> px, nx, py, ny, pz, nz; // +X, -X, +Y, -Y, +Z, -Z
+    std::shared_ptr<const PlanetSurfaceVoxelChunk> px, nx, py, ny, pz, nz;   // +X, -X, +Y, -Y, +Z, -Z
+    std::shared_ptr<const PlanetSurfaceVoxelChunk> pxpy, pxpz, pypz, pxpypz; // + diagonals, for the dual contouring
 };
 
 } // namespace vp

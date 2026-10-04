@@ -109,16 +109,23 @@ struct PlanetTileDrawItem {
     float distance = 0.f;
 };
 
-struct PlanetSurfaceChunkVertex {
-    uint32_t x : 8;
-    uint32_t y : 8;
-    uint32_t z : 8;
-    uint32_t face : 3;
-    uint32_t _pad0 : 5 = 0;
+/// Vertex positions are fixed point: chunk-local voxel units * PLANET_SURFACE_VERTEX_SCALE (mirrored in the shader)
+/// 31 keeps the last vertex (33 voxels) in 10 bits: 33 * 31 = 1023
+constexpr float PLANET_SURFACE_VERTEX_SCALE = 31.0F;
 
-    uint32_t textureSlot : 16;
-    uint32_t _pad1 : 16 = 0;
+struct PlanetSurfaceChunkVertex {
+    uint32_t x : 10;
+    uint32_t y : 10;
+    uint32_t z : 10;
+    uint32_t _pad0 : 2 = 0;
+
+    uint32_t textureSlot : 12;
+    uint32_t face : 3;
+    uint32_t normal : 16; // octahedral, 8 bits per axis, chunk lattice space
+    uint32_t _pad1 : 1 = 0;
 };
+
+static_assert(sizeof(PlanetSurfaceChunkVertex) == 8);
 
 struct PlanetSurfaceChunkAnchor {
     glm::ivec4 chunk;

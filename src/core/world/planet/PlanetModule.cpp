@@ -26,7 +26,8 @@ void PlanetModule::register_systems(flecs::world& ecs) {
         .each([](flecs::entity e, const PlanetTerrainParams& params, const Planet& comp) {
             const auto* registry = e.world().try_get<PlanetVoxelRegistry>();
             if (registry == nullptr) {
-                LOG_ERROR("PlanetModule", "No PlanetVoxelRegistry, chunk generator not created for {}", e.name().c_str());
+                LOG_ERROR("PlanetModule", "No PlanetVoxelRegistry, chunk generator not created for {}",
+                          e.name().c_str());
                 return;
             }
 

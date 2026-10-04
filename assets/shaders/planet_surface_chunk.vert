@@ -29,19 +29,22 @@ layout(push_constant) uniform PushConstants {
 layout(location = 0) flat out uint outFace;
 layout(location = 1) flat out uint outTextureSlot;
 layout(location = 2) out vec2 outUv;
-layout(location = 3) flat out vec3 outNormal;
+layout(location = 3) out vec3 outNormal;
 layout(location = 4) out float outDistance;
-
+layout(location = 5) out vec3 outPos;
+layout(location = 6) flat out vec3 outUp;
 const int CHUNK_SIZE = 32;
+const float VERTEX_SCALE = 31.0; // mirrors PLANET_SURFACE_VERTEX_SCALE: positions are fixed point
 
-const ivec3[6] kNORMALS = ivec3[6](
-    ivec3(1, 0, 0),  // X+
-    ivec3(-1, 0, 0), // X-
-    ivec3(0, 1, 0),  // Y+
-    ivec3(0, -1, 0), // Y-
-    ivec3(0, 0, 1),  // Z+
-    ivec3(0, 0, -1)  // Z-
-);
+// Mirrors PlanetSurfaceChunkMesher::encode_normal: octahedral, 8 bits per axis
+vec3 decode_normal(uint o) {
+    vec2 e = vec2(o & 0xFFu, (o >> 8) & 0xFFu) / 255.0 * 2.0 - 1.0;
+    vec3 n = vec3(e, 1.0 - abs(e.x) - abs(e.y));
+    float t = max(-n.z, 0.0);
+    n.x += n.x >= 0.0 ? -t : t;
+    n.y += n.y >= 0.0 ? -t : t;
+    return normalize(n);
+}
 
 void main() {
     uvec2 raw = vertices[gl_VertexIndex];
@@ -53,12 +56,14 @@ void main() {
         return;
     }
 
-    // Mirrors the PlanetSurfaceChunkVertex bitfields: x 0-7, y 8-15, z 16-23, face 24-26
-    ivec3 local = ivec3(raw.x & 0xFFu, (raw.x >> 8) & 0xFFu, (raw.x >> 16) & 0xFFu);
+    // Mirrors the PlanetSurfaceChunkVertex bitfields
+    // raw.x: x 0-9, y 10-19, z 20-29
+    // raw.y: textureSlot 0-11, face 12-14, normal 15-30
+    vec3 local = vec3(raw.x & 0x3FFu, (raw.x >> 10) & 0x3FFu, (raw.x >> 20) & 0x3FFu) / VERTEX_SCALE;
 
     // Integer key difference: where the large numbers vanish
     ivec3 dChunk = inst.chunkCoord - A.chunk.xyz;
-    vec3 n = vec3(dChunk * CHUNK_SIZE + local); // voxels from the anchor corner
+    vec3 n = vec3(dChunk * CHUNK_SIZE) + local; // voxels from the anchor corner
 
     vec3 d = A.tangentU.xyz * n.x + A.tangentV.xyz * n.y;
     vec3 q = A.quu.xyz * (n.x * n.x) + A.quv.xyz * (n.x * n.y) + A.qvv.xyz * (n.y * n.y);
@@ -68,9 +73,9 @@ void main() {
 
     gl_Position = pc.viewProj * vec4(pos - A.camRelAnchor.xyz, 1.0);
 
-    uint face = (raw.x >> 24) & 7u;
+    uint face = (raw.y >> 12) & 7u;
     outFace = face;
-    outTextureSlot = raw.y & 0xFFFFu;
+    outTextureSlot = raw.y & 0xFFFu;
 
     vec2 uv;
     if (face < 2u) uv = vec2(local.y, local.z);
@@ -78,7 +83,12 @@ void main() {
     else uv = vec2(local.x, local.y);
     outUv = uv;
 
-    outNormal = kNORMALS[face];
+    // lattice -> world: positions map through J = (tangentU, tangentV, up), normals through its inverse transpose
+    // (the quadratic and flare terms are ignored, negligible for the shading)
+    mat3 J = mat3(A.tangentU.xyz, A.tangentV.xyz, A.up.xyz);
+    outNormal = normalize(transpose(inverse(J)) * decode_normal((raw.y >> 15) & 0xFFFFu));
 
     outDistance = length(pos - A.camRelAnchor.xyz);
+    outPos = pos - A.camRelAnchor.xyz;
+    outUp  = A.up.xyz;
 }

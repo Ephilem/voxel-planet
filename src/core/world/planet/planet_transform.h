@@ -136,6 +136,18 @@ inline int planet_lod_for_voxel_level(double radius, uint8_t level, uint32_t til
     return int(std::lround(std::log2(nodesPerFace)));
 }
 
+/**
+ * Voxel coordinates -> position in planet space (inverse of planet_pos_to_voxel)
+ * Accepts fractional coordinates so edges can be subdivided.
+ */
+inline glm::dvec3 planet_voxel_to_pos(CubemapFace face, double vx, double vy, double vz, double radius, uint8_t level) {
+    const double N = planet_voxels_per_face_side(radius, level);
+    const double u = (vx / N) * 2.0 - 1.0;
+    const double v = (vy / N) * 2.0 - 1.0;
+    const double r = radius + vz * planet_chunk_voxel_size(level);
+    return face_uv_to_direction(face, u, v) * r;
+}
+
 inline PlanetVoxelCoord planet_pos_to_voxel(const glm::dvec3& posPlanet, double radius, uint8_t level) {
     const double r = glm::length(posPlanet);
     PlanetVoxelCoord out;
@@ -154,6 +166,11 @@ inline PlanetVoxelCoord planet_pos_to_voxel(const glm::dvec3& posPlanet, double 
     out.voxel.y = int64_t(std::floor(((v * 0.5) + 0.5) * N));
     out.voxel.z = int64_t(std::floor((r - radius) / voxelSize));
     return out;
+}
+
+inline PlanetSurfaceChunkKey planet_pos_to_chunk(const glm::dvec3& posPlanet, double radius, uint8_t level) {
+    const PlanetVoxelCoord vc = planet_pos_to_voxel(posPlanet, radius, level);
+    return PlanetSurfaceChunkKey(vc.face, level, glm::ivec3(vc.voxel));
 }
 
 } // namespace vp
