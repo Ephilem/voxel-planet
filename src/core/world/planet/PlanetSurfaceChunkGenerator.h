@@ -74,12 +74,16 @@ public:
 
     [[nodiscard]] size_t in_flight_count() const { return m_inFlight.size(); }
 
+    [[nodiscard]] bool is_requested(const PlanetSurfaceChunkKey& key) const {
+        return (m_pendingSet.contains(key) || m_inFlight.contains(key)) && !m_cancelled.contains(key);
+    }
+
 private:
     void worker_loop(std::stop_token stop);
     /// nullptr = only air
     std::shared_ptr<PlanetSurfaceVoxelChunk> generate(const PlanetSurfaceChunkKey& key,
-                                                       const PlanetTerrainSampler& sampler,
-                                                       PlanetTerrainSampler::BatchScratch& scratch) const;
+                                                      const PlanetTerrainSampler& sampler,
+                                                      PlanetTerrainSampler::BatchScratch& scratch) const;
 
     PlanetTerrainParams m_params;
     double m_planetRadius;

@@ -166,12 +166,14 @@ struct PlanetSurfaceVoxelChunk {
 
     std::shared_ptr<const PlanetVoxelArray> voxels; // nullptr = only air
     PlanetSurfaceChunkPalette palette;
+    int8_t maxDensity = 0; // max density in the chunk
 
     /// Air chunk, without voxel array
     PlanetSurfaceVoxelChunk() = default;
 
-    PlanetSurfaceVoxelChunk(std::shared_ptr<const PlanetVoxelArray> voxels, PlanetSurfaceChunkPalette palette)
-        : voxels(std::move(voxels)), palette(std::move(palette)) {}
+    PlanetSurfaceVoxelChunk(std::shared_ptr<const PlanetVoxelArray> voxels, PlanetSurfaceChunkPalette palette,
+                            int8_t maxDensity)
+        : voxels(std::move(voxels)), palette(std::move(palette)), maxDensity(maxDensity) {}
 
     PlanetSurfaceChunkVoxelInfo at(int x, int y, int z) const {
         return reinterpret_cast<const PlanetSurfaceChunkVoxelInfo&>((*voxels)[planet_voxel_index(x, y, z)]);

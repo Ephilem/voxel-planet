@@ -78,9 +78,6 @@ private:
     /// Octahedral encoding of a unit vector on 16 bits (8 per axis), decoded in planet_surface_chunk.vert
     static uint32_t encode_normal(glm::vec3 n);
 
-    static void fill_occupancy(PaddedOccupancy& occ, const PlanetSurfaceVoxelChunk& chunk,
-                               const PlanetSurfaceVoxelChunkNeighbors& neighbors);
-
     void worker_loop(std::stop_token stopToken);
 
     void mesh_chunk(const PlanetSurfaceChunkKey& key, const std::shared_ptr<PlanetSurfaceVoxelChunk>& chunk,

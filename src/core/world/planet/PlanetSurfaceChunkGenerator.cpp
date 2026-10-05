@@ -136,6 +136,7 @@ std::shared_ptr<PlanetSurfaceVoxelChunk>
 PlanetSurfaceChunkGenerator::generate(const PlanetSurfaceChunkKey& key, const PlanetTerrainSampler& sampler,
                                       PlanetTerrainSampler::BatchScratch& scratch) const {
     VOXEL_ZONE_N("PlanetSurfaceChunkGenerator::generate");
+    int8_t maxDensity = -127;
 
     constexpr int COLUMNS = CHUNK_SIZE * CHUNK_SIZE;
 
@@ -215,32 +216,13 @@ PlanetSurfaceChunkGenerator::generate(const PlanetSurfaceChunkKey& key, const Pl
                         id = surface ? grassLocal : stoneLocal;
                     }
                     (*voxels)[planet_voxel_index(i, j, z)] = {.localBlockID = id, .density = density};
+                    maxDensity = std::max(maxDensity, density);
                 }
             }
         }
     }
 
-    // if (chunkTop <= double(minH - 32.0)) { // -32.0 to avoid the surface layer
-    //     voxels->fill(stone);
-    // } else {
-    //     voxels->fill(air); // value-initialization would give a density of 0, not outside
-    //     idx = 0;
-    //     for (int j = 0; j < CHUNK_SIZE; ++j) {
-    //         for (int i = 0; i < CHUNK_SIZE; ++i, ++idx) {
-    //             const double colTop = double(heights[idx]);
-    //             // index of the first air voxel of the column
-    //             const int top = int(std::floor((colTop - chunkBottom) / voxelSize));
-    //             const int filled = std::clamp(top, 0, CHUNK_SIZE);
-
-    //             for (int z = 0; z < filled; ++z) {
-    //                 // only the surface voxel is grass, and only above the sea
-    //                 (*voxels)[planet_voxel_index(i, j, z)] = (z >= top - 2 && colTop > 0) ? grass : stone;
-    //             }
-    //         }
-    //     }
-    // }
-
-    return std::make_shared<PlanetSurfaceVoxelChunk>(std::move(voxels), std::move(palette));
+    return std::make_shared<PlanetSurfaceVoxelChunk>(std::move(voxels), std::move(palette), maxDensity);
 }
 
 } // namespace vp

@@ -7,6 +7,8 @@
 #include "client/world/planet/planet_client_components.h"
 #include "core/GameState.h"
 #include "core/TracyIntegration.h"
+#include "core/world/planet/planet_components.h"
+#include "core/world/planet/PlanetSurfaceChunkGenerator.h"
 #include "core/world/planet/PlanetSurfaceChunkStore.h"
 #include "renderer/Renderer.h"
 
@@ -87,21 +89,31 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
      * We do relatively by the camera position (so the player, that is in a planet, so its parent is generally the
      * planet)
      */
-    ecs.system<const PlanetSurfaceChunkStore, const Planet, const GlobalTransform, const Camera3d>(
-           "PlanetRendererModule-PullChunksUpdate")
+    ecs.system<const PlanetSurfaceChunkStore, const Planet, const GlobalTransform, const Camera3d,
+               const PlanetSurfaceChunkGeneratorComp>("PlanetRendererModule-PullChunksUpdate")
         .term_at(0)
         .parent()
         .term_at(1)
         .parent()
         .term_at(2)
         .parent()
+        .term_at(4)
+        .parent()
         .kind(flecs::PreStore)
         .each([this](const PlanetSurfaceChunkStore& store, const Planet& planet, const GlobalTransform& planetCamPos,
-                     const Camera3d& cameraInfo) {
+                     const Camera3d& cameraInfo, const PlanetSurfaceChunkGeneratorComp& gen) {
             VOXEL_ZONE_N("PullChunksUpdate");
-            constexpr glm::ivec3 kNeighborOffsets[] = {
-                {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1},
-                {-1, -1, 0}, {-1, 0, -1}, {0, -1, -1}, {-1, -1, -1}, // chunks reading this one as a + diagonal
+
+            // the dual contouring cells of a chunk read its + neighbors only
+            constexpr glm::ivec3 kPlusOffsets[] = {
+                {1, 0, 0}, {0, 1, 0}, {0, 0, 1}, {1, 1, 0}, {1, 0, 1}, {0, 1, 1}, {1, 1, 1},
+            };
+
+            const auto offset_key = [](PlanetSurfaceChunkKey k, glm::ivec3 o) {
+                k.x += o.x;
+                k.y += o.y;
+                k.alt += o.z;
+                return k;
             };
 
             std::vector<PlanetSurfaceChunkKey> unloadedChunk{};
@@ -115,21 +127,35 @@ void PlanetRendererModule::register_systems(flecs::world& ecs) {
                     toRemesh.insert(key);
                 }
 
-                // the border faces of the neighbors depend on this chunk
-                for (const glm::ivec3& o : kNeighborOffsets) {
-                    PlanetSurfaceChunkKey neighbor = key;
-                    neighbor.x += o.x;
-                    neighbor.y += o.y;
-                    neighbor.alt += o.z;
-                    toRemesh.insert(neighbor);
+                // the chunks reading this one as a + neighbor
+                for (const glm::ivec3& o : kPlusOffsets) {
+                    toRemesh.insert(offset_key(key, -o));
                 }
             }
 
             for (const PlanetSurfaceChunkKey& key : toRemesh) {
                 // skips the neighbors not loaded and the chunks removed this frame
-                if (const auto chunk = store.find(key)) {
-                    m_chunkMesher->enqueue(key, chunk, store.neighbors_of(key));
+                const auto chunk = store.find(key);
+                if (!chunk) {
+                    continue;
                 }
+
+                bool waiting = false;
+                if (gen.generator) {
+                    for (const glm::ivec3& o : kPlusOffsets) {
+                        const PlanetSurfaceChunkKey n = offset_key(key, o);
+                        if (!store.contains(n) && gen.generator->is_requested(n)) {
+                            waiting = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (waiting) {
+                    continue;
+                }
+
+                m_chunkMesher->enqueue(key, chunk, store.neighbors_of(key));
             }
 
             m_surfaceChunkRenderer->unload_chunks(unloadedChunk);

@@ -31,7 +31,7 @@ void PlanetModule::register_systems(flecs::world& ecs) {
                 return;
             }
 
-            auto generator = std::make_unique<PlanetSurfaceChunkGenerator>(params, double(comp.radius), *registry);
+            auto generator = std::make_unique<PlanetSurfaceChunkGenerator>(params, double(comp.radius), *registry, 4);
 
             e.set<PlanetSurfaceChunkGeneratorComp>({.generator = std::move(generator)});
             e.emplace<PlanetSurfaceChunkStore>();
