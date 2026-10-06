@@ -13,20 +13,21 @@
 #include "PlanetLayerProjectionMappings.h"
 #include "renderer/Renderer.h"
 
-using namespace vp;
-
+namespace vp::client {
 constexpr float NAN_VALUE = std::numeric_limits<float>::quiet_NaN();
 
 const int RESOLUTION_STEPS[] = {64, 128, 256, 512, 1024};
 constexpr int RESOLUTION_STEP_COUNT = 5;
 
-void PlanetLayerViewer::draw_params() {
-    if (!m_selectedPlanet.entity.is_alive()) {
+void PlanetLayerViewer::draw_params()
+{
+    if (!m_selectedPlanet.entity.is_alive())
+    {
         ImGui::Text("No planet selected!");
         return;
     }
 
-    PlanetTerrainParams& p = m_selectedPlanet.terrainParams;
+    core::PlanetTerrainParams& p = m_selectedPlanet.terrainParams;
     bool changed = false;
 
     ImGui::SeparatorText("Global");
@@ -47,7 +48,8 @@ void PlanetLayerViewer::draw_params() {
     changed |= ImGui::SliderInt("Max octaves", &p.maxOctave, 1, 16);
     changed |= ImGui::InputInt("Seed", &p.seed);
     ImGui::SameLine();
-    if (ImGui::Button("Random")) {
+    if (ImGui::Button("Random"))
+    {
         p.seed = static_cast<int32_t>(std::random_device{}());
         changed |= true;
     }
@@ -58,7 +60,8 @@ void PlanetLayerViewer::draw_params() {
 
     ImGui::SeparatorText("View");
     int resIndex = 0;
-    for (int i = 0; i < RESOLUTION_STEP_COUNT; ++i) {
+    for (int i = 0; i < RESOLUTION_STEP_COUNT; ++i)
+    {
         if (RESOLUTION_STEPS[i] == m_resolution)
             resIndex = i;
     }
@@ -66,7 +69,8 @@ void PlanetLayerViewer::draw_params() {
     char resLabel[32];
     std::snprintf(resLabel, sizeof(resLabel), "%d px/face", RESOLUTION_STEPS[resIndex]);
 
-    if (ImGui::SliderInt("Resolution", &resIndex, 0, RESOLUTION_STEP_COUNT - 1, resLabel)) {
+    if (ImGui::SliderInt("Resolution", &resIndex, 0, RESOLUTION_STEP_COUNT - 1, resLabel))
+    {
         resIndex = std::clamp(resIndex, 0, RESOLUTION_STEP_COUNT - 1);
         m_resolution = RESOLUTION_STEPS[resIndex];
         m_needsRegen = true;
@@ -75,7 +79,7 @@ void PlanetLayerViewer::draw_params() {
     if (ImGui::SliderInt("LOD", &m_lod, 0, 12))
         m_needsRegen = true;
     ImGui::SetItemTooltip("Octave count = clamp(3 + LOD, 1, maxOctave).\n"
-                          "Raise it to judge the fine relief.");
+        "Raise it to judge the fine relief.");
 
     ImGui::Spacing();
     if (ImGui::Button("Apply"))
@@ -85,7 +89,8 @@ void PlanetLayerViewer::draw_params() {
     if (m_dirty)
         ImGui::TextColored(ImVec4(1, 0.7f, 0.2f, 1), "Modified parameters!");
 
-    if (m_imageValid) {
+    if (m_imageValid)
+    {
         ImGui::Spacing();
         ImGui::SeparatorText("Last generation");
         ImGui::Text("%d x %d px", m_imageSize.x, m_imageSize.y);
@@ -94,7 +99,8 @@ void PlanetLayerViewer::draw_params() {
     }
 }
 
-void PlanetLayerViewer::draw_controls(flecs::world& ecs) {
+void PlanetLayerViewer::draw_controls(flecs::world& ecs)
+{
     std::vector<PlanetRepresentation> planets;
     collect_planets(ecs, planets);
 
@@ -106,8 +112,10 @@ void PlanetLayerViewer::draw_controls(flecs::world& ecs) {
     const char* preview = m_selectedPlanet.entity.is_alive() ? m_selectedPlanet.entity.name() : "Select a planet";
 
     ImGui::SetNextItemWidth(160.0f);
-    if (ImGui::BeginCombo("##planetSelect", preview)) {
-        for (const auto& planet : planets) {
+    if (ImGui::BeginCombo("##planetSelect", preview))
+    {
+        for (const auto& planet : planets)
+        {
             const bool isSelected = (m_selectedPlanet.entity == planet.entity);
 
             if (ImGui::Selectable(planet.entity.name().c_str(), isSelected))
@@ -124,12 +132,15 @@ void PlanetLayerViewer::draw_controls(flecs::world& ecs) {
     const PlanetLayerProjectionMapping* selectedProj = projection_at(m_projIndex);
 
     ImGui::SetNextItemWidth(160.0f);
-    if (ImGui::BeginCombo("##projSelect", selectedProj->name())) {
-        for (int i = 0; i < projection_count(); ++i) {
+    if (ImGui::BeginCombo("##projSelect", selectedProj->name()))
+    {
+        for (int i = 0; i < projection_count(); ++i)
+        {
             const PlanetLayerProjectionMapping* proj = projection_at(i);
             const bool isSelected = (m_projIndex == i);
 
-            if (ImGui::Selectable(proj->name(), isSelected)) {
+            if (ImGui::Selectable(proj->name(), isSelected))
+            {
                 m_projIndex = i;
                 m_needsRegen = true;
             }
@@ -142,11 +153,14 @@ void PlanetLayerViewer::draw_controls(flecs::world& ecs) {
     ImGui::SameLine();
 
     ImGui::SetNextItemWidth(160.0f);
-    if (ImGui::BeginCombo("##layerSelect", layer_name_at(m_layerIndex))) {
-        for (int i = 0; i < layer_count(); ++i) {
+    if (ImGui::BeginCombo("##layerSelect", layer_name_at(m_layerIndex)))
+    {
+        for (int i = 0; i < layer_count(); ++i)
+        {
             const bool isSelected = (m_layerIndex == i);
 
-            if (ImGui::Selectable(layer_name_at(i), isSelected)) {
+            if (ImGui::Selectable(layer_name_at(i), isSelected))
+            {
                 m_layerIndex = i;
                 m_needsRegen = true;
             }
@@ -158,7 +172,8 @@ void PlanetLayerViewer::draw_controls(flecs::world& ecs) {
     }
 }
 
-void PlanetLayerViewer::generate_texture() {
+void PlanetLayerViewer::generate_texture()
+{
     const PlanetLayerProjectionMapping* proj = projection_at(m_projIndex);
     const PlanetLayerDebug layer = layer_at(m_layerIndex);
     if (!proj || !layer.evaluate)
@@ -172,21 +187,23 @@ void PlanetLayerViewer::generate_texture() {
 
     m_values.assign(static_cast<size_t>(m_imageSize.x) * m_imageSize.y, NAN_VALUE);
 
-    PlanetTerrainSampler sampler(m_appliedParams);
+    core::PlanetTerrainSampler sampler(m_appliedParams);
 
     proj->tiles(m_resolution, m_tiles);
 
-    for (const PlanetLayerProjectionTile& tile : m_tiles) {
+    for (const PlanetLayerProjectionTile& tile : m_tiles)
+    {
         proj->fill_tile_directions(tile, m_field);
 
         const int count = m_field.count();
         if (count <= 0)
             continue;
 
-        m_tileValues.resize(static_cast<size_t>(count) + PlanetTerrainSampler::SIMD_PADDING);
+        m_tileValues.resize(static_cast<size_t>(count) + core::PlanetTerrainSampler::SIMD_PADDING);
         layer.evaluate(sampler, m_field, m_lod, m_tileValues.data());
 
-        for (int py = 0; py < tile.size.y; ++py) {
+        for (int py = 0; py < tile.size.y; ++py)
+        {
             const int dstY = tile.origin.y + py;
             if (dstY < 0 || dstY >= m_imageSize.y)
                 continue;
@@ -209,31 +226,36 @@ void PlanetLayerViewer::generate_texture() {
     m_textureDirty = true;
 }
 
-void PlanetLayerViewer::colorize(const PlanetLayerDebug& layer) {
+void PlanetLayerViewer::colorize(const PlanetLayerDebug& layer)
+{
     const size_t n = m_values.size();
     m_pixels.assign(n * 4, 0);
 
     float vmin = layer.rangeMin;
     float vmax = layer.rangeMax;
 
-    if (layer.autoRange) {
+    if (layer.autoRange)
+    {
         vmin = std::numeric_limits<float>::max();
         vmax = std::numeric_limits<float>::lowest();
 
-        for (const float v : m_values) {
+        for (const float v : m_values)
+        {
             if (std::isnan(v))
                 continue;
             vmin = std::min(vmin, v);
             vmax = std::max(vmax, v);
         }
 
-        if (vmin > vmax) {
+        if (vmin > vmax)
+        {
             vmin = 0.0f;
             vmax = 0.0f;
         }
     }
 
-    if (layer.divergingAroundZero) {
+    if (layer.divergingAroundZero)
+    {
         const float m = std::max(std::abs(vmin), std::abs(vmax));
         vmin = -m;
         vmax = m;
@@ -245,11 +267,13 @@ void PlanetLayerViewer::colorize(const PlanetLayerDebug& layer) {
     const float inv = (vmax > vmin) ? 1.0f / (vmax - vmin) : 0.0f;
 
     ImPlot::PushColormap(layer.colormap);
-    for (size_t i = 0; i < n; ++i) {
+    for (size_t i = 0; i < n; ++i)
+    {
         const float v = m_values[i];
         uint8_t* px = &m_pixels[i * 4];
 
-        if (std::isnan(v)) {
+        if (std::isnan(v))
+        {
             px[0] = px[1] = px[2] = px[3] = 0; // transparent gap
             continue;
         }
@@ -269,7 +293,8 @@ void PlanetLayerViewer::colorize(const PlanetLayerDebug& layer) {
     ImPlot::PopColormap();
 }
 
-float PlanetLayerViewer::value_at(int x, int y) const {
+float PlanetLayerViewer::value_at(int x, int y) const
+{
     if (!m_imageValid || x < 0 || y < 0 || x >= m_imageSize.x || y >= m_imageSize.y)
         return NAN_VALUE;
 
@@ -277,7 +302,8 @@ float PlanetLayerViewer::value_at(int x, int y) const {
 }
 
 bool PlanetLayerViewer::plot_to_pixel(const PlanetLayerProjectionMapping& proj, const ImPlotPoint& mouse, int& outX,
-                                      int& outY) const {
+                                      int& outY) const
+{
     if (!m_imageValid)
         return false;
 
@@ -301,7 +327,8 @@ bool PlanetLayerViewer::plot_to_pixel(const PlanetLayerProjectionMapping& proj, 
     return true;
 }
 
-void PlanetLayerViewer::draw_cursor_readout(const PlanetLayerProjectionMapping& proj, const ImPlotPoint& mouse) const {
+void PlanetLayerViewer::draw_cursor_readout(const PlanetLayerProjectionMapping& proj, const ImPlotPoint& mouse) const
+{
     int px = 0, py = 0;
     if (!plot_to_pixel(proj, mouse, px, py))
         return;
@@ -322,20 +349,26 @@ void PlanetLayerViewer::draw_cursor_readout(const PlanetLayerProjectionMapping& 
     ImGui::EndTooltip();
 }
 
-void PlanetLayerViewer::draw_map(flecs::world& ecs) {
-    if (!m_selectedPlanet.entity.is_alive()) {
+void PlanetLayerViewer::draw_map(flecs::world& ecs)
+{
+    if (!m_selectedPlanet.entity.is_alive())
+    {
         ImGui::Text("No planet selected!");
         return;
     }
 
-    if (m_needsRegen) {
+    if (m_needsRegen)
+    {
         generate_texture();
         m_needsRegen = false;
     }
 
-    if (m_textureDirty) {
-        if (Renderer* renderer = ecs.try_get_mut<Renderer>()) {
-            if (VulkanBackend* backend = renderer->backend.get()) {
+    if (m_textureDirty)
+    {
+        if (renderer::Renderer* renderer = ecs.try_get_mut<renderer::Renderer>())
+        {
+            if (renderer::VulkanBackend* backend = renderer->backend.get())
+            {
                 if (!m_mapTexture.upload(backend, m_pixels.data(), static_cast<uint32_t>(m_imageSize.x),
                                          static_cast<uint32_t>(m_imageSize.y)))
                     LOG_ERROR("PlanetLayerViewer", "Failed to upload the {}x{} layer texture", m_imageSize.x,
@@ -345,7 +378,8 @@ void PlanetLayerViewer::draw_map(flecs::world& ecs) {
         m_textureDirty = false;
     }
 
-    if (!m_mapTexture.valid()) {
+    if (!m_mapTexture.valid())
+    {
         ImGui::Text("No texture available");
         return;
     }
@@ -356,7 +390,8 @@ void PlanetLayerViewer::draw_map(flecs::world& ecs) {
     double xMin, xMax, yMin, yMax;
     proj->plot_bounds(m_imageSize, xMin, xMax, yMin, yMax);
 
-    if (ImPlot::BeginPlot("##layerMap", ImVec2(-1, -1), ImPlotFlags_Equal | ImPlotFlags_NoLegend)) {
+    if (ImPlot::BeginPlot("##layerMap", ImVec2(-1, -1), ImPlotFlags_Equal | ImPlotFlags_NoLegend))
+    {
         ImPlot::SetupAxes(proj->x_axis_label(), proj->y_axis_label());
         ImPlot::SetupAxesLimits(xMin, xMax, yMin, yMax, ImPlotCond_Once);
 
@@ -378,12 +413,14 @@ void PlanetLayerViewer::draw_map(flecs::world& ecs) {
                         m_lastGenerationMs);
 }
 
-void PlanetLayerViewer::select_planet(PlanetRepresentation planet) {
+void PlanetLayerViewer::select_planet(PlanetRepresentation planet)
+{
     m_selectedPlanet = planet;
 
     // Reload from the entity
-    if (planet.entity.is_alive()) {
-        if (const auto* live = planet.entity.try_get<PlanetTerrainParams>())
+    if (planet.entity.is_alive())
+    {
+        if (const auto* live = planet.entity.try_get<core::PlanetTerrainParams>())
             m_selectedPlanet.terrainParams = *live;
     }
 
@@ -392,11 +429,12 @@ void PlanetLayerViewer::select_planet(PlanetRepresentation planet) {
     m_needsRegen = true;
 }
 
-void PlanetLayerViewer::apply_generation_params() {
+void PlanetLayerViewer::apply_generation_params()
+{
     if (!m_selectedPlanet.entity.is_alive())
         return;
 
-    if (auto* live = m_selectedPlanet.entity.try_get_mut<PlanetTerrainParams>())
+    if (auto* live = m_selectedPlanet.entity.try_get_mut<core::PlanetTerrainParams>())
         *live = m_selectedPlanet.terrainParams;
 
     m_appliedParams = m_selectedPlanet.terrainParams;
@@ -404,17 +442,21 @@ void PlanetLayerViewer::apply_generation_params() {
     m_dirty = false;
 }
 
-void PlanetLayerViewer::collect_planets(flecs::world& ecs, std::vector<PlanetRepresentation>& planets) {
+void PlanetLayerViewer::collect_planets(flecs::world& ecs, std::vector<PlanetRepresentation>& planets)
+{
     // instance queries
     if (!m_planetQuery)
-        m_planetQuery = ecs.query<const Planet, const PlanetTerrainParams>();
+        m_planetQuery = ecs.query<const core::Planet, const core::PlanetTerrainParams>();
 
-    m_planetQuery.each([&](flecs::entity planet, const Planet& planetComp, const PlanetTerrainParams& terrainParams) {
+    m_planetQuery.each([&](flecs::entity planet, const core::Planet& planetComp,
+                           const core::PlanetTerrainParams& terrainParams)
+    {
         planets.push_back(PlanetRepresentation{planet, planetComp, terrainParams});
     });
 }
 
-void PlanetLayerViewer::render(flecs::world& ecs) {
+void PlanetLayerViewer::render(flecs::world& ecs)
+{
     ImGui::BeginChild("##topBar", ImVec2(0, 60), ImGuiChildFlags_Border);
     draw_controls(ecs);
     ImGui::EndChild();
@@ -435,3 +477,4 @@ void PlanetLayerViewer::render(flecs::world& ecs) {
     draw_map(ecs);
     ImGui::EndChild();
 }
+} // namespace vp::client

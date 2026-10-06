@@ -3,6 +3,7 @@
 #include "core/TracyIntegration.h"
 #include "imgui.h"
 
+namespace vp::client {
 void FpsCounter::pre_render() {
     ImGui::SetNextWindowPos(ImVec2(10, 25), ImGuiCond_Always);
     ImGui::SetNextWindowBgAlpha(0.35f);
@@ -39,8 +40,9 @@ void FpsCounter::render(flecs::world& ecs) {
                      static_cast<int>(m_fpsHistoryIndex), nullptr, 0.0f, 120.0f, ImVec2(200, 60));
 
 #ifdef TRACY_ENABLE
-    bool internals = tracy_integration::g_trace_flecs_internals.load();
+    bool internals = core::tracy_integration::g_trace_flecs_internals.load();
     if (ImGui::Checkbox("Tracy: flecs internals", &internals))
-        tracy_integration::g_trace_flecs_internals.store(internals);
+        core::tracy_integration::g_trace_flecs_internals.store(internals);
 #endif
 }
+} // namespace vp::client

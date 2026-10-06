@@ -1,6 +1,7 @@
 #pragma once
 #include <GLFW/glfw3.h>
 
+namespace vp::platform {
 enum class ActionInputType {
     DebugMenuBar,
     ToggleMouseCapture,
@@ -57,3 +58,4 @@ struct InputActionState {
         return actions[static_cast<size_t>(action)] == KeyState::Pressed;
     }
 };
+} // namespace vp::platform

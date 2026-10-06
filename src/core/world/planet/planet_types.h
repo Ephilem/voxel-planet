@@ -8,7 +8,7 @@
 #include "core/resource/asset_id.h"
 #include "utils/maths/maths.h"
 
-namespace vp {
+namespace vp::core {
 #define CHUNK_SIZE 32
 #define CHUNK_VOLUME (CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE)
 #define PLANET_VOXEL_SIZE_LOD0 1.0
@@ -64,9 +64,9 @@ struct PlanetSurfaceChunkKey {
     inline PlanetSurfaceChunkKey(CubemapFace face, uint8_t level, const glm::ivec3& voxel) {
         this->face = face;
         this->level = level;
-        this->x = floor_div(voxel.x, CHUNK_SIZE);
-        this->y = floor_div(voxel.y, CHUNK_SIZE);
-        this->alt = floor_div(voxel.z, CHUNK_SIZE);
+        this->x = utils::floor_div(voxel.x, CHUNK_SIZE);
+        this->y = utils::floor_div(voxel.y, CHUNK_SIZE);
+        this->alt = utils::floor_div(voxel.z, CHUNK_SIZE);
     }
 
     bool valid() const { return face != FACE_UNKNOWN; }
@@ -201,10 +201,10 @@ struct PlanetSurfaceVoxelChunkNeighbors {
     std::shared_ptr<const PlanetSurfaceVoxelChunk> pxpy, pxpz, pypz, pxpypz; // + diagonals, for the dual contouring
 };
 
-} // namespace vp
+} // namespace vp::core
 
-template <> struct std::hash<vp::PlanetSurfaceChunkKey> {
-    size_t operator()(const vp::PlanetSurfaceChunkKey& k) const noexcept {
+template <> struct std::hash<vp::core::PlanetSurfaceChunkKey> {
+    size_t operator()(const vp::core::PlanetSurfaceChunkKey& k) const noexcept {
         size_t h = 1469598103934665603ull;
         auto mix = [&h](uint64_t v) { h = (h ^ v) * 1099511628211ull; };
         mix(static_cast<uint32_t>(k.x));
@@ -217,11 +217,11 @@ template <> struct std::hash<vp::PlanetSurfaceChunkKey> {
 
 FMT_BEGIN_NAMESPACE
 
-template <> struct formatter<vp::PlanetSurfaceChunkKey> {
+template <> struct formatter<vp::core::PlanetSurfaceChunkKey> {
     constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
 
-    template <typename FormatContext> auto format(const vp::PlanetSurfaceChunkKey& k, FormatContext& ctx) const {
-        return fmt::format_to(ctx.out(), "{}[{},{},{}]@{}", vp::face_name(k.face), k.x, k.y, k.alt, k.level);
+    template <typename FormatContext> auto format(const vp::core::PlanetSurfaceChunkKey& k, FormatContext& ctx) const {
+        return fmt::format_to(ctx.out(), "{}[{},{},{}]@{}", vp::core::face_name(k.face), k.x, k.y, k.alt, k.level);
     }
 };
 

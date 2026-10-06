@@ -24,7 +24,7 @@
 #define VOXEL_LOCKABLE(type, name) TracyLockable(type, name)
 #define VOXEL_LOCKABLE_N(type, name, desc) TracyLockableN(type, name, desc)
 
-namespace tracy_integration {
+namespace vp::core::tracy_integration {
 
 //  "flecs.*" internal zone
 inline std::atomic<bool> g_trace_flecs_internals{false};
@@ -62,18 +62,14 @@ inline void InstallFlecsHooks() {
     ecs_os_set_api(&api);
 }
 
-inline void Register(flecs::world& ecs) {
+// The frame mark itself is emitted by the renderer, right after present (Renderer-FrameMark)
+inline void Register(flecs::world&) {
     if (!ecs_get_build_info()->perf_trace) {
         ecs_warn("flecs built without FLECS_PERF_TRACE: system zones won't appear in Tracy");
     }
-
-    ecs.system("Tracy_FrameMark").kind(flecs::PostFrame).run([](flecs::iter& it) {
-        (void)it;
-        FrameMark;
-    });
 }
 
-} // namespace tracy_integration
+} // namespace vp::core::tracy_integration
 
 #else
 
@@ -88,10 +84,10 @@ inline void Register(flecs::world& ecs) {
 #define VOXEL_LOCKABLE(type, name) type name
 #define VOXEL_LOCKABLE_N(type, name, desc) type name
 
-namespace tracy_integration {
+namespace vp::core::tracy_integration {
 inline void InstallFlecsHooks() {}
 
 inline void Register(flecs::world&) {}
-} // namespace tracy_integration
+} // namespace vp::core::tracy_integration
 
 #endif

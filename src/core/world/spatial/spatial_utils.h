@@ -5,7 +5,7 @@
 #include "core/log/Logger.h"
 #include "spatial_components.h"
 
-namespace vp {
+namespace vp::core {
 /**
  * Find the first ancestor of the given entity that has a Grid component.
  * This is used to find the grid that a cell or other spatial-specific entity belongs to.
@@ -27,4 +27,4 @@ inline flecs::entity get_first_ancestor_grid(flecs::entity e) {
               e.id());
     std::abort();
 }
-} // namespace vp
+} // namespace vp::core

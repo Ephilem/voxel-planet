@@ -4,7 +4,7 @@
 
 #include "PlanetSurfaceChunkStore.h"
 
-namespace vp {
+namespace vp::core {
 void PlanetSurfaceChunkStore::store(const PlanetSurfaceChunkKey& key, std::shared_ptr<PlanetSurfaceVoxelChunk> chunk) {
     // Captured before the insert: it may rehash, which invalidates an iterator kept across it
     const bool existed = m_chunks.contains(key);
@@ -67,4 +67,4 @@ PlanetSurfaceVoxelChunkNeighbors PlanetSurfaceChunkStore::neighbors_of(const Pla
 
     return neighbors;
 }
-} // namespace vp
+} // namespace vp::core

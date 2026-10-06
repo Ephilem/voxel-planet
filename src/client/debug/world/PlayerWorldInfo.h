@@ -1,6 +1,7 @@
 #pragma once
-#include "../IDebugPanel.h"
+#include "client/debug/IDebugPanel.h"
 
+namespace vp::client {
 class PlayerWorldInfo : public IDebugPanel {
 public:
     PlayerWorldInfo() { is_visible = true; }
@@ -17,3 +18,4 @@ public:
 
     const std::string category() const override { return "World"; }
 };
+} // namespace vp::client

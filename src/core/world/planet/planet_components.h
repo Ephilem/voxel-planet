@@ -9,9 +9,9 @@
 #include "core/resource/asset_id.h"
 #include "planet_types.h"
 
-namespace vp {
+namespace vp::core {
 
-struct PlanetSurfaceChunkGenerator;
+class PlanetSurfaceChunkGenerator;
 
 struct Planet {
     float radius = 667544.0f;
@@ -84,4 +84,4 @@ struct PlanetSurfaceChunkGeneratorComp {
     std::unique_ptr<PlanetSurfaceChunkGenerator> generator;
 };
 
-} // namespace vp
+} // namespace vp::core

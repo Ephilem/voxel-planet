@@ -5,6 +5,7 @@
 
 #include <fmt/format.h>
 
+namespace vp::core {
 constexpr uint64_t hash_fnv1a(std::string_view str) noexcept {
     uint64_t hash = 14695981039346656037ull;
     for (const char c : str) {
@@ -34,12 +35,13 @@ constexpr NamedAssetID operator"" _asset(const char* str, size_t len) noexcept {
     const std::string_view sv{str, len};
     return NamedAssetID{sv, static_cast<AssetID>(hash_fnv1a(sv))};
 }
+} // namespace vp::core
 
 /// Lets an AssetID be logged directly, without a cast at every call site
 FMT_BEGIN_NAMESPACE
 
-template <> struct formatter<AssetID> : formatter<uint64_t> {
-    template <typename FormatContext> auto format(AssetID id, FormatContext& ctx) const {
+template <> struct formatter<vp::core::AssetID> : formatter<uint64_t> {
+    template <typename FormatContext> auto format(vp::core::AssetID id, FormatContext& ctx) const {
         return formatter<uint64_t>::format(static_cast<uint64_t>(id), ctx);
     }
 };

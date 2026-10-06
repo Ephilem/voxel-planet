@@ -2,6 +2,7 @@
 
 #include <flecs.h>
 
+namespace vp::core {
 class PhysicsSystem {
 public:
     PhysicsSystem() = default;
@@ -14,3 +15,4 @@ private:
 
     void apply_velocity(flecs::iter& it);
 };
+} // namespace vp::core

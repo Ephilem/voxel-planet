@@ -5,7 +5,7 @@
 
 #include "planet_types.h"
 
-namespace vp {
+namespace vp::core {
 /**
  * Tangent warp
  * @param s face coordinate in [-1, 1]
@@ -173,4 +173,4 @@ inline PlanetSurfaceChunkKey planet_pos_to_chunk(const glm::dvec3& posPlanet, do
     return PlanetSurfaceChunkKey(vc.face, level, glm::ivec3(vc.voxel));
 }
 
-} // namespace vp
+} // namespace vp::core

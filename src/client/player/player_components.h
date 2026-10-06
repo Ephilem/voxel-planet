@@ -1,6 +1,7 @@
 #pragma once
 #include <glm/fwd.hpp>
 
+namespace vp::client {
 enum class ControllerMode : glm::uint8_t {
     Walking,
     FreeCam,
@@ -24,3 +25,4 @@ struct PlayerController {
     float freeCamFastMult = 4.0f;
     float freeCamSpeedMultiplier = 1.0f;
 };
+} // namespace vp::client

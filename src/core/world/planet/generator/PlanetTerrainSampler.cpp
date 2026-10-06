@@ -11,8 +11,7 @@
 #include "core/log/Logger.h"
 #include "core/TracyIntegration.h"
 
-using namespace vp;
-
+namespace vp::core {
 constexpr float GAIN = 0.5f;
 constexpr float LACUNARITY = 2.0f;
 
@@ -132,8 +131,6 @@ void PlanetTerrainSampler::sample_height_batch(const float* dirX, const float* d
 
     const int octave = octave_for_lod(lod);
 
-    // Le landMask depend du resultat des continents : impossible de tout fusionner
-    // en une passe, mais deux passes batch suffisent (une par type de bruit).
     fbm_batch(dirX, dirY, dirZ, count, m_params.continentFrequency, m_params.continentOctave, scratch.continents.data(),
               scratch);
     ridged_batch(dirX, dirY, dirZ, count, m_params.mountainFrequency, octave, scratch.mountains.data(), scratch);
@@ -145,3 +142,4 @@ void PlanetTerrainSampler::sample_height_batch(const float* dirX, const float* d
         outHeights[k] = h - m_params.seaLevel;
     }
 }
+} // namespace vp::core

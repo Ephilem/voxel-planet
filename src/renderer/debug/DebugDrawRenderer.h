@@ -6,16 +6,17 @@
 #include "core/resource/ResourceSystem.h"
 #include "renderer/rendering_components.h"
 
+namespace vp::renderer {
 class VulkanBackend;
 
 class DebugDrawRenderer {
 public:
-    DebugDrawRenderer(VulkanBackend* backend, ResourceSystem* resourceSystem)
+    DebugDrawRenderer(VulkanBackend* backend, core::ResourceSystem* resourceSystem)
         : m_backend(backend), m_resourceSystem(resourceSystem) {
         init_gpu();
     }
 
-    void render(nvrhi::CommandListHandle cmd, Camera3d& camera);
+    void render(nvrhi::CommandListHandle cmd, RenderView& renderView);
 
 private:
     struct DebugDrawPushConstants {
@@ -25,11 +26,11 @@ private:
     void init_gpu();
 
     /// Uploads then draws the vertices, clamped to the buffer capacity
-    void draw_vertices(nvrhi::CommandListHandle cmd, Camera3d& camera, nvrhi::IGraphicsPipeline* pipeline,
+    void draw_vertices(nvrhi::CommandListHandle cmd, RenderView& renderView, nvrhi::IGraphicsPipeline* pipeline,
                        nvrhi::IBuffer* buffer, const void* vertices, size_t vertexCount);
 
     VulkanBackend* m_backend;
-    ResourceSystem* m_resourceSystem;
+    core::ResourceSystem* m_resourceSystem;
 
     // PushConstants layout
     nvrhi::BindingLayoutHandle m_pushConstantLayout;
@@ -41,3 +42,4 @@ private:
     nvrhi::BufferHandle m_pointBuffer;
     nvrhi::GraphicsPipelineHandle m_pointPipeline;
 };
+}

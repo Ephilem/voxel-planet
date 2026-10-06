@@ -3,10 +3,10 @@
 #include "DebugDrawRenderer.h"
 #include "ImGuiManager.h"
 
-#include "utils/common/BaseModule.h"
+#include "core/ecs/BaseModule.h"
 
-namespace vp {
-class DebugRenderModule : public utils::BaseModule<DebugRenderModule> {
+namespace vp::renderer {
+class DebugRenderModule : public core::BaseModule<DebugRenderModule> {
 public:
     DebugRenderModule(flecs::world& ecs) : BaseModule(ecs) {
         init_renderers(ecs);
@@ -23,4 +23,4 @@ private:
 
     friend class BaseModule;
 };
-} // namespace vp
+} // namespace vp::renderer

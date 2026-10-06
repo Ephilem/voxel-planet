@@ -6,6 +6,7 @@
 
 #include "input_state.h"
 
+namespace vp::platform {
 struct PlatformState;
 struct InputModuleState;
 struct Window;
@@ -46,3 +47,4 @@ public:
     static void update_action_states_system(InputState& inputState, InputActionState& actionState,
                                             InputModuleState& moduleState, Window& window);
 };
+} // namespace vp::platform

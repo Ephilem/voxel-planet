@@ -4,6 +4,7 @@
 #include "AssetRegistry.h"
 #include "loaders/ResourceLoader.h"
 
+namespace vp::core {
 class ResourceSystem {
 public:
     ResourceSystem(AssetRegistry* assetRegistry);
@@ -48,3 +49,4 @@ private:
 
     std::shared_ptr<IResource> load(const std::string& name, ResourceType type);
 };
+} // namespace vp::core

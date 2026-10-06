@@ -4,7 +4,7 @@
 
 #include "DebugDrawModule.h"
 
-namespace vp::DebugDraw {
+namespace vp::core::DebugDraw {
 static DebugDrawBuffer* s_ctx = nullptr;
 
 void init(DebugDrawBuffer* buffer) {
@@ -82,11 +82,11 @@ void Circle(const glm::vec3& center, float radius, const glm::vec4& color, int s
     }
 }
 
-const std::vector<vp::DebugVertex>& GetLines() {
+const std::vector<DebugVertex>& GetLines() {
     return s_ctx->lines;
 }
 
 const std::vector<DebugVertex>& GetPoints() {
     return s_ctx->points;
 }
-} // namespace vp::DebugDraw
+} // namespace vp::core::DebugDraw

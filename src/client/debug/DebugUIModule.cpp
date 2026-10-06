@@ -10,13 +10,14 @@
 #include "world/PlanetLayerViewer.h"
 #include "world/PlayerWorldInfo.h"
 
-using namespace vp;
-
-void DebugUIModule::register_components(flecs::world& ecs) {
+namespace vp::client {
+void DebugUIModule::register_components(flecs::world& ecs)
+{
     ecs.component<DebugUIManager>();
 }
 
-void DebugUIModule::register_systems(flecs::world& ecs) {
+void DebugUIModule::register_systems(flecs::world& ecs)
+{
     DebugUIManager::Register(ecs); // TODO make this more ecs friendly by not using a singleton
 
     auto* debugUI = ecs.try_get_mut<DebugUIManager>();
@@ -29,3 +30,4 @@ void DebugUIModule::register_systems(flecs::world& ecs) {
     debugUI->add_panel<PlanetTilesDebug>();
     debugUI->add_panel<PlanetChunksRenderingDebug>();
 }
+} // namespace vp::client

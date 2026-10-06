@@ -7,8 +7,7 @@
 #include "planet_transform.h"
 #include "PlanetSurfaceChunkStore.h"
 
-using namespace vp;
-
+namespace vp::core {
 void PlanetModule::register_components(flecs::world& ecs) {
     ecs.component<Planet>();
     ecs.component<PlanetTerrainParams>();
@@ -208,3 +207,4 @@ void PlanetModule::register_entities(flecs::world& ecs) {
     ecs.component<PlanetVoxelRegistry>().add(flecs::Singleton);
     ecs.set<PlanetVoxelRegistry>(std::move(reg));
 }
+} // namespace vp::core

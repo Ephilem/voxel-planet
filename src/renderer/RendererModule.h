@@ -2,10 +2,10 @@
 
 #include <flecs.h>
 
-#include "utils/common/BaseModule.h"
+#include "core/ecs/BaseModule.h"
 
-namespace vp {
-class RendererModule : public utils::BaseModule<RendererModule> {
+namespace vp::renderer {
+class RendererModule : public core::BaseModule<RendererModule> {
 public:
     RendererModule(flecs::world& ecs) : BaseModule(ecs) { register_all(ecs); }
 
@@ -18,4 +18,4 @@ private:
 
     friend class BaseModule<RendererModule>;
 };
-} // namespace vp
+} // namespace vp::renderer

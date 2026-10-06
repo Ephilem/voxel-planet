@@ -4,8 +4,7 @@
 #include "InputModuleState.h"
 #include "platform/PlatformState.h"
 
-using namespace vp;
-
+namespace vp::platform {
 void InputModule::register_components(flecs::world& ecs) {
     auto* platformState = ecs.try_get<PlatformState>();
     if (!platformState || !platformState->window)
@@ -39,3 +38,4 @@ void InputModule::register_systems(flecs::world& ecs) {
             InputStateManager::update_action_states_system(*inputState, *actionState, *moduleState, *platform->window);
     });
 }
+} // namespace vp::platform

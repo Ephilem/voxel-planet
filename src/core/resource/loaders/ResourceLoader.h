@@ -3,6 +3,7 @@
 
 #include "core/resource/resource_type.h"
 
+namespace vp::core {
 class IResourceLoader {
 public:
     virtual ~IResourceLoader() = default;
@@ -18,3 +19,4 @@ public:
 
     virtual std::shared_ptr<ResourceT> load_typed(const std::string& name) = 0;
 };
+} // namespace vp::core

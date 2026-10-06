@@ -5,7 +5,7 @@
 #include <iostream>
 #include <mutex>
 
-namespace vp {
+namespace vp::core {
 
 static std::recursive_mutex s_mutex;
 
@@ -212,4 +212,4 @@ std::string Logger::formatMessage(const std::string& message) {
     return formatted.str();
 }
 
-} // namespace vp
+} // namespace vp::core

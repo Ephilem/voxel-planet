@@ -6,6 +6,7 @@
 #include "core/log/Logger.h"
 #include "IDebugPanel.h"
 
+namespace vp::client {
 class DebugUIManager {
 public:
     DebugUIManager() = default;
@@ -29,3 +30,4 @@ private:
     std::vector<std::unique_ptr<IDebugPanel>> m_panels;
     bool m_menuBarVisible = true;
 };
+} // namespace vp::client

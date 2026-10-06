@@ -6,6 +6,7 @@
 
 #include "core/log/Logger.h"
 
+namespace vp::core {
 std::shared_ptr<ShaderResource> ShaderLoader::load_typed(const std::string& name) {
     // full file path
     std::string fullFilePath = "assets/shaders/" + name + ".spv";
@@ -37,3 +38,4 @@ std::shared_ptr<ShaderResource> ShaderLoader::load_typed(const std::string& name
     LOG_TRACE("ShaderLoader", "Loaded shader '{}' ({} bytes)", fullFilePath, size);
     return std::make_shared<ShaderResource>(name, size, std::move(data));
 }
+} // namespace vp::core

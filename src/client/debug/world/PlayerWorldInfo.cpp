@@ -3,13 +3,14 @@
 #include <glm/gtc/quaternion.hpp>
 
 #include "client/player/player_components.h"
+#include "client/render/camera/camera3d_components.h"
 #include "core/physics/physics_components.h"
 #include "core/TracyIntegration.h"
 #include "core/world/spatial/spatial_components.h"
 #include "core/world/spatial/spatial_utils.h"
 #include "imgui.h"
-#include "renderer/rendering_components.h"
 
+namespace vp::client {
 void PlayerWorldInfo::pre_render() {
     ImGuiIO& io = ImGui::GetIO();
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - 10, 25), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
@@ -20,15 +21,16 @@ void PlayerWorldInfo::render(flecs::world& ecs) {
     VOXEL_ZONE_N("WorldF3Info-Display");
 
     // RigidBody is optional: FreeCam removes it
-    ecs.each([](flecs::entity e, const Camera3d&, const vp::Transform& transform, const PlayerController& ctrl,
-                const vp::CellCoord& gridCell) {
+    ecs.each([](flecs::entity e, const Camera3d&, const core::Transform& transform, const PlayerController& ctrl,
+                const core::CellCoord& gridCell) {
         constexpr float kMetersPerWorldUnit = 1.0f;
         const glm::vec3 positionMeters = transform.pos * kMetersPerWorldUnit;
         const glm::quat orientation = glm::normalize(transform.rot);
-        const vp::LookAngles angles = e.has<vp::LookAngles>() ? *e.try_get<vp::LookAngles>() : vp::LookAngles{};
+        const core::LookAngles angles =
+            e.has<core::LookAngles>() ? *e.try_get<core::LookAngles>() : core::LookAngles{};
         const glm::vec3 up = orientation * glm::vec3(0.0f, 1.0f, 0.0f);
 
-        const vp::Grid* playerGrid = vp::get_first_ancestor_grid(e).try_get<vp::Grid>();
+        const core::Grid* playerGrid = core::get_first_ancestor_grid(e).try_get<core::Grid>();
         const glm::dvec3 inGridPosition =
             playerGrid ? glm::dvec3(transform.pos) + (gridCell * playerGrid->cellSize) : glm::dvec3(transform.pos);
 
@@ -48,7 +50,7 @@ void PlayerWorldInfo::render(flecs::world& ecs) {
         if (ctrl.mode == ControllerMode::FreeCam) {
             ImGui::Text("  Speed Multiplier: %.2fx", ctrl.freeCamSpeedMultiplier);
         }
-        if (const auto* body = e.try_get<RigidBody>()) {
+        if (const auto* body = e.try_get<core::RigidBody>()) {
             ImGui::Text("  On Ground: %s", body->onGround ? "Yes" : "No");
         }
 
@@ -59,3 +61,4 @@ void PlayerWorldInfo::render(flecs::world& ecs) {
         ImGui::Text("Looking: %.2f, %.2f, %.2f", forward.x, forward.y, forward.z);
     });
 }
+} // namespace vp::client

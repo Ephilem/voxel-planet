@@ -2,8 +2,7 @@
 
 #include "DebugDraw.h"
 
-using namespace vp;
-
+namespace vp::core {
 void DebugDrawModule::register_components(flecs::world& ecs) {
     ecs.component<DebugDrawBuffer>().add(flecs::Singleton);
     ecs.component<DebugDrawBuffer>().set(DebugDrawBuffer{});
@@ -17,3 +16,4 @@ void DebugDrawModule::register_systems(flecs::world& ecs) {
         buf->points.clear();
     });
 }
+} // namespace vp::core

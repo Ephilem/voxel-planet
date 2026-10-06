@@ -8,7 +8,8 @@
 #include "spatial_components.h"
 #include "spatial_utils.h"
 
-void vp::SpatialModule::register_components(flecs::world& ecs) {
+namespace vp::core {
+void SpatialModule::register_components(flecs::world& ecs) {
     ecs.component<Transform>()
         .member<float>("pos", 3, offsetof(Transform, pos))
         .member<float>("rot", 4, offsetof(Transform, rot))
@@ -35,7 +36,7 @@ void vp::SpatialModule::register_components(flecs::world& ecs) {
     ecs.component<LookAngles>().member<float>("yaw").member<float>("pitch").member<float>("roll");
 }
 
-void vp::SpatialModule::register_systems(flecs::world& ecs) {
+void SpatialModule::register_systems(flecs::world& ecs) {
     ecs.system("SpatialModule-GridNormalize")
         .with<CellCoord>() // [0]
         .with<Transform>() // [1]
@@ -156,11 +157,12 @@ void vp::SpatialModule::register_systems(flecs::world& ecs) {
         });
 }
 
-void vp::SpatialModule::register_pipelines(flecs::world& ecs) {}
+void SpatialModule::register_pipelines(flecs::world& ecs) {}
 
-void vp::SpatialModule::register_submodules(flecs::world& ecs) {}
+void SpatialModule::register_submodules(flecs::world& ecs) {}
 
-void vp::SpatialModule::register_entities(flecs::world& ecs) {
+void SpatialModule::register_entities(flecs::world& ecs) {
     ecs.component<SpatialRoot>().add(flecs::Singleton);
     ecs.set<SpatialRoot>({});
 }
+} // namespace vp::core

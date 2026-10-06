@@ -2,6 +2,7 @@
 
 #include "client/debug/IDebugPanel.h"
 
+namespace vp::client {
 class PlayerPanel : public IDebugPanel {
 public:
     void render(flecs::world& ecs) override;
@@ -13,3 +14,4 @@ public:
 private:
     float m_teleportPos[3] = {0.f, 120.f, 0.f};
 };
+} // namespace vp::client

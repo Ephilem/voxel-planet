@@ -8,7 +8,7 @@
 #include "core/world/planet/planet_transform.h"
 #include "core/world/planet/planet_types.h"
 
-namespace vp {
+namespace vp::core {
 
 PlanetSurfaceChunkGenerator::PlanetSurfaceChunkGenerator(PlanetTerrainParams params, double planetRadius,
                                                          const PlanetVoxelRegistry& registry, unsigned workerCount)
@@ -225,4 +225,4 @@ PlanetSurfaceChunkGenerator::generate(const PlanetSurfaceChunkKey& key, const Pl
     return std::make_shared<PlanetSurfaceVoxelChunk>(std::move(voxels), std::move(palette), maxDensity);
 }
 
-} // namespace vp
+} // namespace vp::core

@@ -8,6 +8,7 @@
 #include "platform/inputs/input_state.h"
 #include "platform/PlatformState.h"
 
+namespace vp::platform {
 Window::Window(uint16_t w, uint16_t h, const std::string& t) : width(w), height(h), title(t) {
     // Prefer Wayland when available, otherwise let GLFW pick (X11, Win32...)
     if (glfwPlatformSupported(GLFW_PLATFORM_X11)) {
@@ -64,3 +65,4 @@ void Window::setupCallbacks(flecs::world& ecs) {
         }
     });
 }
+} // namespace vp::platform

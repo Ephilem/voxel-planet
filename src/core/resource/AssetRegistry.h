@@ -7,6 +7,7 @@
 #include "asset_id.h"
 #include "resource_type.h"
 
+namespace vp::core {
 struct AssetMetadata {
     std::string path;
     std::string fullPath;
@@ -48,3 +49,4 @@ private:
     std::unordered_map<AssetID, AssetMetadata> m_registry;
     std::unordered_map<AssetID, std::string> m_debugNames;
 };
+} // namespace vp::core

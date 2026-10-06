@@ -9,6 +9,7 @@
 #include <stb_image.h>
 #include <stdexcept>
 
+namespace vp::core {
 std::shared_ptr<ImageResource> ImageLoader::load_typed(const std::string& name) {
     const int requiredChannelCount = 4;
     stbi_set_flip_vertically_on_load(true);
@@ -45,3 +46,4 @@ std::shared_ptr<ImageResource> ImageLoader::load_typed(const std::string& name) 
     return std::make_shared<ImageResource>(name, static_cast<uint32_t>(width), static_cast<uint32_t>(height),
                                            requiredChannelCount, std::move(data_ptr));
 }
+} // namespace vp::core

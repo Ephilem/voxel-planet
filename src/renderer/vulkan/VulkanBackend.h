@@ -1,8 +1,6 @@
 #pragma once
 
-#define GLFW_INCLUDE_VULKAN
-
-#include <GLFW/glfw3.h>
+#include "renderer/RenderConstants.h"
 
 #include <chrono>
 #include <nvrhi/nvrhi.h>
@@ -14,8 +12,9 @@
 #include <tracy/TracyVulkan.hpp>
 #endif
 
-#include "renderer/rendering_components.h"
+struct GLFWwindow;
 
+namespace vp::renderer {
 typedef struct RenderParameters {
     uint32_t width;
     uint32_t height;
@@ -70,6 +69,8 @@ public:
 
     void handle_resize(uint32_t width, uint32_t height);
 
+    [[nodiscard]] uint32_t max_texture_array_layers() const;
+
     nvrhi::Format get_depth_format() const { return m_depthFormat; }
 
     nvrhi::Format get_swapchain_format() const { return m_swapchainFormat; }
@@ -95,9 +96,9 @@ private:
 
     // Syncs
     std::vector<VkSemaphore> m_acquireImageSemaphores; // for each frame in flight
-    std::vector<VkSemaphore> m_presentSemaphores;      // for each swapchain image
+    std::vector<VkSemaphore> m_presentSemaphores; // for each swapchain image
     nvrhi::EventQueryHandle
-        m_frameSlotQueries[MAX_FRAMES_IN_FLIGHT]; // one query per frame slot, waited in begin_frame before reuse
+    m_frameSlotQueries[MAX_FRAMES_IN_FLIGHT]; // one query per frame slot, waited in begin_frame before reuse
     std::vector<nvrhi::EventQueryHandle> m_queryPool;
 
     void init_nvrhi();
@@ -108,3 +109,4 @@ private:
 
     void init_syncs();
 };
+}

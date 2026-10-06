@@ -4,6 +4,7 @@
 #include "nvrhi/nvrhi.h"
 #include "vulkan/VulkanBackend.h"
 
+namespace vp::renderer {
 struct FrameContext {
     nvrhi::CommandListHandle commandList;
     bool frameActive = false;
@@ -14,3 +15,4 @@ struct Renderer {
 
     FrameContext frameContext = {};
 };
+}

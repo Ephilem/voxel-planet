@@ -7,37 +7,41 @@
 #include "core/world/planet/PlanetSurfaceChunkGenerator.h"
 #include "core/world/planet/PlanetSurfaceChunkStore.h"
 
-namespace vp {
-
-/**
+namespace vp::client
+{
+    /**
  * Select an planet, and show information and debug action for :
  * - Chunk stores
  * - Chunk generators
  */
-class PlanetChunksDebug : public IDebugPanel {
-public:
-    void render(flecs::world& ecs) override;
+    class PlanetChunksDebug : public IDebugPanel
+    {
+    public:
+        void render(flecs::world& ecs) override;
 
-    const std::string name() const override { return "Planet Chunks"; }
+        const std::string name() const override { return "Planet Chunks"; }
 
-    const std::string category() const override { return "World"; }
+        const std::string category() const override { return "World"; }
 
-private:
-    struct PlanetRepresentation {
-        flecs::entity entity = flecs::entity::null();
+    private:
+        struct PlanetRepresentation
+        {
+            flecs::entity entity = flecs::entity::null();
 
-        flecs::ref<const PlanetSurfaceChunkStore> store;
-        flecs::ref<const PlanetSurfaceChunkGeneratorComp> generator;
+            flecs::ref<const core::PlanetSurfaceChunkStore> store;
+            flecs::ref<const core::PlanetSurfaceChunkGeneratorComp> generator;
+        };
+
+        // Planet selection
+        flecs::query<const core::Planet, const core::PlanetSurfaceChunkStore,
+                     const core::PlanetSurfaceChunkGeneratorComp>
+            m_planetQuery;
+        PlanetRepresentation m_selectedPlanet = {};
+
+        void select_planet(PlanetRepresentation planet);
+        void collect_planets(flecs::world& ecs, std::vector<PlanetRepresentation>& planets);
+
+        void draw_store();
+        void draw_generator();
     };
-
-    // Planet selection
-    flecs::query<const Planet, const PlanetSurfaceChunkStore, const PlanetSurfaceChunkGeneratorComp> m_planetQuery;
-    PlanetRepresentation m_selectedPlanet = {};
-
-    void select_planet(PlanetRepresentation planet);
-    void collect_planets(flecs::world& ecs, std::vector<PlanetRepresentation>& planets);
-
-    void draw_store();
-    void draw_generator();
-};
-} // namespace vp
+} // namespace vp::client

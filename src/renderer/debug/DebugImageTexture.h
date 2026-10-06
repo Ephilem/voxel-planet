@@ -1,15 +1,12 @@
 #pragma once
 
-#include <cstdint>
-#include <vector>
-
 #include <imgui.h>
 #include <nvrhi/nvrhi.h>
 #include <vulkan/vulkan.h>
 
-class VulkanBackend;
 
-namespace vp {
+namespace vp::renderer {
+class VulkanBackend;
 /**
  * Texture RGB8 for imgui / implot
  *
@@ -58,4 +55,4 @@ private:
     uint32_t m_width = 0;
     uint32_t m_height = 0;
 };
-} // namespace vp
+} // namespace vp::renderer

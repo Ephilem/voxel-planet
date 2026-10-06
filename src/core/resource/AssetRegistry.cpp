@@ -3,6 +3,7 @@
 
 #include <algorithm>
 
+namespace vp::core {
 void AssetRegistry::scan_assets(const std::filesystem::path& assetDir, const std::string& namespaceName) {
     if (!std::filesystem::exists(assetDir)) {
         LOG_ERROR("AssetRegistry", "Asset directory does not exist: {}", assetDir.string());
@@ -106,3 +107,4 @@ ResourceType AssetRegistry::get_type_from_extension(const std::string& extension
 std::string AssetRegistry::build_asset_name(const std::string& relativePath, const std::string& namespaceName) {
     return namespaceName + ":" + relativePath;
 }
+} // namespace vp::core

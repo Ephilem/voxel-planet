@@ -4,6 +4,7 @@
 #include <glm/glm.hpp>
 #include <string>
 
+namespace vp::platform {
 struct Window {
     uint16_t width;
     uint16_t height;
@@ -19,3 +20,4 @@ struct Window {
 
     void setupCallbacks(flecs::world& ecs);
 };
+} // namespace vp::platform

@@ -5,7 +5,7 @@
 #include <glm/gtc/quaternion.hpp>
 
 // Position in a grid
-namespace vp {
+namespace vp::core {
 
 struct CellCoord : glm::i64vec3 {
     using glm::i64vec3::i64vec3;
@@ -76,4 +76,4 @@ struct SpatialRoot {
     flecs::entity floatingOrigin;
 };
 
-} // namespace vp
+} // namespace vp::core

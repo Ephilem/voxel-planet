@@ -7,15 +7,16 @@
 
 #include "core/TracyIntegration.h"
 
+namespace vp::client {
 LogConsole::LogConsole() {
-    m_sinkId = vp::Logger::addSink([this](const vp::Logger::LogEntry& entry) { on_log_received(entry); });
+    m_sinkId = core::Logger::addSink([this](const core::Logger::LogEntry& entry) { on_log_received(entry); });
 }
 
 LogConsole::~LogConsole() {
-    vp::Logger::removeSink(m_sinkId);
+    core::Logger::removeSink(m_sinkId);
 }
 
-void LogConsole::on_log_received(const vp::Logger::LogEntry& entry) {
+void LogConsole::on_log_received(const core::Logger::LogEntry& entry) {
     std::lock_guard<std::mutex> lock(m_entriesMutex);
 
     auto time = std::chrono::system_clock::to_time_t(entry.timestamp);
@@ -81,29 +82,29 @@ void LogConsole::draw() {
 
         ImVec4 color;
         switch (entry.level) {
-        case vp::Logger::Level::TRACE_LEVEL:
+        case core::Logger::Level::TRACE_LEVEL:
             color = ImVec4(0.5f, 0.5f, 0.5f, 1.0f);
             break;
-        case vp::Logger::Level::DEBUG_LEVEL:
+        case core::Logger::Level::DEBUG_LEVEL:
             color = ImVec4(0.4f, 0.6f, 1.0f, 1.0f);
             break;
-        case vp::Logger::Level::INFO_LEVEL:
+        case core::Logger::Level::INFO_LEVEL:
             color = ImVec4(0.4f, 1.0f, 0.4f, 1.0f);
             break;
-        case vp::Logger::Level::WARNING_LEVEL:
+        case core::Logger::Level::WARNING_LEVEL:
             color = ImVec4(1.0f, 1.0f, 0.4f, 1.0f);
             break;
-        case vp::Logger::Level::ERROR_LEVEL:
+        case core::Logger::Level::ERROR_LEVEL:
             color = ImVec4(1.0f, 0.4f, 0.4f, 1.0f);
             break;
-        case vp::Logger::Level::FATAL_LEVEL:
+        case core::Logger::Level::FATAL_LEVEL:
             color = ImVec4(1.0f, 0.3f, 1.0f, 1.0f);
             break;
         }
 
         ImGui::TextDisabled("[%s]", entry.timestamp.c_str());
         ImGui::SameLine();
-        ImGui::TextColored(color, "%-5s", vp::Logger::levelToString(entry.level));
+        ImGui::TextColored(color, "%-5s", core::Logger::levelToString(entry.level));
         ImGui::SameLine();
         ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "%-12s", entry.component.c_str());
         ImGui::SameLine();
@@ -117,3 +118,4 @@ void LogConsole::draw() {
 
     ImGui::EndChild();
 }
+} // namespace vp::client

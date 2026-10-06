@@ -2,6 +2,7 @@
 #include "client/debug/IDebugPanel.h"
 #include <array>
 
+namespace vp::client {
 class FpsCounter : public IDebugPanel {
 public:
     FpsCounter() { is_visible = true; }
@@ -23,3 +24,4 @@ private:
     std::array<float, 120> m_fpsHistory = {};
     size_t m_fpsHistoryIndex = 0;
 };
+} // namespace vp::client

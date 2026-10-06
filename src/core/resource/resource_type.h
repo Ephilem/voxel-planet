@@ -5,6 +5,7 @@
 
 #include "asset_id.h"
 
+namespace vp::core {
 enum class ResourceType {
     UNKNOWN,
 
@@ -67,3 +68,4 @@ public:
 
     uint8_t* get_data() const { return m_data.get(); }
 };
+} // namespace vp::core

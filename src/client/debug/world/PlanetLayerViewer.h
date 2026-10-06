@@ -13,7 +13,7 @@
 #include "PlanetLayerProjectionMappings.h"
 #include "renderer/debug/DebugImageTexture.h"
 
-namespace vp {
+namespace vp::client {
 class PlanetLayerViewer : public IDebugPanel {
 public:
     void render(flecs::world& ecs) override;
@@ -25,8 +25,8 @@ public:
 private:
     struct PlanetRepresentation {
         flecs::entity entity;
-        Planet planetComp;
-        PlanetTerrainParams terrainParams;
+        core::Planet planetComp;
+        core::PlanetTerrainParams terrainParams;
     };
 
     void draw_map(flecs::world& ecs);
@@ -46,22 +46,23 @@ private:
     /// Raw value readback. NaN outside the image or on a projection gap
     float value_at(int x, int y) const;
     /// Plot coordinates -> pixel. False when outside the image
-    bool plot_to_pixel(const PlanetLayerProjectionMapping& proj, const ImPlotPoint& mouse, int& outX, int& outY) const;
+    bool plot_to_pixel(const PlanetLayerProjectionMapping& proj, const ImPlotPoint& mouse, int& outX,
+                       int& outY) const;
 
     PlanetRepresentation m_selectedPlanet = {};
 
     // query cache
-    flecs::query<const Planet, const PlanetTerrainParams> m_planetQuery = {};
+    flecs::query<const core::Planet, const core::PlanetTerrainParams> m_planetQuery = {};
 
     bool m_dirty = false;
-    DebugImageTexture m_mapTexture;
+    renderer::DebugImageTexture m_mapTexture;
 
     int m_projIndex = 0;
     int m_layerIndex = 0;
     int m_resolution = 256;
     int m_lod = 0;
 
-    PlanetTerrainParams m_appliedParams{};
+    core::PlanetTerrainParams m_appliedParams{};
 
     std::vector<float> m_values;
     std::vector<uint8_t> m_pixels;
@@ -78,4 +79,4 @@ private:
     std::vector<float> m_tileValues;
     std::vector<PlanetLayerProjectionTile> m_tiles;
 };
-} // namespace vp
+} // namespace vp::client

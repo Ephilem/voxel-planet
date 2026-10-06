@@ -9,7 +9,7 @@
 #include "planet_components.h"
 #include "planet_types.h"
 
-namespace vp {
+namespace vp::core {
 class PlanetSurfaceChunkGenerator {
 public:
     PlanetSurfaceChunkGenerator(PlanetTerrainParams params, double planetRadius, const PlanetVoxelRegistry& registry,
@@ -108,4 +108,4 @@ private:
     Stats m_stats;
 };
 
-} // namespace vp
+} // namespace vp::core

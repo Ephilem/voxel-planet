@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 
+namespace vp::core {
 struct AABB {
     glm::vec3 min;
     glm::vec3 max;
@@ -27,3 +28,4 @@ struct AABB {
 
     AABB operator+(const glm::vec3& offset) const { return {min + offset, max + offset}; }
 };
+} // namespace vp::core

@@ -1,13 +1,17 @@
 #include "VulkanBackend.h"
 
+#define GLFW_INCLUDE_VULKAN
+
+#include <GLFW/glfw3.h>
 #include <algorithm>
 #include <stdexcept>
 #include <VkBootstrap.h>
 
 #include "core/log/Logger.h"
 #include "core/TracyIntegration.h"
-#include "renderer/rendering_components.h"
+#include "renderer/RenderConstants.h"
 
+namespace vp::renderer {
 VKAPI_ATTR VkBool32 VKAPI_CALL vk_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
                                                  VkDebugUtilsMessageTypeFlagsEXT message_types,
                                                  const VkDebugUtilsMessengerCallbackDataEXT* callback_data, void* _) {
@@ -60,10 +64,10 @@ VulkanBackend::VulkanBackend(GLFWwindow* window, RenderParameters renderParamete
     // Create Vulkan instance
     vkb::InstanceBuilder builder;
     auto inst_ret = builder.set_app_name("VoxelPlanet")
-                        .request_validation_layers(true)
-                        .require_api_version(1, 3)
-                        .set_debug_callback(vk_debug_callback)
-                        .build();
+                           .request_validation_layers(true)
+                           .require_api_version(1, 3)
+                           .set_debug_callback(vk_debug_callback)
+                           .build();
 
     if (!inst_ret) {
         throw std::runtime_error("Failed to create Vulkan instance: " + std::string(inst_ret.error().message()));
@@ -131,7 +135,8 @@ VulkanBackend::~VulkanBackend() {
 
 #ifdef TRACY_ENABLE
     if (tracyVkCtx) {
-        TracyVkDestroy(tracyVkCtx) tracyVkCtx = nullptr;
+        TracyVkDestroy(tracyVkCtx)
+        tracyVkCtx = nullptr;
     }
 #endif
 
@@ -175,8 +180,8 @@ VulkanBackend::~VulkanBackend() {
 void VulkanBackend::init_nvrhi() {
     vkb::PhysicalDeviceSelector selector{instance};
     selector.set_surface(surface)
-        .prefer_gpu_device_type(vkb::PreferredDeviceType::discrete)
-        .set_minimum_version(1, 3)
+            .prefer_gpu_device_type(vkb::PreferredDeviceType::discrete)
+            .set_minimum_version(1, 3)
 #ifdef TRACY_ENABLE
         .add_required_extension(VK_EXT_CALIBRATED_TIMESTAMPS_EXTENSION_NAME)
 #endif
@@ -226,10 +231,10 @@ void VulkanBackend::init_nvrhi() {
 
     vkb::DeviceBuilder deviceBuilder{physicalDevice};
     auto device_ret = deviceBuilder.add_pNext(&dynamicRenderingFeatures)
-                          .add_pNext(&synchronization2Features)
-                          .add_pNext(&vulkan12Features)
-                          .add_pNext(&features)
-                          .build();
+                                   .add_pNext(&synchronization2Features)
+                                   .add_pNext(&vulkan12Features)
+                                   .add_pNext(&features)
+                                   .build();
 
     if (!device_ret) {
         throw std::runtime_error("Failed to create logical device: " + std::string(device_ret.error().message()));
@@ -273,11 +278,11 @@ void VulkanBackend::create_swapchain() {
     VOXEL_ZONE_N("Create Swapchain");
     vkb::SwapchainBuilder builder{vkDevice.physical_device, vkDevice.device, surface};
     auto swapchain_ret = builder.set_desired_format({VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR})
-                             .add_fallback_format({VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR})
-                             .set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR)
-                             .set_desired_extent(renderParameters.width, renderParameters.height)
-                             .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
-                             .build();
+                                .add_fallback_format({VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR})
+                                .set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR)
+                                .set_desired_extent(renderParameters.width, renderParameters.height)
+                                .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT)
+                                .build();
 
     if (!swapchain_ret) {
         throw std::runtime_error("Failed to create swapchain");
@@ -302,14 +307,14 @@ void VulkanBackend::create_swapchain() {
     m_swapchainTextures.reserve(images->size());
     for (size_t i = 0; i < images->size(); ++i) {
         auto textureDesc = nvrhi::TextureDesc()
-                               .setDimension(nvrhi::TextureDimension::Texture2D)
-                               .setWidth(m_swapchain.extent.width)
-                               .setHeight(m_swapchain.extent.height)
-                               .setFormat(m_swapchainFormat)
-                               .setIsRenderTarget(true)
-                               .setInitialState(nvrhi::ResourceStates::Present)
-                               .setKeepInitialState(true)
-                               .setDebugName("Swapchain Texture");
+                           .setDimension(nvrhi::TextureDimension::Texture2D)
+                           .setWidth(m_swapchain.extent.width)
+                           .setHeight(m_swapchain.extent.height)
+                           .setFormat(m_swapchainFormat)
+                           .setIsRenderTarget(true)
+                           .setInitialState(nvrhi::ResourceStates::Present)
+                           .setKeepInitialState(true)
+                           .setDebugName("Swapchain Texture");
 
         nvrhi::TextureHandle texture = device->createHandleForNativeTexture(nvrhi::ObjectTypes::VK_Image,
                                                                             nvrhi::Object(images->at(i)), textureDesc);
@@ -326,14 +331,14 @@ void VulkanBackend::create_swapchain() {
     m_depthFormat = (depthVkFormat == VK_FORMAT_D24_UNORM_S8_UINT) ? nvrhi::Format::D24S8 : nvrhi::Format::D32S8;
 
     auto depthDesc = nvrhi::TextureDesc()
-                         .setDimension(nvrhi::TextureDimension::Texture2D)
-                         .setFormat(m_depthFormat)
-                         .setWidth(m_swapchain.extent.width)
-                         .setHeight(m_swapchain.extent.height)
-                         .setIsRenderTarget(true)
-                         .setInitialState(nvrhi::ResourceStates::DepthWrite)
-                         .setKeepInitialState(true)
-                         .setDebugName("Depth Texture");
+                     .setDimension(nvrhi::TextureDimension::Texture2D)
+                     .setFormat(m_depthFormat)
+                     .setWidth(m_swapchain.extent.width)
+                     .setHeight(m_swapchain.extent.height)
+                     .setIsRenderTarget(true)
+                     .setInitialState(nvrhi::ResourceStates::DepthWrite)
+                     .setKeepInitialState(true)
+                     .setDebugName("Depth Texture");
 
     depthBuffer = device->createTexture(depthDesc);
 
@@ -566,3 +571,8 @@ void VulkanBackend::handle_resize(uint32_t width, uint32_t height) {
         LOG_TRACE("VulkanBackend", "Window resized to {}x{}, marking swapchain dirty", width, height);
     }
 }
+
+uint32_t VulkanBackend::max_texture_array_layers() const {
+    return vkDevice.physical_device.properties.limits.maxImageArrayLayers; // déjà rempli par vk-bootstrap
+}
+} // namespace vp::renderer

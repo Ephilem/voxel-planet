@@ -8,7 +8,7 @@
 
 #include <FastNoise/FastNoise.h>
 
-namespace vp {
+namespace vp::core {
 
 class PlanetTerrainSampler {
 public:
@@ -59,4 +59,4 @@ inline PlanetTerrainSampler::BatchScratch& thread_scratch() {
     thread_local PlanetTerrainSampler::BatchScratch scratch;
     return scratch;
 }
-} // namespace vp
+} // namespace vp::core

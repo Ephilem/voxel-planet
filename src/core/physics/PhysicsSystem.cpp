@@ -10,8 +10,7 @@
 #include "core/world/spatial/spatial_components.h"
 #include "physics_components.h"
 
-using namespace vp;
-
+namespace vp::core {
 void PhysicsSystem::Register(flecs::world& ecs) {
     ecs.component<Velocity>().member<float>("x", 0, 0).member<float>("y", 0, 0).member<float>("z", 0, 0);
     ecs.component<Gravity>().member<float>("x", 0, 0).member<float>("y", 0, 0).member<float>("z", 0, 0);
@@ -238,3 +237,4 @@ void PhysicsSystem::apply_velocity(flecs::iter& it) {
         }
     }
 }
+} // namespace vp::core

@@ -1,10 +1,11 @@
 #pragma once
 
-#include "utils/common/BaseModule.h"
 #include <flecs.h>
 
-namespace vp {
-class PlayerClientModule : public utils::BaseModule<PlayerClientModule> {
+#include "core/ecs/BaseModule.h"
+
+namespace vp::client {
+class PlayerClientModule : public core::BaseModule<PlayerClientModule> {
 public:
     PlayerClientModule(flecs::world& ecs) : BaseModule(ecs) { register_all(ecs); }
 
@@ -17,4 +18,4 @@ private:
 
     friend class BaseModule<PlayerClientModule>;
 };
-} // namespace vp
+} // namespace vp::client

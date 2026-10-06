@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace vp {
+namespace vp::core {
 
 class Logger {
 public:
@@ -130,14 +130,14 @@ private:
     bool m_showTimestamp;
 };
 
-} // namespace vp
+} // namespace vp::core
 
 // Macros for easy logging anywhere
 // Usage: LOG_INFO("MyComponent", "Player {} joined", playerName);
 
-#define LOG_TRACE(component, ...) ::vp::Logger::get(component).trace(__VA_ARGS__)
-#define LOG_DEBUG(component, ...) ::vp::Logger::get(component).debug(__VA_ARGS__)
-#define LOG_INFO(component, ...) ::vp::Logger::get(component).info(__VA_ARGS__)
-#define LOG_WARN(component, ...) ::vp::Logger::get(component).warning(__VA_ARGS__)
-#define LOG_ERROR(component, ...) ::vp::Logger::get(component).error(__VA_ARGS__)
-#define LOG_FATAL(component, ...) ::vp::Logger::get(component).fatal(__VA_ARGS__)
+#define LOG_TRACE(component, ...) ::vp::core::Logger::get(component).trace(__VA_ARGS__)
+#define LOG_DEBUG(component, ...) ::vp::core::Logger::get(component).debug(__VA_ARGS__)
+#define LOG_INFO(component, ...) ::vp::core::Logger::get(component).info(__VA_ARGS__)
+#define LOG_WARN(component, ...) ::vp::core::Logger::get(component).warning(__VA_ARGS__)
+#define LOG_ERROR(component, ...) ::vp::core::Logger::get(component).error(__VA_ARGS__)
+#define LOG_FATAL(component, ...) ::vp::core::Logger::get(component).fatal(__VA_ARGS__)

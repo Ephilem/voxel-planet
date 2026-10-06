@@ -2,11 +2,10 @@
 
 #include <nvrhi/utils.h>
 
-#include "camera/Camera3dModule.h"
 #include "debug/DebugRenderModule.h"
-#include "world/planet/PlanetRendererModule.h"
 
 #include "Renderer.h"
+#include "render_phases.h"
 #include "vulkan/VulkanBackend.h"
 
 #include "platform/events.h"
@@ -18,16 +17,21 @@
 #include <tracy/TracyVulkan.hpp>
 #endif
 
-using namespace vp;
-
+namespace vp::renderer {
 void RendererModule::register_components(flecs::world& ecs) {
-    auto* platform = ecs.try_get<PlatformState>();
+    auto* platform = ecs.try_get<platform::PlatformState>();
     if (!platform || !platform->window) {
         throw std::runtime_error("RendererModule: PlatformModule must be initialized before RendererModule");
     }
 
-    ecs.component<RenderingPreferences>().add(flecs::Singleton);
+    ecs.component<phases::RenderExtract>().add(flecs::Phase).depends_on(flecs::PreStore);
+    ecs.component<phases::RenderSubmit>().add(flecs::Phase).depends_on<phases::RenderExtract>();
+    ecs.component<phases::RenderOverlay>().add(flecs::Phase).depends_on<phases::RenderSubmit>();
+    ecs.component<phases::RenderPresent>().add(flecs::Phase).depends_on<phases::RenderOverlay>();
+
     ecs.component<Renderer>().add(flecs::Singleton);
+    ecs.component<RenderView>().add(flecs::Singleton);
+
     ecs.set<Renderer>({
         .backend = std::make_unique<VulkanBackend>(platform->window->window,
                                                    RenderParameters{platform->window->width, platform->window->height}),
@@ -60,7 +64,7 @@ void RendererModule::register_systems(flecs::world& ecs) {
         }
     });
 
-    ecs.system<Renderer>("EndFrameSystem").kind(flecs::PostFrame).each([](Renderer& renderer) {
+    ecs.system<Renderer>("EndFrameSystem").kind<phases::RenderPresent>().each([](Renderer& renderer) {
         VOXEL_ZONE_N("Renderer-EndFrame");
         FrameContext& ctx = renderer.frameContext;
         if (!ctx.frameActive || !ctx.commandList)
@@ -86,9 +90,13 @@ void RendererModule::register_systems(flecs::world& ecs) {
         ctx.frameActive = false;
     });
 
-    ecs.observer<PlatformState>().event<WindowResizeEvent>().run([](flecs::iter& it) {
+    // Tracy frame boundary, right after present. A separate system so frames without an active
+    // render frame (minimized window, swapchain resize) are still marked
+    ecs.system("Renderer-FrameMark").kind<phases::RenderPresent>().run([](flecs::iter&) { VOXEL_FRAME_MARK; });
+
+    ecs.observer<platform::PlatformState>().event<platform::WindowResizeEvent>().run([](flecs::iter& it) {
         VOXEL_ZONE_N("PlatformModule-HandleResize");
-        auto* evt = it.param<WindowResizeEvent>();
+        auto* evt = it.param<platform::WindowResizeEvent>();
         auto* renderer = it.world().try_get_mut<Renderer>();
 
         if (renderer && renderer->backend) {
@@ -97,14 +105,14 @@ void RendererModule::register_systems(flecs::world& ecs) {
     });
 }
 
-void RendererModule::register_pipelines(flecs::world& ecs) {}
+void RendererModule::register_pipelines(flecs::world& ecs) {
+}
 
 void RendererModule::register_submodules(flecs::world& ecs) {
-    ecs.import<Camera3dModule>();
-    ecs.import<PlanetRendererModule>();
     ecs.import<DebugRenderModule>();
 }
 
 void RendererModule::register_entities(flecs::world& ecs) {
-    ecs.emplace<RenderingPreferences>();
+    ecs.emplace<RenderView>();
 }
+} // namespace vp::renderer

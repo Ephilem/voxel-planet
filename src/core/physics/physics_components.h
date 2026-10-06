@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 
+namespace vp::core {
 struct Velocity : glm::vec3 {
     using glm::vec3::vec3;
 
@@ -23,3 +24,4 @@ struct RigidBody {
 struct Gravity : glm::vec3 {
     using glm::vec3::vec3;
 };
+} // namespace vp::core

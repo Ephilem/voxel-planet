@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+namespace vp::client {
 class LogConsole : public IDebugPanel {
 public:
     LogConsole();
@@ -25,18 +26,18 @@ public:
 
 private:
     struct DisplayEntry {
-        vp::Logger::Level level;
+        core::Logger::Level level;
         std::string component;
         std::string message;
         std::string timestamp;
     };
 
-    void on_log_received(const vp::Logger::LogEntry& entry);
+    void on_log_received(const core::Logger::LogEntry& entry);
     void draw();
 
     std::vector<DisplayEntry> m_entries;
     std::mutex m_entriesMutex;
-    vp::Logger::SinkId m_sinkId = 0;
+    core::Logger::SinkId m_sinkId = 0;
 
     size_t m_maxEntries = 1000;
     bool m_autoScroll = true;
@@ -45,3 +46,4 @@ private:
     int m_filterLevel = 0;
     char m_filterText[128] = "";
 };
+} // namespace vp::client

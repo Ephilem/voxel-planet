@@ -1,6 +1,5 @@
 #include "PlatformModule.h"
 
-#include "core/GameState.h"
 #include "events.h"
 #include "inputs/InputModule.h"
 #include "PlatformState.h"
@@ -9,45 +8,42 @@
 #include "core/log/Logger.h"
 #include "core/TracyIntegration.h"
 
-using namespace vp;
-
-void PlatformModule::init(flecs::world& ecs) {
-    auto* platformState = ecs.try_get_mut<PlatformState>();
-    platformState->window->setupCallbacks(ecs);
-}
-
-void PlatformModule::register_components(flecs::world& ecs) {
-    auto* gameState = ecs.try_get<GameState>();
-    if (!gameState) {
-        throw std::runtime_error("PlatformModule: CoreModule must be imported before PlatformModule");
+namespace vp::platform {
+    void PlatformModule::init(flecs::world& ecs) {
+        auto* platformState = ecs.try_get_mut<PlatformState>();
+        platformState->window->setupCallbacks(ecs);
     }
 
-    ecs.component<WindowResizeEvent>();
-    ecs.component<PlatformState>().add(flecs::Singleton);
+    void PlatformModule::register_components(flecs::world& ecs) {
+        ecs.component<WindowResizeEvent>();
+        ecs.component<PlatformState>().add(flecs::Singleton);
 
-    ecs.set<PlatformState>({.window = std::make_unique<Window>(1280, 720, "VoxelPlanet")});
+        ecs.set<PlatformState>({.window = std::make_unique<Window>(1280, 720, "VoxelPlanet")});
+    }
+
+    void PlatformModule::register_systems(flecs::world& ecs) {
+        ecs.system("PlatformModule-Update").kind(flecs::PreUpdate).run([](flecs::iter& it) {
+            auto* platform = it.world().try_get_mut<PlatformState>();
+
+            if (!platform || !platform->window) {
+                return;
+            }
+
+            platform->window->pollEvents();
+
+            if (platform->window->shouldClose()) {
+                platform->closeRequested = true;
+            }
+        });
+    }
+
+    void PlatformModule::register_pipelines(flecs::world& ecs) {
+    }
+
+    void PlatformModule::register_submodules(flecs::world& ecs) {
+        ecs.import<InputModule>();
+    }
+
+    void PlatformModule::register_entities(flecs::world& ecs) {
+    }
 }
-
-void PlatformModule::register_systems(flecs::world& ecs) {
-    ecs.system("PlatformModule-Update").kind(flecs::PreUpdate).run([](flecs::iter& it) {
-        VOXEL_ZONE_N("PlatformModule-Update");
-        auto* gameState = it.world().try_get_mut<GameState>();
-        auto* platform = it.world().try_get_mut<PlatformState>();
-        if (!gameState || !platform || !platform->window)
-            return;
-
-        platform->window->pollEvents();
-
-        if (platform->window->shouldClose()) {
-            gameState->isRunning = false;
-        }
-    });
-}
-
-void PlatformModule::register_pipelines(flecs::world& ecs) {}
-
-void PlatformModule::register_submodules(flecs::world& ecs) {
-    ecs.import<InputModule>();
-}
-
-void PlatformModule::register_entities(flecs::world& ecs) {}

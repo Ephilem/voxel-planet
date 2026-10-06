@@ -7,8 +7,7 @@
 #include "core/log/Logger.h"
 #include "renderer/vulkan/VulkanBackend.h"
 
-using namespace vp;
-
+namespace vp::renderer {
 DebugImageTexture::~DebugImageTexture() {
     release();
 }
@@ -74,14 +73,14 @@ bool DebugImageTexture::upload(VulkanBackend* backend, const uint8_t* pixels, ui
         m_backend = backend;
 
         auto textureDesc = nvrhi::TextureDesc()
-                               .setWidth(width)
-                               .setHeight(height)
-                               .setFormat(nvrhi::Format::RGBA8_UNORM)
-                               .setDimension(nvrhi::TextureDimension::Texture2D)
-                               .setMipLevels(1)
-                               .setDebugName("DebugImageTexture")
-                               .setInitialState(nvrhi::ResourceStates::ShaderResource)
-                               .setKeepInitialState(true);
+                           .setWidth(width)
+                           .setHeight(height)
+                           .setFormat(nvrhi::Format::RGBA8_UNORM)
+                           .setDimension(nvrhi::TextureDimension::Texture2D)
+                           .setMipLevels(1)
+                           .setDebugName("DebugImageTexture")
+                           .setInitialState(nvrhi::ResourceStates::ShaderResource)
+                           .setKeepInitialState(true);
 
         m_texture = backend->device->createTexture(textureDesc);
         if (!m_texture) {
@@ -140,4 +139,5 @@ bool DebugImageTexture::upload(VulkanBackend* backend, const uint8_t* pixels, ui
     }
 
     return true;
+}
 }

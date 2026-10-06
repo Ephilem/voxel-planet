@@ -5,12 +5,12 @@
 
 #include "core/math/aabb.h"
 
-namespace vp {
+namespace vp::core {
 struct DebugVertex;
 struct DebugDrawBuffer;
-} // namespace vp
+} // namespace vp::core
 
-namespace vp::DebugDraw {
+namespace vp::core::DebugDraw {
 void init(DebugDrawBuffer* buffer);
 void shutdown();
 
@@ -28,4 +28,4 @@ inline void Aabb(const AABB& aabb, const glm::vec4& color) {
 
 const std::vector<DebugVertex>& GetLines();
 const std::vector<DebugVertex>& GetPoints();
-} // namespace vp::DebugDraw
+} // namespace vp::core::DebugDraw

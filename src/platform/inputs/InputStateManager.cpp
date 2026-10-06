@@ -9,6 +9,7 @@
 #include "platform/PlatformState.h"
 #include "platform/window/Window.h"
 
+namespace vp::platform {
 InputStateManager::InputStateManager() {
     bind_action(ActionInputType::DebugMenuBar, GLFW_KEY_F3);
     bind_action(ActionInputType::ToggleMouseCapture, GLFW_KEY_LEFT_ALT);
@@ -168,3 +169,4 @@ void InputStateManager::update_action_states_system(InputState& inputState, Inpu
         LOG_TRACE("InputStateManager", "Mouse capture toggled: {}", inputState.mouseCaptured);
     }
 }
+} // namespace vp::platform

@@ -4,6 +4,7 @@
 
 #include "aabb.h"
 
+namespace vp::core {
 class Frustrum {
     std::array<glm::vec4, 6> m_planes;
 
@@ -81,3 +82,4 @@ public:
         return true;
     }
 };
+} // namespace vp::core

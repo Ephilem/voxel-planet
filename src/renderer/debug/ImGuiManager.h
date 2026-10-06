@@ -4,6 +4,7 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
 
+namespace vp::renderer {
 class VulkanBackend;
 
 class ImGuiManager {
@@ -22,3 +23,4 @@ private:
     VulkanBackend* m_backend = nullptr;
     VkDescriptorPool m_descriptorPool = VK_NULL_HANDLE;
 };
+}

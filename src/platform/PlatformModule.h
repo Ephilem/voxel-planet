@@ -2,11 +2,11 @@
 
 #include <flecs.h>
 
-#include "utils/common/BaseModule.h"
+#include "core/ecs/BaseModule.h"
 
-namespace vp {
+namespace vp::platform {
 
-class PlatformModule : public utils::BaseModule<PlatformModule> {
+class PlatformModule : public core::BaseModule<PlatformModule> {
 public:
     PlatformModule(flecs::world& ecs) : BaseModule(ecs) {
         register_all(ecs);
@@ -25,4 +25,4 @@ private:
     friend class BaseModule<PlatformModule>;
 };
 
-} // namespace vp
+} // namespace vp::platform

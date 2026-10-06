@@ -2,10 +2,10 @@
 
 #include <flecs.h>
 
-#include "utils/common/BaseModule.h"
+#include "core/ecs/BaseModule.h"
 
-namespace vp {
-class SpatialModule : public utils::BaseModule<SpatialModule> {
+namespace vp::core {
+class SpatialModule : public BaseModule<SpatialModule> {
 public:
     SpatialModule(flecs::world& ecs) : BaseModule(ecs) { register_all(ecs); }
 
@@ -18,4 +18,4 @@ private:
 
     friend class BaseModule<SpatialModule>;
 };
-} // namespace vp
+} // namespace vp::core

@@ -11,14 +11,13 @@
 
 #include "core/world/planet/planet_transform.h"
 
-using namespace vp;
-
+namespace vp::client {
 constexpr int CROSS_COLS = 4;
 constexpr int CROSS_ROWS = 3;
-constexpr CubemapFace CROSS_LAYOUT[CROSS_ROWS][CROSS_COLS] = {
-    {FACE_UNKNOWN, FACE_POS_Y, FACE_UNKNOWN, FACE_UNKNOWN},
-    {FACE_NEG_X, FACE_POS_Z, FACE_POS_X, FACE_NEG_Z},
-    {FACE_UNKNOWN, FACE_NEG_Y, FACE_UNKNOWN, FACE_UNKNOWN},
+constexpr core::CubemapFace CROSS_LAYOUT[CROSS_ROWS][CROSS_COLS] = {
+    {core::FACE_UNKNOWN, core::FACE_POS_Y, core::FACE_UNKNOWN, core::FACE_UNKNOWN},
+    {core::FACE_NEG_X, core::FACE_POS_Z, core::FACE_POS_X, core::FACE_NEG_Z},
+    {core::FACE_UNKNOWN, core::FACE_NEG_Y, core::FACE_UNKNOWN, core::FACE_UNKNOWN},
 };
 
 class EquirectangularProjection final : public PlanetLayerProjectionMapping {
@@ -29,7 +28,7 @@ public:
 
     void tiles(int resolution, std::vector<PlanetLayerProjectionTile>& out) const override {
         out.clear();
-        out.push_back({{0, 0}, image_size(resolution), FACE_UNKNOWN});
+        out.push_back({{0, 0}, image_size(resolution), core::FACE_UNKNOWN});
     }
 
     void fill_tile_directions(const PlanetLayerProjectionTile& tile, PlanetDirectionField& out) const override {
@@ -86,8 +85,8 @@ public:
         out.clear();
         for (int row = 0; row < CROSS_ROWS; ++row) {
             for (int col = 0; col < CROSS_COLS; ++col) {
-                const CubemapFace face = CROSS_LAYOUT[row][col];
-                if (face == FACE_UNKNOWN)
+                const core::CubemapFace face = CROSS_LAYOUT[row][col];
+                if (face == core::FACE_UNKNOWN)
                     continue;
 
                 out.push_back(
@@ -104,7 +103,7 @@ public:
 
             for (int px = 0; px < tile.size.x; ++px) {
                 const double u = 2.0 * (px + 0.5) / tile.size.x - 1.0;
-                const glm::dvec3 d = face_uv_to_direction(tile.face, u, v);
+                const glm::dvec3 d = core::face_uv_to_direction(tile.face, u, v);
 
                 const int i = py * tile.size.x + px;
                 out.x[i] = static_cast<float>(d.x);
@@ -124,15 +123,15 @@ public:
         if (col < 0 || col >= CROSS_COLS || row < 0 || row >= CROSS_ROWS)
             return "-";
 
-        const CubemapFace face = CROSS_LAYOUT[row][col];
-        if (face == FACE_UNKNOWN)
+        const core::CubemapFace face = CROSS_LAYOUT[row][col];
+        if (face == core::FACE_UNKNOWN)
             return "-";
 
         const double u = 2.0 * ((x % faceSize) + 0.5) / faceSize - 1.0;
         const double v = 1.0 - 2.0 * ((y % faceSize) + 0.5) / faceSize;
 
         char buffer[64];
-        std::snprintf(buffer, sizeof(buffer), "%s  u=%.3f v=%.3f", face_name(face), u, v);
+        std::snprintf(buffer, sizeof(buffer), "%s  u=%.3f v=%.3f", core::face_name(face), u, v);
         return buffer;
     }
 
@@ -151,8 +150,8 @@ public:
 
         for (int row = 0; row < CROSS_ROWS; ++row) {
             for (int col = 0; col < CROSS_COLS; ++col) {
-                const CubemapFace face = CROSS_LAYOUT[row][col];
-                if (face == FACE_UNKNOWN)
+                const core::CubemapFace face = CROSS_LAYOUT[row][col];
+                if (face == core::FACE_UNKNOWN)
                     continue;
 
                 const double x0 = col * faceSize;
@@ -167,7 +166,7 @@ public:
                 std::snprintf(id, sizeof(id), "##faceBorder%d", face);
                 ImPlot::PlotLine(id, bx, by, 5);
 
-                ImPlot::PlotText(face_name(face), x0 + faceSize * 0.5, y0 + faceSize * 0.5);
+                ImPlot::PlotText(core::face_name(face), x0 + faceSize * 0.5, y0 + faceSize * 0.5);
             }
         }
     }
@@ -176,22 +175,23 @@ public:
 static const EquirectangularProjection EQUIRECT;
 static const CubeCrossProjection CUBE_CROSS;
 
-const PlanetLayerProjectionMapping& vp::equirectangular_projection() {
+const PlanetLayerProjectionMapping& equirectangular_projection() {
     return EQUIRECT;
 }
 
-const PlanetLayerProjectionMapping& vp::cube_cross_projection() {
+const PlanetLayerProjectionMapping& cube_cross_projection() {
     return CUBE_CROSS;
 }
 
 static const PlanetLayerProjectionMapping* PROJECTIONS[] = {&EQUIRECT, &CUBE_CROSS};
 
-int vp::projection_count() {
+int projection_count() {
     return 2;
 }
 
-const PlanetLayerProjectionMapping* vp::projection_at(int index) {
+const PlanetLayerProjectionMapping* projection_at(int index) {
     if (index < 0 || index >= projection_count())
         return nullptr;
     return PROJECTIONS[index];
 }
+} // namespace vp::client

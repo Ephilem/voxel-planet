@@ -43,48 +43,48 @@ vec3 level_color(uint level) {
     return COLORS[min(level, 7u)];
 }
 
-void main() {
-    vec2 cell = floor(inGridUV * 8.0);
-    float checker = mod(cell.x + cell.y, 2.0);
-
-    float h = clamp(inHeight / 4000.0 * 0.5 + 0.5, 0.0, 1.0);
-
-    float shade = mix(0.35, 1.25, h);
-
-    vec3 base = inHeight < 0.0
-        ? vec3(0.10, 0.25, 0.55)
-        : level_color(inLevel);
-
-    vec3 color = base * mix(0.55, 1.0, checker) * shade;
-
-
-    if (inDistance < pc.startFade) {
-        // in chunks
-        discard;
-    } else if (pc.startFade < inDistance && inDistance < pc.endFade) {
-        // transition
-        color *= (inDistance - pc.startFade) / (pc.endFade - pc.startFade);
-    }
-
-    outColor = vec4(color, 1.0);
-}
 // void main() {
+//     vec2 cell = floor(inGridUV * 8.0);
+//     float checker = mod(cell.x + cell.y, 2.0);
+
+//     float h = clamp(inHeight / 4000.0 * 0.5 + 0.5, 0.0, 1.0);
+
+//     float shade = mix(0.35, 1.25, h);
+
+//     vec3 base = inHeight < 0.0
+//         ? vec3(0.10, 0.25, 0.55)
+//         : level_color(inLevel);
+
+//     vec3 color = base * mix(0.55, 1.0, checker) * shade;
+
+
 //     if (inDistance < pc.startFade) {
+//         // in chunks
 //         discard;
-//     }
-
-//     vec3 color;
-//     if (inHeight < SEA_LEVEL) {
-//         color = mix(DEEP_WATER, SHALLOW_WATER, inHeight / DEEP_DEPTH);
-//     } else if (inHeight < SNOW_HEIGHT) {
-//         color = mix(GRASS_LOW, GRASS_HIGH, inHeight / 1700.0);
-//     } else {
-//         color = vec3(0.92, 0.94, 0.97);
-//     }
-
-//     if (inDistance < pc.endFade) {
+//     } else if (pc.startFade < inDistance && inDistance < pc.endFade) {
+//         // transition
 //         color *= (inDistance - pc.startFade) / (pc.endFade - pc.startFade);
 //     }
 
 //     outColor = vec4(color, 1.0);
 // }
+void main() {
+    if (inDistance < pc.startFade) {
+        discard;
+    }
+
+    vec3 color;
+    if (inHeight < SEA_LEVEL) {
+        color = mix(DEEP_WATER, SHALLOW_WATER, inHeight / DEEP_DEPTH);
+    } else if (inHeight < SNOW_HEIGHT) {
+        color = mix(GRASS_LOW, GRASS_HIGH, inHeight / 1700.0);
+    } else {
+        color = vec3(0.92, 0.94, 0.97);
+    }
+
+    if (inDistance < pc.endFade) {
+        color *= (inDistance - pc.startFade) / (pc.endFade - pc.startFade);
+    }
+
+    outColor = vec4(color, 1.0);
+}

@@ -4,10 +4,9 @@
 #include <glm/glm.hpp>
 #include <vector>
 
-#include "../math/aabb.h"
-#include "utils/common/BaseModule.h"
+#include "core/ecs/BaseModule.h"
 
-namespace vp {
+namespace vp::core {
 
 struct DebugVertex {
     glm::vec3 position;
@@ -19,7 +18,7 @@ struct DebugDrawBuffer {
     std::vector<DebugVertex> points;
 };
 
-class DebugDrawModule : public utils::BaseModule<DebugDrawModule> {
+class DebugDrawModule : public BaseModule<DebugDrawModule> {
 public:
     DebugDrawModule(flecs::world& ecs) : BaseModule(ecs) { register_all(ecs); }
 
@@ -36,4 +35,4 @@ private:
     friend class BaseModule;
 };
 
-} // namespace vp
+} // namespace vp::core

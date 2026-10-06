@@ -7,6 +7,7 @@
 
 #include "renderer/Renderer.h"
 
+namespace vp::client {
 void DebugUIManager::tick(flecs::world& ecs) {
     render_menu_bar();
     render_panels(ecs);
@@ -23,11 +24,11 @@ void DebugUIManager::Register(flecs::world& ecs) {
         debugUI->tick(world);
     });
 
-    ecs.system<Renderer, InputActionState>("OpenDebugMenuBarSystem")
+    ecs.system<renderer::Renderer, platform::InputActionState>("OpenDebugMenuBarSystem")
         .kind(flecs::OnUpdate)
-        .each([debugUI](Renderer&, InputActionState& inputState) {
+        .each([debugUI](renderer::Renderer&, platform::InputActionState& inputState) {
             VOXEL_ZONE_N("DebugUISystem-HandleMenuBarToggle");
-            if (inputState.is_action_pressed(ActionInputType::DebugMenuBar)) {
+            if (inputState.is_action_pressed(platform::ActionInputType::DebugMenuBar)) {
                 debugUI->m_menuBarVisible = !debugUI->m_menuBarVisible;
             }
         });
@@ -67,3 +68,4 @@ void DebugUIManager::render_panels(flecs::world& ecs) {
         ImGui::End();
     }
 }
+} // namespace vp::client

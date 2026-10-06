@@ -1,15 +1,14 @@
 #pragma once
 
-#include <array>
+#include "client/debug/IDebugPanel.h"
+#include "client/render/planet/planet_rendering_components.h"
+#include "core/world/planet/planet_components.h"
+
 #include <flecs.h>
 #include <string>
 
-#include "client/debug/IDebugPanel.h"
-#include "client/world/planet/planet_client_components.h"
-#include "core/world/planet/planet_components.h"
-#include "renderer/world/planet/planet_rendering_components.h"
 
-namespace vp {
+namespace vp::client {
 /**
  * Select an planet, and show information and debug action for :
  * - Tiles Atlas
@@ -34,7 +33,7 @@ private:
     };
 
     // Planet selection
-    flecs::query<const Planet, const PlanetTileLodComp, const PlanetTileStreamComp> m_planetQuery;
+    flecs::query<const core::Planet, const PlanetTileLodComp, const PlanetTileStreamComp> m_planetQuery;
     PlanetRepresentation m_selectedPlanet = {};
 
     void select_planet(PlanetRepresentation planet);
@@ -44,4 +43,4 @@ private:
     void draw_generator();
     void draw_atlas(flecs::world& ecs);
 };
-} // namespace vp
+} // namespace vp::client

@@ -6,7 +6,7 @@
 #include <memory>
 #include <unordered_map>
 
-namespace vp {
+namespace vp::core {
 class PlanetSurfaceChunkStore {
 public:
     enum class ChunkChangeKind : uint8_t { Added, Removed, Updated };
@@ -53,4 +53,4 @@ private:
     mutable PlanetSurfaceChunkKey m_lastKey;
     mutable std::shared_ptr<PlanetSurfaceVoxelChunk> m_lastChunk;
 };
-} // namespace vp
+} // namespace vp::core

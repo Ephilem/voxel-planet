@@ -6,13 +6,12 @@
 #include <implot.h>
 
 #include "core/log/Logger.h"
-#include "core/TracyIntegration.h"
 #include "platform/PlatformState.h"
 #include "renderer/Renderer.h"
-#include "renderer/rendering_components.h"
 #include "renderer/TracyVulkanIntegration.h"
 #include "renderer/vulkan/VulkanBackend.h"
 
+namespace vp::renderer {
 ImGuiManager::~ImGuiManager() {
     LOG_DEBUG("ImGuiManager", "Destroying ImGuiManager...");
     shutdown();
@@ -144,4 +143,5 @@ void ImGuiManager::render(VkCommandBuffer commandBuffer) {
     vkCmdBeginRendering(commandBuffer, &renderingInfo);
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
     vkCmdEndRendering(commandBuffer);
+}
 }
