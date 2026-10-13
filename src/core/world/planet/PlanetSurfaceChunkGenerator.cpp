@@ -4,9 +4,23 @@
 
 #include "PlanetSurfaceChunkGenerator.h"
 
+#include "core/log/Logger.h"
+#include "core/resource/asset_id.h"
 #include "core/TracyIntegration.h"
+#include "core/world/planet/generator/PlanetTerrainSampler.h"
+#include "core/world/planet/planet_components.h"
 #include "core/world/planet/planet_transform.h"
 #include "core/world/planet/planet_types.h"
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <stop_token>
+#include <thread>
+#include <utility>
+#include <vector>
 
 namespace vp::core {
 

@@ -3,12 +3,19 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <limits>
 #include <random>
+#include <ratio>
 #include <string>
+#include <vector>
 
 #include "core/log/Logger.h"
+#include "core/world/planet/generator/PlanetTerrainSampler.h"
+#include "core/world/planet/planet_components.h"
+#include "imgui.h"
+#include "implot.h"
 #include "PlanetDebugLayer.h"
 #include "PlanetLayerProjectionMappings.h"
 #include "renderer/Renderer.h"

@@ -1,10 +1,14 @@
 #include "CoreModule.h"
 
+#include "core/resource/AssetRegistry.h"
+#include "core/resource/ResourceSystem.h"
 #include "debug/DebugDrawModule.h"
 #include "GameState.h"
 #include "main_components.h"
 #include "world/planet/PlanetModule.h"
 #include "world/spatial/SpatialModule.h"
+#include <memory>
+#include <utility>
 
 namespace vp::core {
     void CoreModule::register_components(flecs::world& ecs) {

@@ -1,13 +1,20 @@
 #include "PlanetTileRenderer.h"
 
 #include <algorithm>
+#include <cstdint>
+#include <memory>
+#include <vector>
 
+#include "client/render/planet/planet_rendering_components.h"
+#include "client/render/planet/planet_rendering_types.h"
 #include "client/render/render_settings.h"
 #include "core/log/Logger.h"
+#include "core/resource/resource_type.h"
 #include "core/TracyIntegration.h"
 #include "core/world/planet/planet_components.h"
 #include "core/world/planet/planet_transform.h"
 #include "core/world/spatial/spatial_components.h"
+#include "renderer/rendering_components.h"
 #include "renderer/TracyVulkanIntegration.h"
 #include "renderer/vulkan/VulkanBackend.h"
 

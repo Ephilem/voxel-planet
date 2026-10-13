@@ -2,7 +2,11 @@
 
 #include "core/TracyIntegration.h"
 #include "InputModuleState.h"
+#include "platform/inputs/input_state.h"
+#include "platform/inputs/InputStateManager.h"
 #include "platform/PlatformState.h"
+#include <memory>
+#include <stdexcept>
 
 namespace vp::platform {
 void InputModule::register_components(flecs::world& ecs) {

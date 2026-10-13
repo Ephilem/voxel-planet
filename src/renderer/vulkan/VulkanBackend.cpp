@@ -1,4 +1,7 @@
 #include "VulkanBackend.h"
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
 
 #define GLFW_INCLUDE_VULKAN
 

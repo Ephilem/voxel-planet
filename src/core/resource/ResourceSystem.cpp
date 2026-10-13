@@ -1,7 +1,13 @@
 #include "ResourceSystem.h"
 
+#include "core/resource/AssetRegistry.h"
+#include "core/resource/loaders/ResourceLoader.h"
+#include "core/resource/resource_type.h"
 #include "loaders/ImageLoader.h"
 #include "loaders/ShaderLoader.h"
+#include <memory>
+#include <string>
+#include <utility>
 
 namespace vp::core {
 ResourceSystem::ResourceSystem(AssetRegistry* assetRegistry) {

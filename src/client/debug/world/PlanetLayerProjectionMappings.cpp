@@ -8,8 +8,13 @@
 
 #include <cmath>
 #include <cstdio>
+#include <math.h>
+#include <string>
+#include <vector>
 
+#include "client/debug/world/PlanetDirectionField.h"
 #include "core/world/planet/planet_transform.h"
+#include "core/world/planet/planet_types.h"
 
 namespace vp::client {
 constexpr int CROSS_COLS = 4;

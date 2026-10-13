@@ -3,6 +3,9 @@
 #include "client/render/planet/planet_rendering_components.h"
 #include "client/render/planet/voxel/PlanetSurfaceChunkMesher.h"
 #include "client/render/planet/voxel/PlanetSurfaceChunkRenderer.h"
+#include "core/world/planet/PlanetSurfaceChunkStore.h"
+#include "imgui.h"
+#include <cstddef>
 
 namespace vp::client
 {

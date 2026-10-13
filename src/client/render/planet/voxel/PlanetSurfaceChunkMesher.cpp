@@ -1,9 +1,23 @@
 #include "PlanetSurfaceChunkMesher.h"
+#include "client/render/planet/planet_rendering_types.h"
+#include "client/render/planet/voxel/PlanetVoxelRenderTable.h"
+#include "client/render/planet/voxel/PlanetVoxelTextureManager.h"
+#include "concurrentqueue.h"
 #include "core/log/Logger.h"
 #include "core/TracyIntegration.h"
+#include "core/world/planet/planet_types.h"
 
 #include <algorithm>
+#include <array>
+#include <chrono>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <stop_token>
+#include <thread>
+#include <utility>
+#include <vector>
 
 namespace vp::client
 {

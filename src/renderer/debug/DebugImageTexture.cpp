@@ -1,10 +1,13 @@
 #include "DebugImageTexture.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <imgui_impl_vulkan.h>
 
 #include <utility>
 
 #include "core/log/Logger.h"
+#include "imgui.h"
 #include "renderer/vulkan/VulkanBackend.h"
 
 namespace vp::renderer {

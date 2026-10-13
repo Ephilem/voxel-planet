@@ -7,6 +7,9 @@
 #include "core/debug/DebugDraw.h"
 #include "spatial_components.h"
 #include "spatial_utils.h"
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
 
 namespace vp::core {
 void SpatialModule::register_components(flecs::world& ecs) {

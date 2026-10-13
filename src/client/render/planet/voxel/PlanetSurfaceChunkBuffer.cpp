@@ -1,9 +1,16 @@
 #include "PlanetSurfaceChunkBuffer.h"
 
 #include <algorithm>
+#include <cstdint>
+#include <iterator>
+#include <memory>
+#include <optional>
+#include <utility>
 
+#include "client/render/planet/planet_rendering_types.h"
 #include "core/log/Logger.h"
 #include "core/TracyIntegration.h"
+#include "core/world/planet/planet_types.h"
 
 namespace vp::client {
 

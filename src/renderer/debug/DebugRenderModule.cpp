@@ -1,14 +1,16 @@
 #include "DebugRenderModule.h"
 
 #include <imgui.h>
+#include <memory>
 
 #include "core/GameState.h"
 #include "core/TracyIntegration.h"
 #include "DebugDrawRenderer.h"
 #include "ImGuiManager.h"
 #include "platform/PlatformState.h"
-#include "renderer/Renderer.h"
 #include "renderer/render_phases.h"
+#include "renderer/Renderer.h"
+#include "renderer/rendering_components.h"
 #include "renderer/TracyVulkanIntegration.h"
 
 namespace vp::renderer {

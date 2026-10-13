@@ -1,6 +1,8 @@
 #include "DebugDraw.h"
 
+#include <cassert>
 #include <glm/gtc/constants.hpp>
+#include <vector>
 
 #include "DebugDrawModule.h"
 

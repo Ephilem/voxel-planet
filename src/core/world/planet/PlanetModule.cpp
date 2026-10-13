@@ -1,11 +1,20 @@
 #include "PlanetModule.h"
 
+#include "core/log/Logger.h"
+#include "core/resource/asset_id.h"
 #include "core/TracyIntegration.h"
+#include "core/world/planet/planet_types.h"
 #include "core/world/planet/PlanetSurfaceChunkGenerator.h"
 #include "core/world/spatial/spatial_components.h"
 #include "planet_components.h"
 #include "planet_transform.h"
 #include "PlanetSurfaceChunkStore.h"
+#include <cmath>
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <utility>
+#include <vector>
 
 namespace vp::core {
 void PlanetModule::register_components(flecs::world& ecs) {

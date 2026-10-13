@@ -1,10 +1,15 @@
 #include "PlanetTilesDebug.h"
 
 #include <cfloat>
+#include <cstdint>
 #include <format>
+#include <vector>
 
+#include "client/render/planet/planet_rendering_components.h"
 #include "client/render/planet/tile/PlanetTileAtlas.h"
 #include "client/render/planet/tile/PlanetTileRenderer.h"
+#include "core/world/planet/planet_components.h"
+#include "imgui.h"
 
 namespace vp::client
 {

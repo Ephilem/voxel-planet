@@ -6,10 +6,14 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <utility>
 
 #include "core/log/Logger.h"
 #include "core/TracyIntegration.h"
+#include "core/world/planet/planet_components.h"
+#include "FastNoise/FastNoise.h"
+#include "FastNoise/Generators/Simplex.h"
 
 namespace vp::core {
 constexpr float GAIN = 0.5f;

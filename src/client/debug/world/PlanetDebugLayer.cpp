@@ -3,6 +3,9 @@
 //
 
 #include "PlanetDebugLayer.h"
+#include "client/debug/world/PlanetDirectionField.h"
+#include "core/world/planet/generator/PlanetTerrainSampler.h"
+#include "implot.h"
 
 #include <iterator>
 

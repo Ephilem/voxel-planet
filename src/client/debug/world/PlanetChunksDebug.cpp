@@ -1,4 +1,7 @@
 #include "PlanetChunksDebug.h"
+#include "core/world/planet/planet_components.h"
+#include "imgui.h"
+#include <vector>
 
 namespace vp::client
 {

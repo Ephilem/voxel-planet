@@ -1,11 +1,14 @@
 #include "RendererModule.h"
 
+#include <memory>
 #include <nvrhi/utils.h>
+#include <stdexcept>
 
 #include "debug/DebugRenderModule.h"
 
-#include "Renderer.h"
 #include "render_phases.h"
+#include "Renderer.h"
+#include "renderer/rendering_components.h"
 #include "vulkan/VulkanBackend.h"
 
 #include "platform/events.h"

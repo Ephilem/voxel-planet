@@ -1,15 +1,21 @@
 #include "ImGuiManager.h"
 
+#include <cstdint>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_vulkan.h>
 #include <implot.h>
+#include <iterator>
+#include <stdexcept>
 
 #include "core/log/Logger.h"
+#include "GLFW/glfw3.h"
 #include "platform/PlatformState.h"
+#include "renderer/RenderConstants.h"
 #include "renderer/Renderer.h"
 #include "renderer/TracyVulkanIntegration.h"
 #include "renderer/vulkan/VulkanBackend.h"
+#include "VkBootstrap.h"
 
 namespace vp::renderer {
 ImGuiManager::~ImGuiManager() {

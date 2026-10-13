@@ -3,6 +3,9 @@
 //
 
 #include "PlanetSurfaceChunkStore.h"
+#include "core/world/planet/planet_types.h"
+#include <memory>
+#include <utility>
 
 namespace vp::core {
 void PlanetSurfaceChunkStore::store(const PlanetSurfaceChunkKey& key, std::shared_ptr<PlanetSurfaceVoxelChunk> chunk) {

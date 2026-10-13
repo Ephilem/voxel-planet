@@ -1,7 +1,14 @@
 #include "AssetRegistry.h"
 #include "core/log/Logger.h"
+#include "core/resource/asset_id.h"
+#include "core/resource/resource_type.h"
 
 #include <algorithm>
+#include <cctype>
+#include <cstddef>
+#include <filesystem>
+#include <optional>
+#include <string>
 
 namespace vp::core {
 void AssetRegistry::scan_assets(const std::filesystem::path& assetDir, const std::string& namespaceName) {

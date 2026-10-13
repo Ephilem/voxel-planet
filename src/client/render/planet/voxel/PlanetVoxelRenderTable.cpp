@@ -1,4 +1,9 @@
 #include "PlanetVoxelRenderTable.h"
+#include "client/render/planet/voxel/PlanetVoxelTextureManager.h"
+#include "core/log/Logger.h"
+#include "core/world/planet/planet_components.h"
+#include "core/world/planet/planet_types.h"
+#include <cstdint>
 
 namespace vp::client
 {

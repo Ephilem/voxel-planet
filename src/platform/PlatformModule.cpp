@@ -4,6 +4,7 @@
 #include "inputs/InputModule.h"
 #include "PlatformState.h"
 #include <GLFW/glfw3.h>
+#include <memory>
 
 #include "core/log/Logger.h"
 #include "core/TracyIntegration.h"

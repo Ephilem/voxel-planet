@@ -6,19 +6,32 @@
 
 #include "client/render/camera/camera3d_components.h"
 #include "client/render/planet/planet_rendering_components.h"
+#include "client/render/planet/tile/PlanetTileAtlas.h"
+#include "client/render/planet/tile/PlanetTileGenerator.h"
+#include "client/render/planet/tile/PlanetTileQuadtrees.h"
+#include "client/render/planet/voxel/PlanetVoxelRenderTable.h"
+#include "client/render/planet/voxel/PlanetVoxelTextureManager.h"
 #include "client/render/render_settings.h"
 #include "core/GameState.h"
+#include "core/log/Logger.h"
 #include "core/math/frustrum.h"
+#include "core/resource/asset_id.h"
 #include "core/TracyIntegration.h"
 #include "core/world/planet/planet_components.h"
+#include "core/world/planet/planet_types.h"
 #include "core/world/planet/PlanetSurfaceChunkGenerator.h"
 #include "core/world/planet/PlanetSurfaceChunkStore.h"
 #include "core/world/spatial/spatial_components.h"
-#include "renderer/Renderer.h"
 #include "renderer/render_phases.h"
+#include "renderer/Renderer.h"
 #include "renderer/rendering_components.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <unordered_set>
+#include <utility>
+#include <vector>
 
 namespace vp::client {
 void PlanetRenderModule::init_renderers(flecs::world& ecs) {

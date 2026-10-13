@@ -5,9 +5,12 @@
 #include "InputStateManager.h"
 
 #include "core/log/Logger.h"
+#include "GLFW/glfw3.h"
+#include "platform/inputs/input_state.h"
 #include "platform/inputs/InputModuleState.h"
 #include "platform/PlatformState.h"
 #include "platform/window/Window.h"
+#include <cstddef>
 
 namespace vp::platform {
 InputStateManager::InputStateManager() {

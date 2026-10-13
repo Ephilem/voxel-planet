@@ -1,9 +1,13 @@
 #include "Window.h"
 
+#include <cstdint>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 
 #include "core/log/Logger.h"
+#include "flecs.h"
+#include "GLFW/glfw3.h"
 #include "platform/events.h"
 #include "platform/inputs/input_state.h"
 #include "platform/PlatformState.h"

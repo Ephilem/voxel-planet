@@ -5,9 +5,20 @@
 #include "PlanetTileGenerator.h"
 
 #include <algorithm>
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <stop_token>
+#include <thread>
+#include <utility>
+#include <vector>
 
+#include "client/render/planet/planet_rendering_types.h"
+#include "concurrentqueue.h"
 #include "core/log/Logger.h"
 #include "core/TracyIntegration.h"
+#include "core/world/planet/generator/PlanetTerrainSampler.h"
+#include "core/world/planet/planet_components.h"
 #include "core/world/planet/planet_transform.h"
 
 namespace vp::client {

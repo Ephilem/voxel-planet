@@ -1,12 +1,17 @@
 #include "PlanetTileQuadtrees.h"
 
 #include <cmath>
+#include <cstdint>
 #include <limits>
+#include <vector>
 
+#include "client/render/planet/planet_rendering_types.h"
 #include "core/debug/DebugDraw.h"
+#include "core/math/aabb.h"
+#include "core/math/frustrum.h"
 #include "core/TracyIntegration.h"
 #include "core/world/planet/planet_transform.h"
-
+#include "core/world/planet/planet_types.h"
 
 namespace vp::client {
 /// Node extent in face coordinates, ie [-1,1] split 2^level times

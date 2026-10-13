@@ -1,6 +1,16 @@
 #include "PlanetSurfaceChunkRenderer.h"
+#include "client/render/planet/planet_rendering_types.h"
+#include "client/render/planet/voxel/PlanetSurfaceChunkBuffer.h"
+#include "client/render/render_settings.h"
+#include "core/resource/resource_type.h"
+#include "core/world/planet/planet_components.h"
 #include "core/world/planet/planet_transform.h"
+#include "core/world/planet/planet_types.h"
+#include "core/world/spatial/spatial_components.h"
+#include "renderer/rendering_components.h"
 #include "renderer/TracyVulkanIntegration.h"
+#include <memory>
+#include <span>
 
 namespace vp::client
 {

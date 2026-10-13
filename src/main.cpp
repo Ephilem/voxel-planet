@@ -4,8 +4,10 @@
 #include "core/TracyIntegration.h"
 #include "platform/PlatformModule.h"
 #include "renderer/RendererModule.h"
+#include <exception>
 #include <flecs.h>
 #include <iostream>
+#include <memory>
 
 #include "client/player/player_components.h"
 #include "client/render/camera/camera3d_components.h"

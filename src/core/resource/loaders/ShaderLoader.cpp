@@ -5,6 +5,14 @@
 #include "ShaderLoader.h"
 
 #include "core/log/Logger.h"
+#include "core/resource/resource_type.h"
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <utility>
 
 namespace vp::core {
 std::shared_ptr<ShaderResource> ShaderLoader::load_typed(const std::string& name) {

@@ -1,10 +1,13 @@
 #include "LogConsole.h"
 
 #include <chrono>
+#include <ctime>
 #include <imgui.h>
 #include <iomanip>
+#include <mutex>
 #include <sstream>
 
+#include "core/log/Logger.h"
 #include "core/TracyIntegration.h"
 
 namespace vp::client {

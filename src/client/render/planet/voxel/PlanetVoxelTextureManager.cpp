@@ -5,7 +5,15 @@
 #include "PlanetVoxelTextureManager.h"
 
 #include "core/log/Logger.h"
+#include "core/resource/asset_id.h"
+#include "core/resource/resource_type.h"
+#include "core/resource/ResourceSystem.h"
+#include <array>
+#include <cstdint>
+#include <exception>
+#include <memory>
 #include <nvrhi/vulkan.h>
+#include <span>
 
 namespace vp::client
 {

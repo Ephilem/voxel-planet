@@ -3,6 +3,11 @@
 //
 
 #include "ImageLoader.h"
+#include "core/resource/resource_type.h"
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <utility>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <cstring>

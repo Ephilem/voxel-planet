@@ -5,7 +5,10 @@
 #include "PlanetTileAtlas.h"
 
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
 
+#include "client/render/planet/planet_rendering_types.h"
 #include "core/log/Logger.h"
 
 namespace vp::client {

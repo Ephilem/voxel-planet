@@ -1,10 +1,15 @@
 #include "DebugDrawRenderer.h"
 
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
 
 #include "core/debug/DebugDraw.h"
 #include "core/debug/DebugDrawModule.h"
 #include "core/log/Logger.h"
+#include "core/resource/resource_type.h"
+#include "renderer/rendering_components.h"
 #include "renderer/vulkan/VulkanBackend.h"
 
 namespace vp::renderer {

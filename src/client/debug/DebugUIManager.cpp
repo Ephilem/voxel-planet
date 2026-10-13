@@ -1,9 +1,12 @@
 #include "DebugUIManager.h"
 
+#include "client/debug/IDebugPanel.h"
 #include "core/TracyIntegration.h"
 #include "imgui.h"
 #include "platform/inputs/input_state.h"
+#include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "renderer/Renderer.h"
 
