@@ -10,44 +10,44 @@ set(CMAKE_JOB_POOL_LINK link_pool)
 ######
 
 execute_process(
-    COMMAND git rev-parse --short=8 HEAD
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    OUTPUT_VARIABLE GIT_COMMIT_HASH
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    ERROR_QUIET
+        COMMAND git rev-parse --short=8 HEAD
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE GIT_COMMIT_HASH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
 )
 
 execute_process(
-    COMMAND git rev-parse --abbrev-ref HEAD
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    OUTPUT_VARIABLE GIT_BRANCH
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    ERROR_QUIET
+        COMMAND git rev-parse --abbrev-ref HEAD
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE GIT_BRANCH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
 )
 
 execute_process(
-    COMMAND git diff --quiet HEAD
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    RESULT_VARIABLE GIT_DIRTY
+        COMMAND git diff --quiet HEAD
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        RESULT_VARIABLE GIT_DIRTY
 )
 
-if(NOT DEFINED BUILD_NUMBER)
+if (NOT DEFINED BUILD_NUMBER)
     set(BUILD_NUMBER "0")
-endif()
+endif ()
 
-if(NOT GIT_COMMIT_HASH)
+if (NOT GIT_COMMIT_HASH)
     set(GIT_COMMIT_HASH "unknown")
-endif()
+endif ()
 
-if(NOT GIT_BRANCH)
+if (NOT GIT_BRANCH)
     set(GIT_BRANCH "unknown")
-endif()
+endif ()
 
-if(GIT_DIRTY)
+if (GIT_DIRTY)
     set(GIT_DIRTY_SUFFIX "-dirty")
-else()
+else ()
     set(GIT_DIRTY_SUFFIX "")
-endif()
+endif ()
 
 set(VOXELPLANET_VERSION_FULL "${PROJECT_VERSION}+build.${BUILD_NUMBER}.${GIT_COMMIT_HASH}${GIT_DIRTY_SUFFIX}")
 
@@ -59,9 +59,9 @@ message(STATUS "Git Branch: ${GIT_BRANCH}")
 add_compile_definitions(VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1)
 
 # Windows-specific: prevent min/max macros and reduce Windows.h bloat
-if(WIN32)
+if (WIN32)
     add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
-endif()
+endif ()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -75,22 +75,22 @@ option(ENABLE_IWYU "Enable include-what-you-use" OFF)
 # missing <span>/<vector>/... fails here instead of on MSVC. Used by the linux-strict preset.
 option(ENABLE_STRICT_INCLUDES "Remove libc++ transitive includes on project targets" OFF)
 
-if(ENABLE_IWYU)
+if (ENABLE_IWYU)
     find_program(IWYU_PATH NAMES include-what-you-use iwyu REQUIRED)
     set(CMAKE_CXX_INCLUDE_WHAT_YOU_USE "${IWYU_PATH};-Xiwyu;--no_fwd_decls")
-endif()
+endif ()
 
 
 set(ORIGINAL_FLAGS ${CMAKE_CXX_FLAGS})
 
-if(ENABLE_WARNINGS)
-    if(MSVC)
+if (ENABLE_WARNINGS)
+    if (MSVC)
         add_compile_options(/W4)
-    else()
+    else ()
         add_compile_options(-Wall -Wextra -Wpedantic)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -w")
-    endif()
-endif()
+    endif ()
+endif ()
 
 include(${CMAKE_SOURCE_DIR}/cmake/Dependencies.cmake)
 
@@ -103,18 +103,22 @@ add_subdirectory(src/renderer)
 add_subdirectory(src/client)
 
 # Link Tracy to renderer if enabled
-if(TRACY_FOUND)
+if (TRACY_FOUND)
     target_link_libraries(VoxelPlanetRenderer PUBLIC TracyClient)
     target_compile_definitions(VoxelPlanetRenderer PUBLIC TRACY_ENABLE)
 
     target_link_libraries(VoxelPlanetCore PUBLIC TracyClient)
     target_compile_definitions(VoxelPlanetCore PUBLIC TRACY_ENABLE)
-endif()
+endif ()
 
 add_executable(${PROJECT_NAME}
         src/main.cpp
         src/vulkan_dispatcher.cpp
 )
+
+# Keep the exe next to the compiled shaders (${CMAKE_BINARY_DIR}/assets/shaders) on every generator
+set_target_properties(${PROJECT_NAME} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "$<1:${CMAKE_BINARY_DIR}>")
 
 target_include_directories(${PROJECT_NAME} PRIVATE
         ${CMAKE_SOURCE_DIR}/src
@@ -138,9 +142,9 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         stb
 )
 
-if(TRACY_FOUND)
+if (TRACY_FOUND)
     target_compile_definitions(${PROJECT_NAME} PRIVATE TRACY_ENABLE)
-endif()
+endif ()
 
 # Version definitions accessible in C++ code
 target_compile_definitions(${PROJECT_NAME} PRIVATE
@@ -155,11 +159,11 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
         VOXELPLANET_GIT_BRANCH="${GIT_BRANCH}"
 )
 
-if(ENABLE_STRICT_INCLUDES)
-    foreach(_t VoxelPlanetCore VoxelPlanetPlatform VoxelPlanetRenderer VoxelPlanetClient ${PROJECT_NAME})
+if (ENABLE_STRICT_INCLUDES)
+    foreach (_t VoxelPlanetCore VoxelPlanetPlatform VoxelPlanetRenderer VoxelPlanetClient ${PROJECT_NAME})
         target_compile_definitions(${_t} PRIVATE _LIBCPP_REMOVE_TRANSITIVE_INCLUDES)
-    endforeach()
-endif()
+    endforeach ()
+endif ()
 
 file(GLOB_RECURSE SHADER_SOURCES
         CONFIGURE_DEPENDS
@@ -184,36 +188,36 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 )
 
 
-foreach(SHADER ${SHADER_SOURCES})
+foreach (SHADER ${SHADER_SOURCES})
     get_filename_component(SHADER_NAME ${SHADER} NAME)
     get_filename_component(SHADER_EXT ${SHADER} LAST_EXT)
     set(SHADER_OUTPUT "${CMAKE_BINARY_DIR}/assets/shaders/${SHADER_NAME}.spv")
 
-    if(SHADER_EXT STREQUAL ".vert")
+    if (SHADER_EXT STREQUAL ".vert")
         set(SHADER_STAGE "vert")
-    elseif(SHADER_EXT STREQUAL ".frag")
+    elseif (SHADER_EXT STREQUAL ".frag")
         set(SHADER_STAGE "frag")
-    elseif(SHADER_EXT STREQUAL ".comp")
+    elseif (SHADER_EXT STREQUAL ".comp")
         set(SHADER_STAGE "comp")
-    else()
+    else ()
         message(FATAL_ERROR "Unknown shader extension: ${SHADER_EXT}")
-    endif()
+    endif ()
 
     add_custom_command(
             OUTPUT ${SHADER_OUTPUT}
-            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/shaders"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/assets/shaders"
             COMMAND Vulkan::glslc
-                --target-env=vulkan1.1
-                --target-spv=spv1.3
-                -fshader-stage=${SHADER_STAGE}
-                -g
-                ${SHADER} -o ${SHADER_OUTPUT}
+            --target-env=vulkan1.1
+            --target-spv=spv1.3
+            -fshader-stage=${SHADER_STAGE}
+            -g
+            ${SHADER} -o ${SHADER_OUTPUT}
             DEPENDS ${SHADER} ${SHADER_INCLUDES}
             COMMENT "Compiling shader ${SHADER_NAME}"
     )
 
     list(APPEND SHADER_OUTPUTS ${SHADER_OUTPUT})
-endforeach()
+endforeach ()
 
 add_custom_target(shaders ALL DEPENDS ${SHADER_OUTPUTS})
 add_dependencies(${PROJECT_NAME} shaders)
