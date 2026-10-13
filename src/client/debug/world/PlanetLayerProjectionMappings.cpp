@@ -4,17 +4,16 @@
 
 #include "PlanetLayerProjectionMappings.h"
 
+#include <cmath>
 #include <implot.h>
 
-#include <cmath>
-#include <cstdio>
-#include <math.h>
 #include <string>
 #include <vector>
 
 #include "client/debug/world/PlanetDirectionField.h"
 #include "core/world/planet/planet_transform.h"
 #include "core/world/planet/planet_types.h"
+#include "glm/ext/scalar_constants.hpp"
 
 namespace vp::client {
 constexpr int CROSS_COLS = 4;
@@ -40,12 +39,12 @@ public:
         out.resize(tile.size.x, tile.size.y);
 
         for (int py = 0; py < tile.size.y; ++py) {
-            const double lat = (0.5 - (py + 0.5) / tile.size.y) * M_PI;
+            const double lat = (0.5 - (py + 0.5) / tile.size.y) * glm::pi<double>();
             const double cosLat = std::cos(lat);
             const double sinLat = std::sin(lat);
 
             for (int px = 0; px < tile.size.x; ++px) {
-                const double lon = ((px + 0.5) / tile.size.x - 0.5) * 2.0 * M_PI;
+                const double lon = ((px + 0.5) / tile.size.x - 0.5) * 2.0 * glm::pi<double>();
 
                 const int i = py * tile.size.x + px;
                 out.x[i] = static_cast<float>(cosLat * std::cos(lon));

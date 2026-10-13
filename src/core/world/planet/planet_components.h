@@ -1,9 +1,9 @@
 #pragma once
 
-#include <cstdint>
 #include <unordered_map>
 
-#include <glm/gtc/quaternion.hpp>
+#include <span>
+#include <glm/ext/quaternion_float.hpp>
 
 #include "core/log/Logger.h"
 #include "core/resource/asset_id.h"
@@ -40,7 +40,7 @@ struct PlanetChunkLoader {
  * Align the entity body on the local up of the planet it is in (the entity must be a child of the planet grid)
  */
 struct SurfaceAligned {
-    glm::quat frame{1.0f, 0.f, 0.f, 0.f}; // tangent frame, frame * Y = local up
+    glm::quat frame{1.0F, 0.F, 0.F, 0.F}; // tangent frame, frame * Y = local up
 };
 
 struct PlanetVoxelRegistry {

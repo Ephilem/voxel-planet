@@ -2,10 +2,10 @@ name: Build
 
 on:
   push:
-    branches: [main, develop, "ci/**"]
-    tags: ["v*"]
+    branches: [ main, develop, "ci/**" ]
+    tags: [ "v*" ]
   pull_request:
-    branches: [main, develop]
+    branches: [ main, develop ]
 
 env:
   BUILD_TYPE: Release
@@ -59,9 +59,19 @@ jobs:
           echo "$HOME/vulkan-sdk/${{ env.VULKAN_SDK_VERSION }}/x86_64/bin" >> $GITHUB_PATH
           echo "LD_LIBRARY_PATH=$HOME/vulkan-sdk/${{ env.VULKAN_SDK_VERSION }}/x86_64/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV
 
+      - name: Cache FetchContent dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            .deps
+            !.deps/*-build
+          key: deps-${{ runner.os }}-${{ hashFiles('cmake/Dependencies.cmake') }}
+          restore-keys: deps-${{ runner.os }}-
+
       - name: Configure CMake
         run: |
           cmake -B build -G Ninja \
+            -DFETCHCONTENT_BASE_DIR="${{ github.workspace }}/.deps" \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             -DBUILD_NUMBER=${{ github.run_number }} \
             -DENABLE_TRACY=OFF
@@ -117,9 +127,19 @@ jobs:
           echo "VULKAN_SDK=C:\VulkanSDK\${ver}" >> $env:GITHUB_ENV
           echo "C:\VulkanSDK\${ver}\Bin" >> $env:GITHUB_PATH
 
+      - name: Cache FetchContent dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            .deps
+            !.deps/*-build
+          key: deps-${{ runner.os }}-${{ hashFiles('cmake/Dependencies.cmake') }}
+          restore-keys: deps-${{ runner.os }}-
+
       - name: Configure CMake
         run: |
           cmake -B build `
+            -DFETCHCONTENT_BASE_DIR="${{ github.workspace }}/.deps" `
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
             -DBUILD_NUMBER=${{ github.run_number }} `
             -DENABLE_TRACY=OFF
@@ -141,10 +161,9 @@ jobs:
           path: artifact/
           retention-days: 30
 
-  # Release job - only runs on version tags
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-linux, build-windows]
+    needs: [ build-linux, build-windows ]
     runs-on: ubuntu-latest
     permissions:
       contents: write
